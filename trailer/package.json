@@ -1,0 +1,19 @@
+{
+  "name": "trailer",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "harfbuzzjs": "^0.4.7"
+  },
+  "devDependencies": {
+    "playwright": "^1.56.1"
+  },
+  "type": "module"
+}
