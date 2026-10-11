@@ -1,0 +1,223 @@
+/**
+ * Mese — continuous vertical scroller of months (newest first). Each month:
+ * exact session count, active days, recorded hours with completeness, a
+ * ridgeline, and an expandable mini calendar whose marked days reveal their
+ * sessions. Empty months are shown, never skipped.
+ */
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { FlatList, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
+import Animated, { FadeIn, LinearTransition } from 'react-native-reanimated';
+import { router } from 'expo-router';
+import type { Category, LocalDate, Session } from '@/domain/types';
+import type { MonthGroup } from '@/domain/history';
+import { monthIndex } from '@/domain/history';
+import { formatDate, monthWeeks, parseDate } from '@/domain/dates';
+import { surfaces, palette, HIT, space } from '@/ui/theme';
+import { T } from '@/ui/T';
+import { Chevron } from '@/ui/glyphs';
+import { WEEKDAYS_INITIAL, t } from '@/i18n/it';
+import { Ridgeline } from './Ridgeline';
+import { countsLine, dateLabel, durationLine, monthTitle, timingSummary } from './format';
+
+const C = surfaces.calm;
+
+interface Props {
+  groups: MonthGroup[];
+  categories: Category[];
+  /** color per category id (for "all activities") */
+  accent: string;
+  focus: { key: string; nonce: number } | null;
+  highlight: { key: string; days: number[] } | null;
+  header: React.ReactElement;
+  showActivity: boolean;
+}
+
+export function MonthMode({ groups, categories, accent, focus, highlight, header, showActivity }: Props) {
+  const list = useRef<FlatList<MonthGroup>>(null);
+  const [open, setOpen] = useState<Record<string, boolean>>({});
+  const toggle = useCallback((key: string) => setOpen((o) => ({ ...o, [key]: !o[key] })), []);
+
+  useEffect(() => {
+    if (!focus) return;
+    const i = monthIndex(groups, { y: +focus.key.slice(0, 4), m: +focus.key.slice(5, 7) });
+    if (i >= 0) {
+      // a navigation request (Vai a… / year drill-down) opens that month and scrolls to it
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setOpen((o) => ({ ...o, [focus.key]: true }));
+      setTimeout(() => list.current?.scrollToIndex({ index: i, animated: true, viewOffset: 8 }), 60);
+    }
+  }, [focus?.nonce]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const catById = useMemo(() => new Map(categories.map((c) => [c.id, c])), [categories]);
+
+  return (
+    <FlatList
+      ref={list}
+      data={groups}
+      keyExtractor={(g) => g.key}
+      ListHeaderComponent={header}
+      renderItem={({ item }) => (
+        <MonthRow g={item} open={!!open[item.key]} onToggle={toggle} accent={accent} highlight={highlight?.key === item.key ? highlight.days : undefined} catById={catById} showActivity={showActivity} />
+      )}
+      initialNumToRender={6}
+      windowSize={9}
+      onScrollToIndexFailed={(e) => {
+        list.current?.scrollToOffset({ offset: e.averageItemLength * e.index, animated: false });
+        setTimeout(() => list.current?.scrollToIndex({ index: e.index, animated: true }), 80);
+      }}
+      contentContainerStyle={{ paddingBottom: 80 }}
+      testID="month-list"
+    />
+  );
+}
+
+const MonthRow = memo(function MonthRow({ g, open, onToggle, accent, highlight, catById, showActivity }: { g: MonthGroup; open: boolean; onToggle: (k: string) => void; accent: string; highlight?: number[]; catById: Map<string, Category>; showActivity: boolean }) {
+  const { width } = useWindowDimensions();
+  const [day, setDay] = useState<LocalDate | null>(null);
+  const empty = g.summary.sessions === 0;
+  const dur = durationLine(g.summary.duration);
+  return (
+    <Animated.View layout={LinearTransition.duration(260)} style={styles.month}>
+      <Pressable
+        onPress={() => onToggle(g.key)}
+        accessibilityRole="button"
+        accessibilityLabel={`${monthTitle(g.month.y, g.month.m)}: ${countsLine(g.summary)}${dur ? `. ${dur}` : ''}. ${t.monthCalendarToggle(open)}`}
+        aria-expanded={open}
+        testID={`month-${g.key}`}
+      >
+        <View style={styles.monthHead}>
+          <T variant="heading" color={empty ? C.mute : C.fg}>
+            {monthTitle(g.month.y, g.month.m)}
+          </T>
+          <View style={styles.count}>
+            <T variant="heading" color={empty ? C.mute : C.fg} style={{ fontVariant: ['tabular-nums'] }}>
+              {g.summary.sessions}
+            </T>
+            <T variant="label" color={C.mute}>
+              {g.summary.sessions === 1 ? 'sessione' : 'sessioni'}
+            </T>
+          </View>
+        </View>
+        <Ridgeline width={width - 2 * space.gutter} height={44} perDay={g.perDay} color={accent} ink={empty ? C.faint : C.line} highlight={highlight} />
+        <View style={styles.monthMeta}>
+          <View style={{ flex: 1, gap: 2 }}>
+            {!empty ? (
+              <T variant="data" color={C.mute}>
+                {t.activeDays(g.summary.activeDays)}
+              </T>
+            ) : null}
+            <T variant="data" color={C.mute}>
+              {empty ? t.emptyMonth : dur}
+            </T>
+          </View>
+          <Chevron dir={open ? 'up' : 'down'} color={C.mute} size={7} />
+        </View>
+      </Pressable>
+      {open ? (
+        <Animated.View entering={FadeIn.duration(200)}>
+          <MiniCalendar g={g} accent={accent} selected={day} onSelect={(d) => setDay(d === day ? null : d)} />
+          {day ? <DaySessions date={day} sessions={g.sessions.filter((s) => s.date === day)} catById={catById} showActivity={showActivity} /> : null}
+        </Animated.View>
+      ) : null}
+    </Animated.View>
+  );
+});
+
+function MiniCalendar({ g, accent, selected, onSelect }: { g: MonthGroup; accent: string; selected: LocalDate | null; onSelect: (d: LocalDate) => void }) {
+  const weeks = monthWeeks(g.month);
+  return (
+    <View style={styles.mini} accessibilityLabel={`Calendario di ${monthTitle(g.month.y, g.month.m)}`}>
+      <View style={styles.miniRow}>
+        {WEEKDAYS_INITIAL.map((d, i) => (
+          <View key={i} style={styles.miniCell}>
+            <T variant="label" color={C.mute}>
+              {d}
+            </T>
+          </View>
+        ))}
+      </View>
+      {weeks.map((wk, r) => (
+        <View key={r} style={styles.miniRow}>
+          {wk.map((d) => {
+            const p = parseDate(d);
+            const inMonth = p.m === g.month.m && p.y === g.month.y;
+            const n = inMonth ? g.perDay[p.d] : 0;
+            const sel = selected === d;
+            if (!inMonth) return <View key={d} style={styles.miniCell} />;
+            return (
+              <Pressable
+                key={d}
+                style={styles.miniCell}
+                disabled={!n}
+                onPress={() => onSelect(d)}
+                accessibilityRole="button"
+                accessibilityLabel={`${dateLabel(d)}${n ? `: ${t.sessions(n)}` : ''}`}
+                aria-selected={sel} aria-disabled={!n}
+                testID={`mini-${d}`}
+              >
+                <T variant={n ? 'dataStrong' : 'data'} color={n ? C.fg : C.mute} style={sel ? { textDecorationLine: 'underline' } : undefined}>
+                  {p.d}
+                </T>
+                <View style={styles.marks}>
+                  {Array.from({ length: Math.min(n, 3) }).map((_, k) => (
+                    <View key={k} style={[styles.mark, { backgroundColor: accent }]} />
+                  ))}
+                  {n > 3 ? (
+                    <T variant="label" color={C.mute} style={{ fontSize: 8 }}>
+                      +{n - 3}
+                    </T>
+                  ) : null}
+                </View>
+              </Pressable>
+            );
+          })}
+        </View>
+      ))}
+    </View>
+  );
+}
+
+function DaySessions({ date, sessions, catById, showActivity }: { date: LocalDate; sessions: Session[]; catById: Map<string, Category>; showActivity: boolean }) {
+  return (
+    <View style={styles.day}>
+      <T variant="label" color={C.mute}>
+        {t.sessionsOnDay(dateLabel(date))}
+      </T>
+      {sessions.map((s, i) => {
+        const c = catById.get(s.categoryId);
+        const detail = [timingSummary(s), s.place?.label ?? s.place?.address ?? null, s.notes ? `“${s.notes.slice(0, 60)}${s.notes.length > 60 ? '…' : ''}”` : null].filter(Boolean).join('\n');
+        return (
+          <Pressable key={s.id} onPress={() => router.push(`/session/${s.id}`)} accessibilityRole="button" accessibilityLabel={`${showActivity && c ? c.name + ', ' : ''}sessione ${i + 1}: ${detail.replace(/\n/g, ', ')}. Apri dettagli`} style={styles.dayRow} testID={`session-${s.id}`}>
+            <View style={[styles.dayDot, { backgroundColor: c?.color ?? palette.flareDeep }]} />
+            <View style={{ flex: 1, gap: 2 }}>
+              <T variant="bodyStrong" color={C.fg}>
+                {showActivity && c ? c.name : `Sessione ${i + 1}`}
+              </T>
+              <T variant="small" color={C.mute}>
+                {detail}
+              </T>
+            </View>
+            <Chevron dir="right" color={C.mute} size={7} />
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  month: { paddingHorizontal: space.gutter, paddingTop: 22, paddingBottom: 14, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: C.faint },
+  monthHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 6 },
+  count: { alignItems: 'flex-end' },
+  monthMeta: { flexDirection: 'row', alignItems: 'center', marginTop: 8, gap: 8 },
+  mini: { marginTop: 14, gap: 2 },
+  miniRow: { flexDirection: 'row' },
+  miniCell: { flex: 1, minHeight: HIT, alignItems: 'center', justifyContent: 'center' },
+  marks: { flexDirection: 'row', gap: 2, height: 6, alignItems: 'center', marginTop: 2 },
+  mark: { width: 4, height: 4, borderRadius: 2 },
+  day: { marginTop: 12, gap: 4 },
+  dayRow: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 56, paddingVertical: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: C.faint },
+  dayDot: { width: 8, height: 8, borderRadius: 4 },
+});
+
+export { formatDate };

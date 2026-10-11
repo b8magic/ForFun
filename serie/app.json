@@ -1,0 +1,83 @@
+{
+  "expo": {
+    "name": "Serie",
+    "slug": "serie",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "app.serie.ios",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#0C0B09",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro",
+      "output": "single"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#0C0B09",
+          "dark": {
+            "image": "./assets/splash-icon.png",
+            "backgroundColor": "#0C0B09"
+          }
+        }
+      ],
+      "expo-sqlite",
+      "expo-localization",
+      "expo-web-browser",
+      "expo-secure-store",
+      "expo-maps",
+      "@react-native-community/datetimepicker",
+      [
+        "expo-font",
+        {
+          "fonts": [
+            "./assets/fonts/SerieDisplay-Black.ttf",
+            "./assets/fonts/SerieDisplay-Condensed.ttf",
+            "./assets/fonts/SerieDisplay-CondensedMedium.ttf",
+            "./assets/fonts/SerieDisplay-Narrow.ttf",
+            "./assets/fonts/SerieDisplay-Wide.ttf",
+            "./assets/fonts/SerieMono-Medium.ttf",
+            "./assets/fonts/SerieMono-Regular.ttf",
+            "./assets/fonts/SerieText-Bold.ttf",
+            "./assets/fonts/SerieText-Light.ttf",
+            "./assets/fonts/SerieText-Medium.ttf",
+            "./assets/fonts/SerieText-Regular.ttf"
+          ]
+        }
+      ],
+      [
+        "expo-calendar",
+        {
+          "calendarPermission": "Serie legge i calendari che scegli per importare le sessioni e controllare i doppioni prima di esportare. Scrive solo gli eventi che confermi.",
+          "remindersPermission": false
+        }
+      ]
+    ],
+    "scheme": "serie",
+    "backgroundColor": "#0C0B09",
+    "experiments": {
+      "typedRoutes": false
+    }
+  }
+}
