@@ -10,15 +10,23 @@ name: 03 calendari di iPhone, esportazione
     timeout: 60000
 - tapOn:
     id: menu
+    waitToSettleTimeoutMs: 1500
 - tapOn:
     id: menu-calendars
+    waitToSettleTimeoutMs: 1500
 - extendedWaitUntil:
     visible:
       id: calendar-hub
     timeout: 10000
 - takeScreenshot: 20-calendar-hub
-- tapOn:
-    id: connect-apple
+# Collega only shows while not connected (the test run pre-grants calendar access)
+- runFlow:
+    when:
+      visible:
+        id: connect-apple
+    commands:
+      - tapOn:
+          id: connect-apple
 # only if the permission was not pre-granted
 - runFlow:
     when:
@@ -27,8 +35,10 @@ name: 03 calendari di iPhone, esportazione
       - tapOn: "Allow Full Access"
 - extendedWaitUntil:
     visible:
-      text: "lettura e scrittura"
+      id: conn-apple
+      text: "Collegato"
     timeout: 15000
+- assertVisible: "(?i)lettura e scrittura"
 - takeScreenshot: 21-calendar-connected
 - scrollUntilVisible:
     element:
@@ -36,27 +46,32 @@ name: 03 calendari di iPhone, esportazione
     direction: DOWN
 - tapOn:
     id: go-export
+    waitToSettleTimeoutMs: 1500
 - extendedWaitUntil:
     visible:
       id: export-next-1
     timeout: 10000
 - tapOn:
     id: export-next-1
+    waitToSettleTimeoutMs: 1500
 - extendedWaitUntil:
     visible:
       text: ".*\\(principale\\).*"
     timeout: 15000
 - tapOn:
     text: ".*\\(principale\\).*"
+    waitToSettleTimeoutMs: 1500
 - takeScreenshot: 22-export-destination
 - tapOn:
     id: export-next-2
+    waitToSettleTimeoutMs: 1500
 - extendedWaitUntil:
     visible:
       id: export-next-3
     timeout: 10000
 - tapOn:
     id: export-next-3
+    waitToSettleTimeoutMs: 1500
 - extendedWaitUntil:
     visible:
       id: export-confirm
@@ -64,6 +79,7 @@ name: 03 calendari di iPhone, esportazione
 - takeScreenshot: 23-export-review
 - tapOn:
     id: export-confirm
+    waitToSettleTimeoutMs: 1500
 - extendedWaitUntil:
     visible:
       id: export-finish
@@ -72,3 +88,4 @@ name: 03 calendari di iPhone, esportazione
 - takeScreenshot: 24-export-done
 - tapOn:
     id: export-finish
+    waitToSettleTimeoutMs: 1500

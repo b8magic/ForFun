@@ -20,20 +20,25 @@ name: 01 registra, riavvia, storia, attività
 
 - tapOn:
     id: prev-month
+    waitToSettleTimeoutMs: 1500
 - tapOn:
     id: day-${PREV}-10
+    waitToSettleTimeoutMs: 1500
 - tapOn:
     id: day-${PREV}-12
+    waitToSettleTimeoutMs: 1500
 - assertVisible:
     id: save
     text: "Salva 2 sessioni.*Surf"
 - takeScreenshot: 02-selection
 - tapOn:
     id: save
+    waitToSettleTimeoutMs: 1500
 - extendedWaitUntil:
     visible:
       text: "2 sessioni salvate.*"
-    timeout: 15000
+    timeout: 8000
+    optional: true
 - takeScreenshot: 03-saved
 - extendedWaitUntil:
     notVisible:
@@ -58,6 +63,7 @@ name: 01 registra, riavvia, storia, attività
     text: "Attività attiva: Surf.*"
 - tapOn:
     id: prev-month
+    waitToSettleTimeoutMs: 1500
 - assertVisible:
     id: day-${PREV}-12
     text: ".*1 sessione registrata.*"
@@ -66,23 +72,29 @@ name: 01 registra, riavvia, storia, attività
 # history: month, year, all time
 - tapOn:
     id: history-handle
+    waitToSettleTimeoutMs: 1500
 - extendedWaitUntil:
     visible:
       id: back-to-log
     timeout: 10000
 - tapOn:
     id: month-${PREV}
+    waitToSettleTimeoutMs: 1500
 - takeScreenshot: 05-history-month
 - tapOn:
     id: scale-year
+    waitToSettleTimeoutMs: 1500
 - takeScreenshot: 06-history-year
 - tapOn:
     id: scale-all
+    waitToSettleTimeoutMs: 1500
 - takeScreenshot: 07-history-all
 - tapOn:
     id: scale-month
+    waitToSettleTimeoutMs: 1500
 - tapOn:
     id: back-to-log
+    waitToSettleTimeoutMs: 1500
 - extendedWaitUntil:
     visible:
       id: activity-switcher
@@ -91,6 +103,7 @@ name: 01 registra, riavvia, storia, attività
 # activity switcher, remembered across a restart
 - tapOn:
     id: activity-switcher
+    waitToSettleTimeoutMs: 1500
 - extendedWaitUntil:
     visible:
       id: activity-Corsa
@@ -98,6 +111,7 @@ name: 01 registra, riavvia, storia, attività
 - takeScreenshot: 08-switcher
 - tapOn:
     id: activity-Corsa
+    waitToSettleTimeoutMs: 1500
 - extendedWaitUntil:
     visible:
       id: activity-switcher

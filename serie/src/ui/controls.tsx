@@ -4,7 +4,7 @@
  * with the film's primitives: hairlines, mono labels, flare for the one
  * primary action, and ≥44 pt touch targets.
  */
-import { type ReactNode, useState } from 'react';
+import { createContext, type ReactNode, useContext, useState } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, Switch, TextInput, View, type TextInputProps, type ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -17,6 +17,29 @@ const S = surfaces.night;
 // react-native-web colours the active thumb separately (teal by default)
 const WEB_SWITCH = (Platform.OS === 'web' ? { activeThumbColor: palette.foam } : {}) as object;
 
+/**
+ * Space the sheet's header and footer cover, for bodies that scroll themselves
+ * (`<Sheet scroll={false}>`): pad the scroll content by these, never the frame.
+ */
+const SheetInsets = createContext({ top: 0, bottom: 0 });
+export const useSheetInsets = () => useContext(SheetInsets);
+/** The same insets for a list rendered by the sheet's own parent component. */
+export function WithSheetInsets({ children }: { children: (pads: { top: number; bottom: number }) => ReactNode }) {
+  return children(useSheetInsets());
+}
+
+// first-frame guess (eyebrow + one-line heading); replaced by the measured height
+const HEAD_GUESS = 92;
+
+/**
+ * Header and footer are opaque overlays and the body fills the whole sheet,
+ * with its content padded by their measured heights. On iOS form sheets,
+ * react-native-screens (Fabric) places a descendant ScrollView at the sheet's
+ * origin with the sheet's size, whatever the flex layout says: with a header
+ * above it in a column, the content slid under the header and the footer
+ * (seen on the iOS Simulator). Filling the sheet on purpose makes that frame
+ * correction a no-op, on every platform.
+ */
 export function Sheet({
   title,
   eyebrow,
@@ -38,33 +61,50 @@ export function Sheet({
   testID?: string;
 }) {
   const insets = useSafeAreaInsets();
+  const [headH, setHeadH] = useState(HEAD_GUESS);
+  const [footH, setFootH] = useState(0);
   const close = onClose ?? (() => (router.canGoBack() ? router.back() : router.replace('/')));
-  const body = <View style={[{ paddingHorizontal: space.gutter, paddingBottom: 32, gap: 22 }, !scroll && { flex: 1, paddingBottom: 0 }]}>{children}</View>;
+  const bottomInset = Math.max(insets.bottom, 12);
+  const pads = { top: headH, bottom: footer ? footH : bottomInset };
   return (
-    <View style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, 12) }]} testID={testID}>
-      <View style={styles.sheetHead}>
-        <View style={{ flex: 1, gap: 4 }}>
-          {eyebrow ? (
-            <T variant="label" color={S.mute}>
-              {eyebrow}
+    <View style={styles.sheet} testID={testID}>
+      <SheetInsets.Provider value={pads}>
+        {/* first in the tree for VoiceOver; zIndex keeps it above the body */}
+        <View style={[styles.sheetHead, styles.overlay, { top: 0 }]} onLayout={(e) => setHeadH(Math.round(e.nativeEvent.layout.height))}>
+          <View style={{ flex: 1, gap: 4 }}>
+            {eyebrow ? (
+              <T variant="label" color={S.mute}>
+                {eyebrow}
+              </T>
+            ) : null}
+            <T variant="heading" color={S.fg} accessibilityRole="header">
+              {title}
             </T>
-          ) : null}
-          <T variant="heading" color={S.fg} accessibilityRole="header">
-            {title}
-          </T>
+          </View>
+          <Pressable onPress={close} accessibilityRole="button" accessibilityLabel={t.close} style={styles.closeBtn} hitSlop={8} testID="sheet-close">
+            <Close color={S.fg} />
+          </Pressable>
         </View>
-        <Pressable onPress={close} accessibilityRole="button" accessibilityLabel={t.close} style={styles.closeBtn} hitSlop={8} testID="sheet-close">
-          <Close color={S.fg} />
-        </Pressable>
-      </View>
-      {scroll ? (
-        <ScrollView keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets={keyboardInsets} keyboardDismissMode="interactive" contentContainerStyle={{ paddingTop: 4 }}>
-          {body}
-        </ScrollView>
-      ) : (
-        <View style={{ flex: 1 }}>{body}</View>
-      )}
-      {footer ? <View style={styles.footer}>{footer}</View> : null}
+        {scroll ? (
+          <ScrollView
+            style={StyleSheet.absoluteFill}
+            keyboardShouldPersistTaps="handled"
+            automaticallyAdjustKeyboardInsets={keyboardInsets}
+            keyboardDismissMode="interactive"
+            scrollIndicatorInsets={{ top: pads.top, bottom: pads.bottom }}
+            contentContainerStyle={{ paddingHorizontal: space.gutter, paddingTop: pads.top + 4, paddingBottom: pads.bottom + 32, gap: 22 }}
+          >
+            {children}
+          </ScrollView>
+        ) : (
+          <View style={[StyleSheet.absoluteFill, { paddingHorizontal: space.gutter }]}>{children}</View>
+        )}
+        {footer ? (
+          <View style={[styles.footer, styles.overlay, { bottom: 0, paddingBottom: bottomInset }]} onLayout={(e) => setFootH(Math.round(e.nativeEvent.layout.height))}>
+            {footer}
+          </View>
+        ) : null}
+      </SheetInsets.Provider>
     </View>
   );
 }
@@ -320,6 +360,7 @@ const styles = StyleSheet.create({
     marginTop: -8,
   },
   footer: { paddingHorizontal: space.gutter, paddingTop: 12, gap: 10 },
+  overlay: { position: 'absolute', left: 0, right: 0, zIndex: 1, backgroundColor: palette.ink2 },
   sectionHead: {
     flexDirection: 'row',
     justifyContent: 'space-between',

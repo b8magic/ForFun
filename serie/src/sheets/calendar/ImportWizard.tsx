@@ -34,7 +34,7 @@ import { newId, nowIso } from '@/platform/ids';
 import { useApp } from '@/state/store';
 import { afterCommit } from '@/state/hooks';
 import { createCategory, focusHistoryMonth, refreshAll, switchActivity } from '@/state/actions';
-import { Sheet, Section, Button, Field, Note, Segmented } from '@/ui/controls';
+import { Sheet, Section, Button, Field, Note, Segmented, WithSheetInsets } from '@/ui/controls';
 import { T } from '@/ui/T';
 import { activityColors, palette, surfaces } from '@/ui/theme';
 import { t } from '@/i18n/it';
@@ -328,59 +328,69 @@ export function ImportWizard() {
           </View>
         }
       >
-        <Steps at={4} of={STEPS} title={t.review} />
-        <View style={{ gap: 10 }}>
-          <Segmented
-            value={scope}
-            onChange={setScope}
-            options={[
-              { key: 'all', label: `Tutti ${scopeCount.all}` },
-              { key: 'new', label: `Nuovi ${scopeCount.new}` },
-              { key: 'review', label: `Da verificare ${scopeCount.review}` },
-              { key: 'excluded', label: `Esclusi ${scopeCount.excluded}` },
-            ]}
-            testID="import-scope"
-          />
-          <View style={styles.countRow}>
-            <T variant="dataStrong" color={S.fg} testID="import-count" accessibilityLiveRegion="polite">
-              {t.selectedCount(totalCounts.selected, totalCounts.selectable)}
-            </T>
-            <Pressable
-              onPress={() => setSelection((s) => (allSelected ? deselectAll(items, s, SCOPES[scope]) : selectAll(items, s, SCOPES[scope])))}
-              disabled={!counts.selectable}
-              accessibilityRole="button"
-              accessibilityLabel={allSelected ? `Deseleziona tutti quelli ${scopeName} (${counts.selectable})` : `Seleziona tutti quelli ${scopeName} (${counts.selectable})`}
-              style={styles.linkBtn}
-              testID="import-select-all"
-            >
-              <T variant="label" color={counts.selectable ? palette.flare : S.faint}>
-                {allSelected ? `DESELEZIONA ${scopeName.toUpperCase()}` : `SELEZIONA ${scopeName.toUpperCase()}`} ({counts.selectable})
-              </T>
-            </Pressable>
-          </View>
-        </View>
-        <FlatList
-          data={visible}
-          keyExtractor={(i) => i.key}
-          style={{ flex: 1, marginHorizontal: -4 }}
-          contentContainerStyle={{ paddingBottom: 24, paddingHorizontal: 4 }}
-          initialNumToRender={14}
-          windowSize={9}
-          ListEmptyComponent={
-            <Note>{items.length ? 'Nessun evento in questo gruppo.' : 'Nessun evento corrisponde: controlla calendari, intervallo e filtri.'}</Note>
-          }
-          renderItem={({ item }) => (
-            <ReviewRow
-              item={item}
-              on={selection.has(item.key)}
-              open={expanded === item.key}
-              color={category?.color ?? palette.flare}
-              matched={item.matchedSessionId ? (sessionById.get(item.matchedSessionId) ?? null) : null}
-              onToggle={() => setSelection((s) => toggleSelected(items, s, item.key))}
-              onExpand={() => setExpanded((k) => (k === item.key ? null : item.key))}
+        {/* the filters scroll with the list: in a form sheet the list must fill the sheet (see Sheet) */}
+        <WithSheetInsets>
+          {(pads) => (
+            <FlatList
+              data={visible}
+              keyExtractor={(i) => i.key}
+              style={{ flex: 1, marginHorizontal: -4 }}
+              contentContainerStyle={{ paddingTop: pads.top + 4, paddingBottom: pads.bottom + 24, paddingHorizontal: 4 }}
+              scrollIndicatorInsets={{ top: pads.top, bottom: pads.bottom }}
+              ListHeaderComponent={
+                <View style={{ gap: 22, paddingBottom: 22 }}>
+                  <Steps at={4} of={STEPS} title={t.review} />
+                  <View style={{ gap: 10 }}>
+                    <Segmented
+                      value={scope}
+                      onChange={setScope}
+                      options={[
+                        { key: 'all', label: `Tutti ${scopeCount.all}` },
+                        { key: 'new', label: `Nuovi ${scopeCount.new}` },
+                        { key: 'review', label: `Da verificare ${scopeCount.review}` },
+                        { key: 'excluded', label: `Esclusi ${scopeCount.excluded}` },
+                      ]}
+                      testID="import-scope"
+                    />
+                    <View style={styles.countRow}>
+                      <T variant="dataStrong" color={S.fg} testID="import-count" accessibilityLiveRegion="polite">
+                        {t.selectedCount(totalCounts.selected, totalCounts.selectable)}
+                      </T>
+                      <Pressable
+                        onPress={() => setSelection((s) => (allSelected ? deselectAll(items, s, SCOPES[scope]) : selectAll(items, s, SCOPES[scope])))}
+                        disabled={!counts.selectable}
+                        accessibilityRole="button"
+                        accessibilityLabel={allSelected ? `Deseleziona tutti quelli ${scopeName} (${counts.selectable})` : `Seleziona tutti quelli ${scopeName} (${counts.selectable})`}
+                        style={styles.linkBtn}
+                        testID="import-select-all"
+                      >
+                        <T variant="label" color={counts.selectable ? palette.flare : S.faint}>
+                          {allSelected ? `DESELEZIONA ${scopeName.toUpperCase()}` : `SELEZIONA ${scopeName.toUpperCase()}`} ({counts.selectable})
+                        </T>
+                      </Pressable>
+                    </View>
+                  </View>
+                </View>
+              }
+              initialNumToRender={14}
+              windowSize={9}
+              ListEmptyComponent={
+                <Note>{items.length ? 'Nessun evento in questo gruppo.' : 'Nessun evento corrisponde: controlla calendari, intervallo e filtri.'}</Note>
+              }
+              renderItem={({ item }) => (
+                <ReviewRow
+                  item={item}
+                  on={selection.has(item.key)}
+                  open={expanded === item.key}
+                  color={category?.color ?? palette.flare}
+                  matched={item.matchedSessionId ? (sessionById.get(item.matchedSessionId) ?? null) : null}
+                  onToggle={() => setSelection((s) => toggleSelected(items, s, item.key))}
+                  onExpand={() => setExpanded((k) => (k === item.key ? null : item.key))}
+                />
+              )}
             />
           )}
-        />
+        </WithSheetInsets>
       </Sheet>
     );
   }

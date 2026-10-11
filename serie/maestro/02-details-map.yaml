@@ -10,20 +10,25 @@ name: 02 dettagli, luogo e mappa
     timeout: 60000
 - tapOn:
     id: prev-month
+    waitToSettleTimeoutMs: 1500
 - tapOn:
     id: day-${PREV}-15
+    waitToSettleTimeoutMs: 1500
 - tapOn:
     id: details-link
+    waitToSettleTimeoutMs: 1500
 - extendedWaitUntil:
     visible:
       id: details-place-name
     timeout: 10000
 - tapOn:
     id: details-place-name
+    waitToSettleTimeoutMs: 1500
 - inputText: Livorno
 - pressKey: Enter
 - tapOn:
     id: details-place-link
+    waitToSettleTimeoutMs: 1500
 - inputText: "https://www.google.com/maps/place/Livorno/@43.5485,10.3106,15z"
 - pressKey: Enter
 - extendedWaitUntil:
@@ -33,6 +38,7 @@ name: 02 dettagli, luogo e mappa
 - takeScreenshot: 10-details-map
 - tapOn:
     id: details-apply
+    waitToSettleTimeoutMs: 1500
 - extendedWaitUntil:
     visible:
       id: save
@@ -40,28 +46,37 @@ name: 02 dettagli, luogo e mappa
     timeout: 10000
 - tapOn:
     id: save
+    waitToSettleTimeoutMs: 1500
 - extendedWaitUntil:
     visible:
       text: "1 sessione salvata.*"
-    timeout: 15000
+    timeout: 8000
+    optional: true
 - extendedWaitUntil:
     notVisible:
       id: toast
     timeout: 30000
+- assertVisible:
+    id: day-${PREV}-15
+    text: ".*1 sessione registrata.*"
 
 # open it from history: the session page shows the place on the map
 - tapOn:
     id: history-handle
+    waitToSettleTimeoutMs: 1500
 - extendedWaitUntil:
     visible:
       id: month-${PREV}
     timeout: 10000
 - tapOn:
     id: month-${PREV}
+    waitToSettleTimeoutMs: 1500
 - tapOn:
     id: mini-${PREV}-15
+    waitToSettleTimeoutMs: 1500
 - tapOn:
     id: "session-(?!editor).+"
+    waitToSettleTimeoutMs: 1500
 - extendedWaitUntil:
     visible:
       id: session-editor
@@ -74,8 +89,10 @@ name: 02 dettagli, luogo e mappa
 - takeScreenshot: 11-session-map
 - tapOn:
     id: sheet-close
+    waitToSettleTimeoutMs: 1500
 - tapOn:
     id: back-to-log
+    waitToSettleTimeoutMs: 1500
 - extendedWaitUntil:
     visible:
       id: activity-switcher
