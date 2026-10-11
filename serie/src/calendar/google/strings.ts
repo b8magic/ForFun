@@ -15,6 +15,7 @@ export const GOOGLE_STRINGS = {
   cancelled: 'Autorizzazione annullata.',
   denied: 'Accesso a Google Calendar non concesso.',
   writeOnly: t.writeOnly,
+  primaryCalendar: 'Calendario principale',
   scopesMissing: 'Non hai concesso l’accesso ai calendari. Collega di nuovo e seleziona i permessi.',
   oauthError: (code: string) => `Google ha rifiutato l’autorizzazione (${code}).`,
   noAccount: 'Non riesco a leggere l’account Google. Riprova.',

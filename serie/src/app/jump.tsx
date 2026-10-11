@@ -12,20 +12,23 @@ import { compareMonths, monthKey, monthOf, type MonthRef } from '@/domain/dates'
 import { Button, Sheet } from '@/ui/controls';
 import { palette } from '@/ui/theme';
 import { t } from '@/i18n/it';
-import { isFutureMonth, jumpYears, monthCounts, parseJumpTarget, parseMonthKey, yearCounts } from '@/sheets/manage/helpers';
+import { ALL_ACTIVITIES, isFutureMonth, jumpYears, monthCounts, parseJumpTarget, parseMonthKey, yearCounts } from '@/sheets/manage/helpers';
 import { MonthGrid, YearStrip, type MonthCell } from '@/sheets/manage/JumpParts';
 import { closeSheet } from '@/sheets/manage/parts';
 
 export default function JumpSheet() {
-  const params = useLocalSearchParams<{ target?: string }>();
+  const params = useLocalSearchParams<{ target?: string; cat?: string }>();
   const target = parseJumpTarget(params.target);
   const active = useActive();
   const sessions = useApp((s) => s.sessions);
   const today = useApp((s) => s.today);
   const viewMonth = useApp((s) => s.viewMonth);
   const historyFocus = useApp((s) => s.historyFocus);
-  const activeId = active?.id ?? null;
-  const accent = active?.color ?? palette.flare;
+  const categories = useApp((s) => s.categories);
+  // from history, counts follow the history filter ('all' = every activity); from the Lineup, the active activity
+  const filterCat = target === 'history' && params.cat ? (params.cat === 'all' ? null : (categories.find((c) => c.id === params.cat) ?? active)) : active;
+  const activeId = target === 'history' && params.cat === 'all' ? ALL_ACTIVITIES : (filterCat?.id ?? null);
+  const accent = filterCat?.color ?? palette.flare;
   const current = monthOf(today);
 
   const viewing: MonthRef | null = target === 'lineup' ? viewMonth : parseMonthKey(historyFocus?.key);

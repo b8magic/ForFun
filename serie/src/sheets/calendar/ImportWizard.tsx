@@ -174,7 +174,7 @@ export function ImportWizard() {
   }, [items]);
   const sessionById = useMemo(() => new Map(sessions.map((s) => [s.id, s])), [sessions]);
 
-  const range = checkRange(from, to);
+  const range = checkRange(from, to, today);
 
   const runSearch = useCallback(async () => {
     if (!p || !category || !range.ok || !calSel.size) return;
@@ -186,7 +186,10 @@ export function ImportWizard() {
     try {
       const calendarIds = [...calSel];
       const events = await p.listEvents({ calendarIds, from: range.from, to: range.to, includeCancelled: true, signal: ac.signal, onProgress: (n) => setFetched(n) });
-      if (ac.signal.aborted) return;
+      if (ac.signal.aborted) {
+        setFetched(null);
+        return;
+      }
       const repos = await getRepositories();
       const chosen = (calendars ?? []).filter((c) => calSel.has(c.calendarId));
       const accounts = [...new Set(chosen.map((c) => c.accountId))];
@@ -210,8 +213,8 @@ export function ImportWizard() {
       setFetched(null);
       setStep(4);
     } catch (e) {
-      if (ac.signal.aborted) return;
       setFetched(null);
+      if (ac.signal.aborted) return;
       setFetchError(providerMessage(e));
     }
   }, [p, category, range, calSel, calendars, titleText, labelsSupported, labelSel, items]);
@@ -391,7 +394,7 @@ export function ImportWizard() {
         testID="import-filters"
         footer={
           <Footer
-            back={{ label: t.back, onPress: () => (searching ? abort.current?.abort() : setStep(2)) }}
+            back={{ label: t.back, onPress: () => (searching ? (abort.current?.abort(), setFetched(null)) : setStep(2)) }}
             next={<Button label={searching ? t.loadingEvents(fetched ?? 0) : t.search} busy={searching} disabled={!range.ok} onPress={runSearch} testID="import-search" />}
           />
         }
@@ -631,7 +634,7 @@ const styles = StyleSheet.create({
   item: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: S.faint, paddingVertical: 12, gap: 6 },
   itemMain: { flexDirection: 'row', gap: 14, alignItems: 'flex-start' },
   dash: { width: 22, height: 22, alignItems: 'center', justifyContent: 'center', borderTopWidth: 1.2, borderTopColor: 'rgba(238,232,218,0.25)', marginTop: 10 },
-  expand: { alignSelf: 'flex-start', marginLeft: 36, minHeight: 36, justifyContent: 'center' },
+  expand: { alignSelf: 'flex-start', marginLeft: 36, minHeight: 44, justifyContent: 'center' },
   detail: { marginLeft: 36, gap: 8, paddingTop: 2 },
 });
 

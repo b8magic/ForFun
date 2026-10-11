@@ -12,9 +12,14 @@
  * The hash covers the raw session id as well, so two session ids that
  * sanitise to the same text still produce different op ids.
  *
+ * `exportOpId` is the only place op ids are built: the manual export engine
+ * and automatic export both call it, so a session exported by one is
+ * recognised by the other (crossModule.test.ts pins this).
+ *
  * Pure: no React, no Expo.
  */
 import type { CalendarRef } from '@/domain/types';
+import { refKey } from './types';
 
 const SEP = '\u0000';
 
@@ -51,8 +56,8 @@ export function shortHash(input: string, length = 12): string {
   return (hex8(a) + hex8(b)).slice(0, n);
 }
 
-/** Identity string of a destination; matches `refKey` in calendar/types. */
-export const destinationKey = (ref: CalendarRef) => `${ref.provider}:${ref.accountId}:${ref.calendarId}`;
+/** Identity string of a destination: `refKey` from calendar/types (one definition for every engine and the UI). */
+export const destinationKey = (ref: CalendarRef): string => refKey(ref);
 
 const OP_PREFIX = 'op1_';
 const MAX_SESSION_PART = 64;

@@ -1,7 +1,6 @@
 import { useMemo } from 'react';
 import { useApp } from './store';
 import type { Category, Session } from '@/domain/types';
-import { useReducedMotion } from 'react-native-reanimated';
 
 export function useActive(): Category | null {
   const categories = useApp((s) => s.categories);
@@ -27,6 +26,7 @@ export function useCountsByDate(categoryId: string | null): Map<string, number> 
 /** Reduced motion: system setting unless overridden in Impostazioni. */
 export function useMotionReduced(): boolean {
   const pref = useApp((s) => s.motionPref);
-  const system = useReducedMotion();
+  // the live system setting (Reanimated's useReducedMotion only reads it once, at launch)
+  const system = useApp((s) => s.systemReducedMotion);
   return pref === 'reduced' ? true : pref === 'full' ? false : system;
 }

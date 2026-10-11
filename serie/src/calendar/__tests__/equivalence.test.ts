@@ -75,7 +75,7 @@ describe('normalisation helpers', () => {
 });
 
 describe('classifyEquivalence — matrix', () => {
-  const cases: Array<[string, ExternalCalendar, ExternalCalendar, 'equivalent' | 'distinct' | 'unknown', string]> = [
+  const cases: [string, ExternalCalendar, ExternalCalendar, 'equivalent' | 'distinct' | 'unknown', string][] = [
     ['CalDAV source = Google email, same title', gcal(), acal(), 'equivalent', 'same_account_same_title'],
     ['email compared case-insensitively, titles normalised', gcal({ title: 'Sport ' }), acal({ sourceName: 'Surfer@Gmail.com', title: 'sport' }), 'equivalent', 'same_account_same_title'],
     ['Gmail dot variant of the account email', gcal(), acal({ sourceName: 'sur.fer@gmail.com' }), 'equivalent', 'same_account_same_title'],

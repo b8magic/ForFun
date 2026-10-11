@@ -58,9 +58,13 @@ export interface AppState {
   lastSave: LastSave | null;
   /** Request id of a save made moments ago (history lifts its dates for ~15 s). */
   highlightSaveId: string | null;
+  /** Bumped when the last save is undone: the Lineup ends its break animation. */
+  breakCancel: number;
   breakEvent: BreakEvent | null;
   toast: Toast | null;
   motionPref: MotionPref;
+  /** Live iOS "Riduci movimento" setting (kept in sync by the root layout). */
+  systemReducedMotion: boolean;
   openJobs: number;
 }
 
@@ -85,9 +89,11 @@ export const useApp = create<AppState>(() => ({
   saveError: null,
   lastSave: null,
   highlightSaveId: null,
+  breakCancel: 0,
   breakEvent: null,
   toast: null,
   motionPref: 'system',
+  systemReducedMotion: false,
   openJobs: 0,
 }));
 

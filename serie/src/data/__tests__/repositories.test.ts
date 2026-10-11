@@ -58,6 +58,20 @@ describe('sessions', () => {
     await r.sessions.saveBatch({ categoryId: activeId!, dates: ['2026-10-10'], requestId: 'tap-2' });
     expect(await r.sessions.listAll()).toHaveLength(2);
   });
+  it('a session can be moved onto the date of a sibling from the same save tap (review DI-3)', async () => {
+    const r = await testRepos();
+    const { activeId, categories } = await bootstrap(r);
+    const res = await r.sessions.saveBatch({ categoryId: activeId!, dates: ['2026-10-03', '2026-10-04'], requestId: 'tap-x' });
+    const moved = await r.sessions.update(res.sessions[1].id, { date: '2026-10-03' });
+    expect(moved.date).toBe('2026-10-03');
+    expect((await r.sessions.listAll()).filter((x) => x.date === '2026-10-03')).toHaveLength(2);
+    // and moving all sessions of an activity elsewhere never collides either
+    const corsa = categories.find((c) => c.name === 'Corsa')!;
+    await r.sessions.saveBatch({ categoryId: corsa.id, dates: ['2026-10-03'], requestId: 'tap-y' });
+    await r.categories.remove(activeId!, { kind: 'move', toCategoryId: corsa.id });
+    expect((await r.sessions.listAll()).filter((x) => x.categoryId === corsa.id)).toHaveLength(3);
+  });
+
   it('never saves against a missing activity', async () => {
     const r = await testRepos();
     await bootstrap(r);

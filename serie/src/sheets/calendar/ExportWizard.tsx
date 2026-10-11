@@ -13,17 +13,18 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { router } from 'expo-router';
 import type { CalendarProvider, ExternalCalendar, LabelOption, ProviderKind } from '@/calendar/types';
-import { buildExportPlan, eventsOf, executePlan, loadAllDestinationEvents, mergeChoices, setRowChoice, setSelection, type DestinationRead, type ExecuteResult, type ExportDestinationInput, type ExportPlan, type ExportPlanRow, type PlanDestination } from '@/calendar/exportEngine';
+import { buildExportPlan, eventsOf, executePlan, exportWindow, loadAllDestinationEvents, mergeChoices, setRowChoice, setSelection, type DestinationRead, type ExecuteResult, type ExportDestinationInput, type ExportPlan, type ExportPlanRow, type PlanDestination } from '@/calendar/exportEngine';
 import { gateBothDestinations, pairKey, type BothGate } from '@/calendar/equivalence';
 import { destinationKey } from '@/calendar/opId';
 import { resolveTitle } from '@/calendar/titles';
+import type { ExportOverride } from '@/calendar/representation';
 import type { ExportLinkRecord, ProvenanceRecord } from '@/data/repositories';
 import type { ID, LocalDate } from '@/domain/types';
 import { compareDates } from '@/domain/dates';
 import { deviceTimeZone } from '@/domain/zoned';
 import { getRepositories } from '@/data/database';
 import { useApp } from '@/state/store';
-import { refreshAll } from '@/state/actions';
+import { refreshAll, showToast } from '@/state/actions';
 import { Sheet, Section, Button, Field, Note, Segmented, Toggle } from '@/ui/controls';
 import { T } from '@/ui/T';
 import { palette, surfaces } from '@/ui/theme';
@@ -79,10 +80,18 @@ export function ExportWizard() {
   const [running, setRunning] = useState<{ done: number; total: number } | null>(null);
   const [result, setResult] = useState<ExecuteResult | null>(null);
   const abort = useRef<AbortController | null>(null);
-  useEffect(() => () => abort.current?.abort(), []);
+  const mounted = useRef(true);
+  useEffect(
+    () => () => {
+      mounted.current = false;
+      abort.current?.abort(); // reads only: a confirmed export keeps running (see execute)
+    },
+    [],
+  );
+  const loadedWindow = useRef<string | null>(null);
 
   const category = categories.find((c) => c.id === categoryId) ?? null;
-  const rangeCheck = range === 'custom' ? checkRange(from, to) : null;
+  const rangeCheck = useMemo(() => (range === 'custom' ? checkRange(from, to) : null), [range, from, to]);
   const sessions = useMemo(() => {
     const own = allSessions.filter((s) => s.categoryId === categoryId);
     if (range === 'all') return own;
@@ -142,6 +151,8 @@ export function ExportWizard() {
 
   const destReady = chosen.length > 0 && chosen.every((k) => usable(conn.connections[k], 'write') && !!calOf(k)) && (!gate || gate.allowed);
 
+  // "Stesse impostazioni per entrambe": a destination added later still gets the shared settings
+  const settingsFor = useCallback((k: ProviderKind | undefined) => (k ? ((linked ? settings[chosen[0]] : settings[k]) ?? DEFAULT_SETTINGS) : DEFAULT_SETTINGS), [settings, chosen, linked]);
   const destInputs: ExportDestinationInput[] = useMemo(() => {
     if (!conn.providers) return [];
     const out: ExportDestinationInput[] = [];
@@ -156,11 +167,11 @@ export function ExportWizard() {
         connection,
         labelId: p.capabilities.eventLabels ? (labelSel[k] ?? null) : null,
         labelsSupported: p.capabilities.eventLabels,
-        options: toOptions(settings[k] ?? DEFAULT_SETTINGS, zone),
+        options: toOptions(settingsFor(k), zone),
       });
     }
     return out;
-  }, [chosen, calOf, conn.providers, conn.connections, labelSel, settings, zone]);
+  }, [chosen, calOf, conn.providers, conn.connections, labelSel, settingsFor, zone]);
 
   // rebuild the plan whenever settings change, keeping the user's row choices
   useEffect(() => {
@@ -170,7 +181,7 @@ export function ExportWizard() {
         sessions,
         category: { id: category.id, name: category.name },
         destinations: destInputs,
-        options: toOptions(settings[chosen[0]] ?? DEFAULT_SETTINGS, zone),
+        options: toOptions(settingsFor(chosen[0]), zone),
         links,
         destinationEvents: eventsOf(reads),
         provenance: prov,
@@ -179,10 +190,11 @@ export function ExportWizard() {
     } catch (e) {
       setLoadErr(errorText(e));
     }
-  }, [reads, destInputs, sessions, category, links, prov, settings, chosen, zone]);
+  }, [reads, destInputs, sessions, category, links, prov, settingsFor, chosen, zone]);
 
-  const loadReview = useCallback(async () => {
-    if (!conn.providers || !destInputs.length) return;
+  const windowKey = useCallback((overrides: Readonly<Record<string, ExportOverride>>) => JSON.stringify(exportWindow(sessions, overrides)), [sessions]);
+  const loadReview = useCallback(async (): Promise<boolean> => {
+    if (!conn.providers || !destInputs.length) return false;
     abort.current?.abort();
     const ac = new AbortController();
     abort.current = ac;
@@ -191,26 +203,39 @@ export function ExportWizard() {
     try {
       const repos = await getRepositories();
       const allLinks = await repos.exportLinks.all();
-      const provenance = (await Promise.all(destInputs.map((d) => repos.provenance.listForCalendars(d.ref.provider, d.ref.accountId, [d.ref.calendarId])))).flat();
+      // every provenance record of these sessions: source calendars are never written back to, original titles count as known titles
+      const provenance = (await Promise.all(sessions.map((x) => repos.provenance.listBySession(x.id)))).flat();
       const overrides = Object.assign({}, ...destInputs.map((d) => d.options?.overrides ?? {}));
-      const r = await loadAllDestinationEvents(conn.providers, destInputs, sessions, allLinks, { overrides, signal: ac.signal });
-      if (ac.signal.aborted) return;
+      const r = await loadAllDestinationEvents(conn.providers, destInputs, sessions, allLinks, { overrides, signal: ac.signal, provenance });
+      if (ac.signal.aborted) return false;
+      loadedWindow.current = windowKey(overrides);
       setLinks(allLinks);
       setProv(provenance);
       setReads(r);
       setTab((cur) => cur ?? destinationKey(destInputs[0].ref));
       setStep(4);
+      return true;
     } catch (e) {
       if (!ac.signal.aborted) setLoadErr(errorText(e));
+      return false;
     } finally {
       setLoading(false);
     }
-  }, [conn.providers, destInputs, sessions]);
+  }, [conn.providers, destInputs, sessions, windowKey]);
+
+  // an outgoing date moved outside the window that was read: read the destination again,
+  // so the duplicate check compares against the right days
+  useEffect(() => {
+    if (step !== 4 || !reads || loading) return;
+    const overrides = Object.assign({}, ...destInputs.map((d) => d.options?.overrides ?? {}));
+    if (windowKey(overrides) === loadedWindow.current) return;
+    const id = setTimeout(() => void loadReview(), 600);
+    return () => clearTimeout(id);
+  }, [step, reads, loading, destInputs, windowKey, loadReview]);
 
   const execute = useCallback(async () => {
     if (!plan || !conn.providers) return;
-    const ac = new AbortController();
-    abort.current = ac;
+    const ac = new AbortController(); // not aborted when the sheet closes: confirmed writes finish
     const total = plan.destinations.reduce((n, d) => n + d.rows.filter((r) => r.selected).length, 0);
     setRunning({ done: 0, total });
     try {
@@ -227,17 +252,22 @@ export function ExportWizard() {
         },
       });
       await refreshAll();
+      if (!mounted.current) {
+        const tt = r.totals;
+        showToast(`Esportazione completata: ${tt.created} creati, ${tt.linked} collegati, ${tt.updated} aggiornati, ${tt.failed} non riusciti, ${tt.pending} in sospeso.`, { ms: 7000 });
+        return;
+      }
       setResult(r);
       setStep(5);
     } catch (e) {
-      setRowErr(errorText(e));
+      if (mounted.current) setRowErr(errorText(e));
     } finally {
-      setRunning(null);
+      if (mounted.current) setRunning(null);
     }
   }, [plan, conn.providers]);
 
   const editKind = editing && chosen.includes(editing) ? editing : chosen[0];
-  const cur = (editKind && settings[editKind]) || DEFAULT_SETTINGS;
+  const cur = settingsFor(editKind);
   const edit = useCallback((fn: (s: DestSettings) => DestSettings, target?: ProviderKind) => setSettings((m) => editSettings(m, chosen, target ?? editKind, linked, fn)), [chosen, editKind, linked]);
 
   // ─── results ───────────────────────────────────────────────────────────────
@@ -250,7 +280,7 @@ export function ExportWizard() {
         testID="export-done"
         footer={
           <Footer
-            back={anyRetry ? { label: 'Rivedi e riprova', onPress: () => (setResult(null), loadReview()) } : null}
+            back={anyRetry ? { label: loading ? 'Rilettura…' : 'Rivedi e riprova', onPress: () => void loadReview().then((ok) => ok && setResult(null)) } : null}
             next={<Button label={t.done} onPress={() => router.back()} testID="export-finish" />}
           />
         }
@@ -294,6 +324,7 @@ export function ExportWizard() {
           );
         })}
         <Note>{t.exportNotCloud}</Note>
+        {loadErr ? <Note tone="error">{loadErr}</Note> : null}
         {anyRetry ? <Note>Riprovare non ricrea gli eventi già scritti: Serie li riconosce dall’identificativo dell’operazione.</Note> : null}
       </Sheet>
     );
@@ -328,7 +359,7 @@ export function ExportWizard() {
         {plan.destinations.length > 1 ? (
           <Segmented value={dest.key} onChange={(k) => (setTab(k), setExpanded(null))} options={plan.destinations.map((d) => ({ key: d.key, label: `${PROVIDER_NAMES[d.ref.provider]} ${d.rows.filter((r) => r.selected).length}` }))} testID="export-tab" />
         ) : null}
-        {dest ? <DestinationHeader d={dest} read={reads?.[dest.key] ?? null} /> : null}
+        {dest ? <DestinationHeader d={dest} read={reads?.[dest.key] ?? null} labelName={labels.find((l) => l.id === dest.colorId)?.name ?? null} /> : null}
         <Segmented
           value={filter}
           onChange={setFilter}
@@ -401,7 +432,7 @@ export function ExportWizard() {
             {loadErr ? <Note tone="error">{loadErr}</Note> : null}
             <Footer
               back={{ label: t.back, onPress: () => setStep(2) }}
-              next={<Button label={loading ? 'Controllo dei calendari…' : sessions.length ? `Rivedi ${sessions.length} ${sessions.length === 1 ? 'sessione' : 'sessioni'}` : 'Nessuna sessione'} busy={loading} disabled={!sessions.length} onPress={() => (setPlan(null), loadReview())} testID="export-next-3" />}
+              next={<Button label={loading ? 'Controllo dei calendari…' : sessions.length ? `Rivedi ${sessions.length} ${sessions.length === 1 ? 'sessione' : 'sessioni'}` : 'Nessuna sessione'} busy={loading} disabled={!sessions.length} onPress={() => void loadReview()} testID="export-next-3" />}
             />
           </View>
         }
@@ -428,7 +459,7 @@ export function ExportWizard() {
         </Section>
         {chosen.length > 1 ? (
           <Section label="Destinazioni">
-            <Toggle label="Stesse impostazioni per entrambe" value={linked} onChange={(v) => (setLinked(v), v && editKind && setSettings((m) => linkSettings(m, chosen, editKind)))} hint="Spegni per usare titoli e contenuti diversi su ciascun calendario." testID="export-linked" />
+            <Toggle label="Stesse impostazioni per entrambe" value={linked} onChange={(v) => (setLinked(v), setSettings((m) => linkSettings(m, chosen, v ? (editKind ?? chosen[0]) : chosen[0])))} hint="Spegni per usare titoli e contenuti diversi su ciascun calendario." testID="export-linked" />
             {!linked ? <Segmented value={editKind} onChange={(k) => setEditing(k)} options={chosen.map((k) => ({ key: k, label: PROVIDER_NAMES[k] }))} testID="export-editing" /> : null}
           </Section>
         ) : null}
@@ -514,6 +545,7 @@ export function ExportWizard() {
             {k === 'apple' ? <Note>{t.labelsUnsupported.replace('il filtro non è disponibile', 'nessuna etichetta verrà applicata')}</Note> : null}
           </Section>
         ))}
+        {chosen.some((k) => calOf(k)) ? <Note>Gli eventi esportati prendono la visibilità predefinita del calendario scelto: chi condivide quel calendario li vedrà. Nessun invitato, nessun promemoria.</Note> : null}
         {gate ? <GateNote gate={gate} onResolve={() => setResolved((m) => ({ ...m, [pairKey(calOf('google')!, calOf('apple')!)]: true }))} onPick={(k) => setChosen([k])} /> : null}
       </Sheet>
     );
@@ -548,7 +580,7 @@ export function destLabel(d: Pick<PlanDestination, 'ref' | 'calendar'>): string 
   return [PROVIDER_NAMES[d.ref.provider], d.calendar.accountLabel || d.calendar.sourceName, d.calendar.title].filter(Boolean).join(' · ');
 }
 
-function DestinationHeader({ d, read }: { d: PlanDestination; read: DestinationRead | null }) {
+function DestinationHeader({ d, read, labelName }: { d: PlanDestination; read: DestinationRead | null; labelName: string | null }) {
   return (
     <View style={styles.destHead} testID={`export-dest-${d.ref.provider}`}>
       <T variant="label" color={S.mute}>
@@ -560,7 +592,7 @@ function DestinationHeader({ d, read }: { d: PlanDestination; read: DestinationR
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
         <Pill text={d.checked ? 'DOPPIONI CONTROLLATI' : 'NON VERIFICATO'} tone={d.checked ? 'good' : 'warn'} />
         <Pill text={d.writable ? 'SCRIVIBILE' : 'SOLA LETTURA'} tone={d.writable ? 'neutral' : 'bad'} />
-        {d.colorId ? <Pill text={`ETICHETTA ${d.colorId}`} /> : null}
+        {d.colorId ? <Pill text={`ETICHETTA ${(labelName ?? d.colorId).toUpperCase()}`} /> : null}
       </View>
       {!d.checked ? <Note tone="warn">{`${t.exportStatusNotChecked}.${read?.error ? ` ${read.error}` : ''}`}</Note> : null}
       {d.labelNote ? <Note>{d.labelNote}</Note> : null}

@@ -33,17 +33,21 @@
  *                       jobs. Never deletes or edits calendar events.
  *   summarizeJobs       counts + Italian badge for the UI.
  *
+ * Drafts, op ids, duplicate classes, link snapshots, destination reads and the
+ * failed-write rule are the manual export engine's own (representation.ts,
+ * opId.ts, duplicates.ts, exportCore.ts), and runs share its lock.
+ *
  * Pure logic plus repository calls; providers are injected. No React, no Expo.
  */
 import { ProviderError, type CalendarProvider, type CalendarRef, type Connection, type EventDraft, type ExternalCalendar, type ExternalEvent, type ProviderKind } from './types';
-import type { AppEventMeta } from './types';
 import type { Category, ExportJobStatus, ExportSnapshot, LocalDate, Session, TimingState } from '@/domain/types';
 import { DomainError, OPEN_JOB_STATUSES, type ExportJobRecord, type ExportLinkRecord, type ProvenanceRecord, type Repositories } from '@/data/repositories';
-import { addDays, compareDates } from '@/domain/dates';
+import { addDays } from '@/domain/dates';
 import { t } from '@/i18n/it';
 import { exportOpId } from './opId';
-import { buildEventDraft, snapshotFromDraft, snapshotFromEvent, validSpanMin, type DraftResult } from './representation';
+import { buildEventDraft, snapshotFromDraft, validSpanMin, type DraftResult } from './representation';
 import { classifyDuplicates } from './duplicates';
+import { linkSnapshot, paddedWindow, readDestinationEvents, sameAccountId, withExportLock, writeMayHaveApplied } from './exportCore';
 import { canonicalEmail, gateBothDestinations, pairKey, sameUnderlyingCalendar, type BothGate, type BothResolution, type EquivalenceVerdict } from './equivalence';
 
 export type { BothResolution };
@@ -65,6 +69,7 @@ export const AUTO_EXPORT_STRINGS = {
     calendar_read_only: 'Il calendario di destinazione è di sola lettura.',
     invalid_event: 'Il calendario ha rifiutato i dati dell’evento.',
     invalid_payload: 'Dati dell’esportazione non leggibili: riprova dalla revisione.',
+    op_unreadable: 'Nel calendario c’è un evento di Serie per questa sessione con dati non leggibili: controllalo prima di esportare.',
   },
   error: {
     offline: 'Offline: riprovo quando torna la connessione.',
@@ -356,8 +361,8 @@ export interface ConfigValidation {
   issues: ConfigIssue[];
 }
 
-function destinationSetsInUse(config: AutoExportConfig): Array<{ categoryId: string | null; set: DestinationSet }> {
-  const out: Array<{ categoryId: string | null; set: DestinationSet }> = [];
+function destinationSetsInUse(config: AutoExportConfig): { categoryId: string | null; set: DestinationSet }[] {
+  const out: { categoryId: string | null; set: DestinationSet }[] = [];
   const overridden = Object.keys(config.categoryOverrides);
   if (config.scope === 'all') {
     out.push({ categoryId: null, set: config.destinations });
@@ -369,9 +374,6 @@ function destinationSetsInUse(config: AutoExportConfig): Array<{ categoryId: str
   }
   return out;
 }
-
-const sameAccount = (provider: ProviderKind, a: string, b: string) =>
-  provider === 'google' ? (canonicalEmail(a) ?? a.toLowerCase()) === (canonicalEmail(b) ?? b.toLowerCase()) : a === b;
 
 /**
  * Check a configuration against the calendars currently listed by the
@@ -393,7 +395,7 @@ export function validateConfig(config: AutoExportConfig, calendars: readonly Ext
 
   const googleCals = calendars.filter((c) => c.provider === 'google');
   for (const { categoryId, set } of destinationSetsInUse(config)) {
-    const dests: Array<[ProviderKind, CalendarRef]> = [];
+    const dests: [ProviderKind, CalendarRef][] = [];
     if (set.google) dests.push(['google', googleRef(set.google)]);
     if (set.apple) dests.push(['apple', appleRef(set.apple)]);
     if (!dests.length) {
@@ -410,7 +412,7 @@ export function validateConfig(config: AutoExportConfig, calendars: readonly Ext
       }
       const cal = listed.find((c) => c.calendarId === ref.calendarId);
       if (!cal) issue('calendar_not_found', 'error', categoryId, provider);
-      else if (!sameAccount(provider, cal.accountId, ref.accountId)) issue('account_mismatch', 'error', categoryId, provider);
+      else if (!sameAccountId(provider, cal.accountId, ref.accountId)) issue('account_mismatch', 'error', categoryId, provider);
       else if (!cal.canWrite) issue('calendar_not_writable', 'error', categoryId, provider);
       else {
         // Write-only access is never presented as checked: every job would wait in review.
@@ -580,7 +582,7 @@ export function eligibleDestinations(
     if (!provenance.length) return exclude('imported_source_unknown');
   }
   const set = destinationsFor(config, category.id);
-  const candidates: Array<{ provider: ProviderKind; ref: CalendarRef; labelId: string | null }> = [];
+  const candidates: { provider: ProviderKind; ref: CalendarRef; labelId: string | null }[] = [];
   if (set.google) candidates.push({ provider: 'google', ref: googleRef(set.google), labelId: set.google.labelId });
   if (set.apple) candidates.push({ provider: 'apple', ref: appleRef(set.apple), labelId: null });
   if (!candidates.length) return exclude('no_destination');
@@ -738,7 +740,7 @@ export interface EnqueueResult {
   jobs: ExportJobRecord[];
   created: number;
   needsReview: number;
-  skipped: Array<{ sessionId: string; provider: ProviderKind | null; code: EnqueueSkipCode; message: string }>;
+  skipped: { sessionId: string; provider: ProviderKind | null; code: EnqueueSkipCode; message: string }[];
 }
 
 /**
@@ -906,17 +908,12 @@ type CalResult = { ok: true; calendars: ExternalCalendar[] } | { ok: false; erro
 
 const errMessage = (e: unknown): string => (e instanceof Error && e.message ? e.message : AUTO_EXPORT_STRINGS.error.generic);
 
-const locks = new WeakMap<object, Promise<unknown>>();
-function withLock<T>(key: object, fn: () => Promise<T>): Promise<T> {
-  const prev = locks.get(key) ?? Promise.resolve();
-  const run = prev.then(fn, fn);
-  locks.set(key, run.then(() => undefined, () => undefined));
-  return run;
-}
-
-/** Process due automatic export jobs. Runs are serialised per repository. */
+/**
+ * Process due automatic export jobs. Runs are serialised per database, also
+ * with manual exports (`withExportLock`, shared with `executePlan`).
+ */
 export function runJobs(input: RunJobsInput): Promise<RunJobsResult> {
-  return withLock(input.repos.exportJobs, () => runJobsNow(input));
+  return withExportLock(input.repos.exportJobs, () => runJobsNow(input));
 }
 
 async function runJobsNow(input: RunJobsInput): Promise<RunJobsResult> {
@@ -1048,11 +1045,13 @@ async function runJobsNow(input: RunJobsInput): Promise<RunJobsResult> {
     if (blocked != null && blocked > nowMs()) return { kind: 'deferred', untilMs: blocked, message: S.error.rateLimited };
 
     const providerError = (e: unknown, phase: 'read' | 'write'): Outcome => {
-      if (!(e instanceof ProviderError)) return phase === 'write' ? { kind: 'uncertain', message: S.error.uncertain } : failed(errMessage(e));
+      // Same rule as the manual export: a failed create that may have landed is reconciled before any retry.
+      const mayHaveApplied = phase === 'write' && writeMayHaveApplied(e);
+      if (!(e instanceof ProviderError)) return mayHaveApplied ? { kind: 'uncertain', message: S.error.uncertain } : failed(errMessage(e));
       switch (e.code) {
         case 'offline':
           if (needsNetwork) online = false;
-          return { kind: 'offline', message: S.error.offline, keepUncertain: mustReconcile || phase === 'write' };
+          return { kind: 'offline', message: S.error.offline, keepUncertain: mustReconcile || mayHaveApplied };
         case 'rate_limited': {
           const delay = backoffDelayMs(job.attempts + 1, e.retryAfterMs);
           blockedUntil.set(job.provider, nowMs() + delay);
@@ -1066,9 +1065,14 @@ async function runJobsNow(input: RunJobsInput): Promise<RunJobsResult> {
           return review('calendar_not_found');
         case 'invalid':
           return review('invalid_event', e.message ? `${S.review.invalid_event} ${e.message}` : undefined);
+        case 'conflict':
+          // Read side: the provider found this operation's event but cannot read it (e.g. damaged
+          // metadata). Retrying cannot fix that and creating could duplicate it: the user decides.
+          if (!mayHaveApplied) return review('op_unreadable', e.message || undefined);
+          return { kind: 'uncertain', message: S.error.uncertain };
         default:
           // conflict / uncertain / unavailable / unknown during a write: it may have been applied.
-          return phase === 'write' ? { kind: 'uncertain', message: S.error.uncertain } : failed(e.message || S.error.generic);
+          return mayHaveApplied ? { kind: 'uncertain', message: S.error.uncertain } : failed(e.message || S.error.generic);
       }
     };
 
@@ -1092,7 +1096,7 @@ async function runJobsNow(input: RunJobsInput): Promise<RunJobsResult> {
     }
     if (!conn.canRead) return review('write_only');
     if (!conn.canWrite) return failed(S.error.readOnlyAccess);
-    if (job.provider === 'google' && conn.accountId && !sameAccount('google', conn.accountId, job.accountId)) {
+    if (job.provider === 'google' && conn.accountId && !sameAccountId('google', conn.accountId, job.accountId)) {
       return failed(S.error.accountMismatch(conn.accountLabel ?? conn.accountId, job.accountId));
     }
 
@@ -1120,24 +1124,19 @@ async function runJobsNow(input: RunJobsInput): Promise<RunJobsResult> {
         snapshot,
         exportedAt: iso(nowMs()),
       });
-    const metaOf = (ev: ExternalEvent): Pick<AppEventMeta, 'timingState' | 'durationSec' | 'durationSource' | 'schedulingPlaceholder'> => {
-      if (ev.appMeta) return ev.appMeta;
-      const tm = session.timing;
-      const known = tm.durationSec != null && tm.durationSec > 0 ? tm.durationSec : null;
-      return { timingState: tm.state, durationSec: known, durationSource: known != null ? tm.durationSource : null, schedulingPlaceholder: false };
-    };
 
     // An earlier write may have been applied: look for it before anything else.
     if (mustReconcile) {
-      const dates = [session.date, payload.attemptedDate ?? session.date].sort(compareDates);
+      // Same window rule as the manual export: the session date and where the earlier attempt wrote.
+      const around = paddedWindow([session.date, payload.attemptedDate]) ?? { from: addDays(session.date, -1), to: addDays(session.date, 1) };
       let found: ExternalEvent | null;
       try {
-        found = await provider.findByOpId(job.calendarId, job.opId, { from: addDays(dates[0], -1), to: addDays(dates[1], 1) });
+        found = await provider.findByOpId(job.calendarId, job.opId, around);
       } catch (e) {
         return providerError(e, 'read');
       }
       if (found && found.status !== 'cancelled' && found.appMeta?.opId === job.opId) {
-        await storeLink(found, 'created', snapshotFromEvent(found, metaOf(found), categoryName));
+        await storeLink(found, 'created', linkSnapshot(session, found, categoryName));
         return { kind: 'succeeded', attempted: true, eventId: found.eventId };
       }
       mustReconcile = false;
@@ -1170,7 +1169,8 @@ async function runJobsNow(input: RunJobsInput): Promise<RunJobsResult> {
     // "Both": never write the same underlying calendar twice.
     if (payload.pair) {
       const gate = await pairGate(job, payload.pair, cal);
-      if (gate) return gate.kind === 'review' ? review(gate.code) : failed(gate.message);
+      if (gate?.kind === 'review') return review(gate.code);
+      if (gate?.kind === 'failed') return gate.offline ? { kind: 'offline', message: S.error.offline, keepUncertain: mustReconcile } : failed(gate.message);
     }
 
     // Representation approved by the rules (or by an approval from the review)?
@@ -1191,7 +1191,11 @@ async function runJobsNow(input: RunJobsInput): Promise<RunJobsResult> {
     const originalTitles = provenance.filter((p) => p.sessionId != null).map((p) => ({ sessionId: p.sessionId as string, title: p.originalTitle }));
     let events: ExternalEvent[];
     try {
-      events = await readDestination(provider, job, draft, destLinks.filter((l) => l.sessionId === session.id));
+      // Same read as the manual export: the window around the session and outgoing dates, plus this
+      // session's linked events outside it (not stale links).
+      const window = paddedWindow([session.date, draft.start.date, draft.end.date]) ?? { from: addDays(draft.start.date, -1), to: addDays(draft.end.date, 1) };
+      const linked = destLinks.filter((l) => l.sessionId === session.id).map((l) => ({ eventId: l.externalEventId, occurrenceKey: l.occurrenceKey ?? null }));
+      events = await readDestinationEvents(provider, job.calendarId, window, linked);
     } catch (e) {
       return providerError(e, 'read');
     }
@@ -1207,7 +1211,7 @@ async function runJobsNow(input: RunJobsInput): Promise<RunJobsResult> {
       case 'recognized':
         if (check.recognizedBy === 'import_source') return { kind: 'cancelled', message: S.cancelled.importSourceEvent };
         if (check.event) {
-          await storeLink(check.event, check.recognizedBy === 'op_id' ? 'created' : 'linked', snapshotFromEvent(check.event, metaOf(check.event), categoryName));
+          await storeLink(check.event, check.recognizedBy === 'op_id' ? 'created' : 'linked', linkSnapshot(session, check.event, categoryName));
           return { kind: 'succeeded', attempted: true, eventId: check.event.eventId };
         }
         return review('possible_duplicate');
@@ -1223,7 +1227,7 @@ async function runJobsNow(input: RunJobsInput): Promise<RunJobsResult> {
     // Write — only if nobody changed the job while it was being checked (the user
     // cancelled or skipped it, or a manual export took it over).
     const cur = await jobRow(job.id);
-    if (!cur || cur.status !== job.status || cur.updatedAt !== job.updatedAt) return { kind: 'superseded', status: cur?.status ?? job.status, message: S.error.superseded };
+    if (!cur || cur.status !== job.status || cur.updatedAt !== job.updatedAt) return { kind: 'superseded', status: cur?.status ?? 'cancelled', message: S.error.superseded };
     const linkedMeanwhile = await repos.exportLinks.byOp(job.opId);
     if (linkedMeanwhile) return { kind: 'succeeded', attempted: false, eventId: linkedMeanwhile.externalEventId };
     await repos.exportJobs.update(job.id, { status: 'running', payload: { ...payload, attemptedDate: draft.start.date } });
@@ -1249,7 +1253,7 @@ async function runJobsNow(input: RunJobsInput): Promise<RunJobsResult> {
    * is still safe while the other route has not written: before it can write,
    * it must pass this same check against this destination.
    */
-  async function pairGate(job: ExportJobRecord, pair: JobPair, ownCal: ExternalCalendar): Promise<{ kind: 'review'; code: 'both_equivalent' | 'both_unresolved' } | { kind: 'failed'; message: string } | null> {
+  async function pairGate(job: ExportJobRecord, pair: JobPair, ownCal: ExternalCalendar): Promise<{ kind: 'review'; code: 'both_equivalent' | 'both_unresolved' } | { kind: 'failed'; message: string; offline: boolean } | null> {
     const siblingKind: ProviderKind = job.provider === 'google' ? 'apple' : 'google';
     const siblingRef = siblingKind === 'google' ? pair.google : pair.apple;
     const siblingOp = siblingKind === 'google' ? pair.googleOpId : pair.appleOpId;
@@ -1280,21 +1284,8 @@ async function runJobsNow(input: RunJobsInput): Promise<RunJobsResult> {
     }
     if (!siblingLink || resolved) return null;
     // The other route already wrote and its calendar cannot be described now.
-    if (!live.ok && live.retryable) return { kind: 'failed', message: live.message };
+    if (!live.ok && live.retryable) return { kind: 'failed', message: live.message, offline: live.error instanceof ProviderError && live.error.code === 'offline' };
     return { kind: 'review', code: 'both_unresolved' };
-  }
-
-  async function readDestination(provider: CalendarProvider, job: ExportJobRecord, draft: EventDraft, sessionLinks: readonly ExportLinkRecord[]): Promise<ExternalEvent[]> {
-    const last = compareDates(draft.end.date, draft.start.date) > 0 ? draft.end.date : draft.start.date;
-    const listed = await provider.listEvents({ calendarIds: [job.calendarId], from: addDays(draft.start.date, -1), to: addDays(last, 1) });
-    const events = listed.filter((e) => e.status !== 'cancelled' && e.calendarId === job.calendarId);
-    // Linked events of this session that moved outside the window are not stale links.
-    for (const l of sessionLinks) {
-      if (events.some((e) => e.eventId === l.externalEventId && (e.occurrenceKey ?? null) === (l.occurrenceKey ?? null))) continue;
-      const ev = await provider.getEvent(job.calendarId, l.externalEventId, l.occurrenceKey);
-      if (ev && ev.status !== 'cancelled') events.push(ev);
-    }
-    return events;
   }
 
   async function apply(job: ExportJobRecord, payload: AutoJobPayload | null, o: Outcome, st: JobRunState): Promise<ExportJobStatus> {
@@ -1303,7 +1294,7 @@ async function runJobsNow(input: RunJobsInput): Promise<RunJobsResult> {
       // Someone else decided meanwhile (e.g. "Annulla quelle in sospeso" during this run): keep their decision.
       // A success is always recorded: the event exists and its link is stored.
       const cur = await jobRow(job.id);
-      if (!cur) return job.status;
+      if (!cur) return 'cancelled'; // the row is gone (its session was deleted)
       const changed = st.claimed ? cur.status !== 'running' : cur.status !== job.status || cur.updatedAt !== job.updatedAt;
       if (changed) return cur.status;
     }
@@ -1417,8 +1408,6 @@ export async function resolveReviewJob(repos: Repositories, jobId: string, actio
       const session = await repos.sessions.get(job.sessionId);
       if (!session) throw new DomainError('session_missing', job.sessionId);
       const category = await repos.categories.get(session.categoryId);
-      const tm = session.timing;
-      const known = tm.durationSec != null && tm.durationSec > 0 ? tm.durationSec : null;
       await repos.exportLinks.upsert({
         sessionId: session.id,
         provider: job.provider,
@@ -1428,11 +1417,8 @@ export async function resolveReviewJob(repos: Repositories, jobId: string, actio
         occurrenceKey: ev.occurrenceKey,
         status: 'linked',
         opId: job.opId,
-        snapshot: snapshotFromEvent(
-          ev,
-          { timingState: tm.state, durationSec: known, durationSource: known != null ? tm.durationSource : null, schedulingPlaceholder: ev.appMeta?.schedulingPlaceholder ?? false },
-          category?.name ?? payload?.categoryName ?? '',
-        ),
+        // Same record as a manual 'link': Serie's own event keeps the timing it was written with.
+        snapshot: linkSnapshot(session, ev, category?.name ?? payload?.categoryName ?? ''),
         exportedAt: now(),
       });
       await repos.exportJobs.update(job.id, { status: 'succeeded', ...cleared });

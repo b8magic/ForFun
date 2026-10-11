@@ -6,11 +6,13 @@
  */
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
-import Animated, { FadeIn, LinearTransition } from 'react-native-reanimated';
+import Animated, { FadeIn, LinearTransition, ReduceMotion } from 'react-native-reanimated';
+import { useMotionReduced } from '@/state/selectors';
 import { router } from 'expo-router';
 import type { Category, LocalDate, Session } from '@/domain/types';
 import type { MonthGroup } from '@/domain/history';
 import { monthIndex } from '@/domain/history';
+import { summarize } from '@/domain/stats';
 import { formatDate, monthWeeks, parseDate } from '@/domain/dates';
 import { surfaces, palette, HIT, space } from '@/ui/theme';
 import { T } from '@/ui/T';
@@ -20,6 +22,10 @@ import { Ridgeline } from './Ridgeline';
 import { countsLine, dateLabel, durationLine, monthTitle, timingSummary } from './format';
 
 const C = surfaces.calm;
+/** A jump request is handled once, even if Mese is mounted again later (re-entry, Anno → Mese). */
+let lastHandledNonce = 0;
+/** Height of a collapsed month row before it has been measured (title, ridgeline, two meta lines). */
+const ROW_ESTIMATE = 152;
 
 interface Props {
   groups: MonthGroup[];
@@ -37,10 +43,23 @@ export function MonthMode({ groups, categories, accent, focus, highlight, header
   const [open, setOpen] = useState<Record<string, boolean>>({});
   const toggle = useCallback((key: string) => setOpen((o) => ({ ...o, [key]: !o[key] })), []);
 
+  // Measured row heights → exact offsets, so a jump to any month scrolls straight there
+  // (without getItemLayout, scrollToIndex fails for unrendered rows and crawls month by month).
+  const heights = useRef(new Map<string, number>());
+  const headerH = useRef(0);
+  const onRowLayout = useCallback((key: string, h: number) => heights.current.set(key, h), []);
+  const getItemLayout = useCallback((data: ArrayLike<MonthGroup> | null | undefined, index: number) => {
+    let offset = headerH.current;
+    for (let k = 0; k < index; k++) offset += heights.current.get(data![k].key) ?? ROW_ESTIMATE;
+    const length = data && data[index] ? (heights.current.get(data[index].key) ?? ROW_ESTIMATE) : ROW_ESTIMATE;
+    return { length, offset, index };
+  }, []);
+
   useEffect(() => {
-    if (!focus) return;
+    if (!focus || focus.nonce === lastHandledNonce) return;
     const i = monthIndex(groups, { y: +focus.key.slice(0, 4), m: +focus.key.slice(5, 7) });
     if (i >= 0) {
+      lastHandledNonce = focus.nonce;
       // a navigation request (Vai a… / year drill-down) opens that month and scrolls to it
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setOpen((o) => ({ ...o, [focus.key]: true }));
@@ -55,29 +74,30 @@ export function MonthMode({ groups, categories, accent, focus, highlight, header
       ref={list}
       data={groups}
       keyExtractor={(g) => g.key}
-      ListHeaderComponent={header}
+      ListHeaderComponent={<View onLayout={(e) => (headerH.current = e.nativeEvent.layout.height)}>{header}</View>}
       renderItem={({ item }) => (
-        <MonthRow g={item} open={!!open[item.key]} onToggle={toggle} accent={accent} highlight={highlight?.key === item.key ? highlight.days : undefined} catById={catById} showActivity={showActivity} />
+        <MonthRow g={item} open={!!open[item.key]} onToggle={toggle} onLayoutHeight={onRowLayout} accent={accent} highlight={highlight?.key === item.key ? highlight.days : undefined} catById={catById} showActivity={showActivity} />
       )}
+      getItemLayout={getItemLayout}
       initialNumToRender={6}
       windowSize={9}
-      onScrollToIndexFailed={(e) => {
-        list.current?.scrollToOffset({ offset: e.averageItemLength * e.index, animated: false });
-        setTimeout(() => list.current?.scrollToIndex({ index: e.index, animated: true }), 80);
-      }}
+      onScrollToIndexFailed={(e) => list.current?.scrollToOffset({ offset: getItemLayout(groups, e.index).offset, animated: false })}
       contentContainerStyle={{ paddingBottom: 80 }}
       testID="month-list"
     />
   );
 }
 
-const MonthRow = memo(function MonthRow({ g, open, onToggle, accent, highlight, catById, showActivity }: { g: MonthGroup; open: boolean; onToggle: (k: string) => void; accent: string; highlight?: number[]; catById: Map<string, Category>; showActivity: boolean }) {
+const MonthRow = memo(function MonthRow({ g, open, onToggle, onLayoutHeight, accent, highlight, catById, showActivity }: { g: MonthGroup; open: boolean; onToggle: (k: string) => void; onLayoutHeight: (k: string, h: number) => void; accent: string; highlight?: number[]; catById: Map<string, Category>; showActivity: boolean }) {
   const { width } = useWindowDimensions();
+  const reduced = useMotionReduced();
   const [day, setDay] = useState<LocalDate | null>(null);
+  // the chosen day lost its last session (deleted or moved): close its panel
+  if (day && !g.sessions.some((s) => s.date === day)) setDay(null);
   const empty = g.summary.sessions === 0;
   const dur = durationLine(g.summary.duration);
   return (
-    <Animated.View layout={LinearTransition.duration(260)} style={styles.month}>
+    <Animated.View layout={reduced ? undefined : LinearTransition.duration(260).reduceMotion(ReduceMotion.Never)} style={styles.month} onLayout={(e) => onLayoutHeight(g.key, e.nativeEvent.layout.height)}>
       <Pressable
         onPress={() => onToggle(g.key)}
         accessibilityRole="button"
@@ -114,7 +134,7 @@ const MonthRow = memo(function MonthRow({ g, open, onToggle, accent, highlight, 
         </View>
       </Pressable>
       {open ? (
-        <Animated.View entering={FadeIn.duration(200)}>
+        <Animated.View entering={reduced ? undefined : FadeIn.duration(200).reduceMotion(ReduceMotion.Never)}>
           <MiniCalendar g={g} accent={accent} selected={day} onSelect={(d) => setDay(d === day ? null : d)} />
           {day ? <DaySessions date={day} sessions={g.sessions.filter((s) => s.date === day)} catById={catById} showActivity={showActivity} /> : null}
         </Animated.View>
@@ -163,7 +183,7 @@ function MiniCalendar({ g, accent, selected, onSelect }: { g: MonthGroup; accent
                     <View key={k} style={[styles.mark, { backgroundColor: accent }]} />
                   ))}
                   {n > 3 ? (
-                    <T variant="label" color={C.mute} style={{ fontSize: 8 }}>
+                    <T variant="label" color={C.mute} style={{ fontSize: 11, lineHeight: 12 }}>
                       +{n - 3}
                     </T>
                   ) : null}
@@ -178,10 +198,14 @@ function MiniCalendar({ g, accent, selected, onSelect }: { g: MonthGroup; accent
 }
 
 function DaySessions({ date, sessions, catById, showActivity }: { date: LocalDate; sessions: Session[]; catById: Map<string, Category>; showActivity: boolean }) {
+  const dayDur = durationLine(summarize(sessions).duration);
   return (
     <View style={styles.day}>
       <T variant="label" color={C.mute}>
         {t.sessionsOnDay(dateLabel(date))}
+      </T>
+      <T variant="data" color={C.fg} testID="day-total">
+        {[t.sessions(sessions.length), dayDur].filter(Boolean).join(' · ')}
       </T>
       {sessions.map((s, i) => {
         const c = catById.get(s.categoryId);

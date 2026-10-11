@@ -5,7 +5,7 @@
 
 export const MAX_DURATION_SEC = 99 * 3600;
 
-export type DurationParse = { ok: true; seconds: number } | { ok: false; error: 'empty' | 'invalid' | 'non_positive' | 'too_long' };
+export type DurationParse = { ok: true; seconds: number } | { ok: false; error: 'empty' | 'invalid' | 'non_positive' | 'too_short' | 'too_long' };
 
 /**
  * Parse user input for a duration in hours. Accepts locale decimals and common forms:
@@ -20,16 +20,19 @@ export function parseDurationInput(raw: string): DurationParse {
   let m: RegExpExecArray | null;
   if ((m = /^(\d{1,3}):([0-5]\d)$/.exec(s))) {
     seconds = +m[1] * 3600 + +m[2] * 60;
-  } else if ((m = /^(\d{1,3})\s?h(?:ours?|ore?)?\s?(?:(\d{1,2})\s?(?:m|min|minuti?)?)?$/.exec(s))) {
+  } else if ((m = /^(\d{1,3})\s?(?:h(?:ours?)?|ore|ora)\s?(?:e\s?)?(?:([0-5]?\d)\s?(?:m|min|minuti?)?)?$/.exec(s))) {
     seconds = +m[1] * 3600 + (m[2] ? +m[2] * 60 : 0);
   } else if ((m = /^(\d{1,4})\s?(?:m|min|minuti?)$/.exec(s))) {
     seconds = +m[1] * 60;
-  } else if ((m = /^(\d{0,3})(?:[.,](\d{1,4}))?\s?(?:h|ore?)?$/.exec(s)) && (m[1] || m[2])) {
+  } else if ((m = /^(\d{0,3})(?:[.,](\d{1,4}))?\s?(?:h|ore|ora)?$/.exec(s)) && (m[1] || m[2])) {
     const hours = parseFloat(`${m[1] || '0'}.${m[2] || '0'}`);
     if (Number.isFinite(hours)) seconds = Math.round(hours * 3600);
   }
   if (seconds === null || !Number.isFinite(seconds)) return { ok: false, error: 'invalid' };
   if (seconds <= 0) return { ok: false, error: 'non_positive' };
+  // stored durations stay displayable and re-editable: whole minutes, at least one
+  if (seconds < 60) return { ok: false, error: 'too_short' };
+  seconds = Math.round(seconds / 60) * 60;
   if (seconds > MAX_DURATION_SEC) return { ok: false, error: 'too_long' };
   return { ok: true, seconds };
 }

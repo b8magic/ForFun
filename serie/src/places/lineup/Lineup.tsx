@@ -10,8 +10,10 @@ import Animated, { Easing, runOnUI, useAnimatedStyle, useSharedValue, withTiming
 import { router } from 'expo-router';
 import { useApp } from '@/state/store';
 import { useActive, useCountsByDate, useMotionReduced } from '@/state/selectors';
-import { closeSwitcher, goToday, openSwitcher, save, setPlace, shiftMonth, switchActivity, toggleDate } from '@/state/actions';
+import { clearSelection, closeSwitcher, goToday, openSwitcher, save, setPlace, setViewMonth, shiftMonth, switchActivity, toggleDate } from '@/state/actions';
 import { addDays, compareMonths, monthOf, monthWeeks, parseDate, toDayNumber } from '@/domain/dates';
+import { shortDate } from '@/places/time/format';
+import type { LocalDate } from '@/domain/types';
 import { palette, surfaces, HIT } from '@/ui/theme';
 import { T } from '@/ui/T';
 import { MONTHS_TITLE, WEEKDAYS_INITIAL, t } from '@/i18n/it';
@@ -99,15 +101,20 @@ export function Lineup() {
     const grid = monthWeeks(breakEvent.month);
     const cells: number[] = [];
     if (sameMonth) grid.forEach((wk, r) => wk.forEach((d, c) => breakEvent.dates.includes(d) && cells.push(r * 7 + c)));
-    // reduced motion: no wave — the calendar simply settles with the new rings
-    breakCells.set(reduced ? [] : cells);
-    const dur = reduced ? 360 : BREAK_MS;
-    brk.set(reduced ? 0.8 : 0);
+    // reduced motion: no wave and no sliding lines — the calendar simply settles with the new rings
+    if (reduced) {
+      breakCells.set([]);
+      brk.set(1);
+      return;
+    }
+    breakCells.set(cells);
+    const dur = BREAK_MS;
+    brk.set(0);
     brk.set(withTiming(1, { duration: dur, easing: Easing.linear }));
     // the flag mirrors the lifetime of the break animation started by this store event
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setBreaking(true);
-    if (!reduced) setTimeout(() => haptics.breakImpact(), dur * 0.6);
+    setTimeout(() => haptics.breakImpact(), dur * 0.6);
     if (breakTimer.current) clearTimeout(breakTimer.current);
     breakTimer.current = setTimeout(() => setBreaking(false), dur);
   }, [breakEvent?.id]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -115,6 +122,20 @@ export function Lineup() {
     brk.set(withTiming(1, { duration: 140 }));
     setBreaking(false);
   }, [brk]);
+  const breakCancel = useApp((s) => s.breakCancel);
+  useEffect(() => {
+    // the save was undone (store event): no celebration for sessions that no longer exist
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (breakCancel) skipBreak();
+  }, [breakCancel]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const onToggle = useCallback(
+    (d: LocalDate) => {
+      if (breaking) skipBreak();
+      return toggleDate(d);
+    },
+    [breaking, skipBreak],
+  );
 
   // ── month navigation ──
   const current = monthOf(today);
@@ -142,6 +163,9 @@ export function Lineup() {
 
   const content = useAnimatedStyle(() => ({ opacity: 1 - smooth(Math.min(1, sw.value * 1.6)) }));
   const n = selectionArr.length;
+  // selected dates outside the month in view are saved too: say so, and let them be found or cleared
+  const viewKey = `${viewMonth.y}-${String(viewMonth.m).padStart(2, '0')}`;
+  const offMonth = selectionArr.filter((d) => d.slice(0, 7) !== viewKey).sort();
 
   if (!active) return <EmptyActivities />;
 
@@ -184,7 +208,13 @@ export function Lineup() {
         <MenuGlyph color={palette.foam} />
       </Pressable>
 
-      <Animated.View style={[StyleSheet.absoluteFill, content]} pointerEvents={switcherOpen ? 'none' : 'box-none'}>
+      <Animated.View
+        style={[StyleSheet.absoluteFill, content]}
+        pointerEvents={switcherOpen ? 'none' : 'box-none'}
+        accessibilityElementsHidden={switcherOpen}
+        importantForAccessibility={switcherOpen ? 'no-hide-descendants' : 'auto'}
+        aria-hidden={switcherOpen}
+      >
         {/* month */}
         <View style={[styles.monthRow, { top: L.titleTop, left: L.G, right: L.G }]} pointerEvents="box-none">
           <Pressable onPress={() => router.push('/jump')} accessibilityRole="button" accessibilityLabel={`${MONTHS_TITLE[viewMonth.m - 1]} ${viewMonth.y}. ${t.pickMonth}`} hitSlop={6} testID="month-title">
@@ -205,8 +235,8 @@ export function Lineup() {
           </View>
         </View>
         {!atCurrent ? (
-          <Pressable style={[styles.todayChip, { top: L.titleTop + 64, left: L.G }]} onPress={goToday} accessibilityRole="button" hitSlop={8}>
-            <T variant="labelStrong" color={active.color}>
+          <Pressable style={[styles.todayChip, { top: L.titleTop + 64, left: L.G }]} onPress={goToday} accessibilityRole="button" hitSlop={{ top: 8, bottom: 14, left: 12, right: 12 }}>
+            <T variant="labelStrong" color={active.color} maxFontSizeMultiplier={1.2}>
               {t.goToToday}
             </T>
           </Pressable>
@@ -232,20 +262,34 @@ export function Lineup() {
           brk={brk}
           sw={sw}
           unfold={unfold}
-          onToggle={toggleDate}
+          onToggle={onToggle}
           onSwipe={onSwipe}
-          disabled={saving || breaking}
+          disabled={saving}
         />
 
         {/* optional details: present, never required */}
         <Pressable style={[styles.details, { top: L.detailsY - 16, left: L.G, right: L.G }]} onPress={() => router.push('/details')} accessibilityRole="button" accessibilityLabel={n ? t.detailsForSelection(n) : pendingDetails ? t.detailsPrepared : t.detailsLink} hitSlop={6} testID="details-link">
-          <T variant="label" color={pendingDetails ? active.color : surfaces.night.mute}>
+          <T variant="label" color={pendingDetails ? active.color : surfaces.night.mute} maxFontSizeMultiplier={1.2} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} style={{ flexShrink: 1 }}>
             {pendingDetails ? `✓ ${n ? t.detailsForSelection(n) : t.detailsPrepared}` : t.detailsLink}
           </T>
-          <T variant="label" color="rgba(238,232,218,0.32)">
+          <T variant="label" color={surfaces.night.mute} maxFontSizeMultiplier={1.2}>
             {t.detailsOptional}
           </T>
         </Pressable>
+        {!saveError && offMonth.length ? (
+          <View style={[styles.offMonth, { top: L.detailsY - 46, left: L.G, right: L.G }]} testID="off-month">
+            <Pressable onPress={() => setViewMonth(monthOf(offMonth[0]))} accessibilityRole="button" accessibilityLabel={t.offMonthA11y(offMonth.map((d) => shortDate(d)).join(', '))} hitSlop={8} style={styles.offBtn} testID="off-month-show">
+              <T variant="label" color={active.color}>
+                {t.offMonth(offMonth.length)}
+              </T>
+            </Pressable>
+            <Pressable onPress={clearSelection} accessibilityRole="button" accessibilityLabel={t.clearSelection} hitSlop={8} style={styles.offBtn} testID="clear-selection">
+              <T variant="label" color={surfaces.night.mute}>
+                {t.clearSelection.toUpperCase()}
+              </T>
+            </Pressable>
+          </View>
+        ) : null}
         {saveError ? (
           <View style={[styles.error, { top: L.detailsY - 46, left: L.G, right: L.G }]} accessibilityLiveRegion="assertive">
             <T variant="small" color={palette.danger}>
@@ -260,16 +304,16 @@ export function Lineup() {
           onPress={save}
           disabled={!n || saving}
           accessibilityRole="button"
-          accessibilityLabel={n ? t.save(n) + ` · ${active.name}` : t.selectDates}
+          accessibilityLabel={n ? `${saving ? t.saving : saveError ? `${t.retry} · ${t.save(n)}` : t.save(n)} · ${active.name}` : t.selectDates}
           aria-disabled={!n || saving} aria-busy={saving}
           testID="save"
         >
           {n ? (
-            <T variant="button" color={palette.ink}>
+            <T variant="button" color={palette.ink} maxFontSizeMultiplier={1.2} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
               {saving ? t.saving : saveError ? `${t.retry} · ${t.save(n)}` : t.save(n)}
             </T>
           ) : (
-            <T variant="label" color={surfaces.night.mute}>
+            <T variant="label" color={surfaces.night.mute} maxFontSizeMultiplier={1.2}>
               {t.selectDates}
             </T>
           )}
@@ -285,8 +329,7 @@ export function Lineup() {
 
       <Switcher L={L} categories={categories} activeId={active.id} open={switcherOpen} sw={sw} onPick={switchActivity} onClose={closeSwitcher} />
 
-      {/* the break never blocks: header, menu and history stay live; a tap on the water fast-forwards it */}
-      {breaking ? <Pressable style={[styles.catcher, { top: L.weekdayY - 10, height: L.pillCY + L.pillH / 2 - L.weekdayY + 10 }]} onPress={skipBreak} accessibilityLabel="Salta animazione" testID="skip-break" /> : null}
+      {/* the break never blocks: every control stays live and a tap on a date fast-forwards it */}
     </View>
   );
 }
@@ -322,9 +365,10 @@ const styles = StyleSheet.create({
   weekday: { position: 'absolute', width: 32 },
   details: { position: 'absolute', height: 32, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   error: { position: 'absolute' },
+  offMonth: { position: 'absolute', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  offBtn: { minHeight: HIT, justifyContent: 'center' },
   pill: { position: 'absolute', alignItems: 'center', justifyContent: 'center' },
   handle: { position: 'absolute', height: 44, alignItems: 'center' },
-  catcher: { position: 'absolute', left: 0, right: 0 },
 });
 
 export { rowY, addDays };

@@ -785,6 +785,25 @@ describe('runJobs — "Both"', () => {
     expect(apple.calls.createEvent).toBe(0);
   });
 
+  it('after Google wrote, an Apple route that cannot describe the Google side while offline waits (no attempt counted)', async () => {
+    const { repos, categories, surf, providers, google, apple } = await setup();
+    const s = await save(repos, surf.id, INTERVAL);
+    const { jobs } = await enqueueForSessions(repos, [s], categories, bothCfg(A_GMAIL));
+    apple.connection = { ...apple.connection, status: 'denied', canRead: false, canWrite: false, detail: t.permissionDenied };
+    await runJobs({ repos, providers, now: NOW });
+    expect(await jobOf(repos, jobs[0].opId)).toMatchObject({ provider: 'google', status: 'succeeded' });
+    // The stored Google descriptor is dropped to simulate a job queued by an older build.
+    const g = await jobOf(repos, jobs[0].opId);
+    await repos.exportJobs.update(g.id, { payload: { ...(g.payload as object), calendar: null } });
+
+    apple.connection = { ...apple.connection, status: 'connected', canRead: true, canWrite: true, detail: null };
+    await runJobs({ repos, providers, now: plus(NOW, 10 * MIN), isOnline: false });
+    // Attempt 1 was the denied run; waiting for the network does not count another one.
+    expect(await jobOf(repos, jobs[1].opId)).toMatchObject({ provider: 'apple', status: 'pending', attempts: 1, lastError: AUTO_EXPORT_STRINGS.error.offline });
+    expect(apple.calls.createEvent).toBe(0);
+    expect(google.calls.getConnection).toBe(1); // only the first, online run
+  });
+
   it('distinct destinations are written independently; one failing does not affect the other', async () => {
     const { repos, categories, surf, providers, google, apple } = await setup();
     const s = await save(repos, surf.id, INTERVAL);
@@ -888,6 +907,19 @@ describe('regressions — concurrent decisions, reconciliation, offline, provena
     expect(google.calls.createEvent).toBe(0);
   });
 
+  it('a save undone while its job is being checked is never exported', async () => {
+    const { repos, categories, surf, providers, google } = await setup();
+    const s = await save(repos, surf.id, INTERVAL);
+    const { jobs } = await enqueueForSessions(repos, [s], categories, enabled());
+    google.beforeList = async () => {
+      await repos.sessions.remove([s.id]); // "Annulla" — the job row goes with the session
+    };
+    const out = await runJobs({ repos, providers, now: NOW });
+    expect(out.outcomes).toEqual([expect.objectContaining({ jobId: jobs[0].id, status: 'cancelled' })]);
+    expect(google.calls.createEvent).toBe(0);
+    expect(await repos.exportJobs.list()).toEqual([]);
+  });
+
   it('a fresh "running" job (being written by a manual export) is left alone; a stale one is reclaimed and reconciled', async () => {
     let clock = NOW;
     const repos = await testRepos({ now: () => clock.toISOString() });
@@ -977,6 +1009,25 @@ describe('regressions — concurrent decisions, reconciliation, offline, provena
     await runJobs({ repos, providers, now: NOW, config: cfg });
     expect(await jobOf(repos, jobs[0].opId)).toMatchObject({ status: 'cancelled', reviewReason: AUTO_EXPORT_STRINGS.cancelled.sourceCalendar });
     expect(apple.calls.createEvent).toBe(0);
+  });
+
+  it('never a duplicate by date alone: two same-day sessions both export; a same-day event at another time is not a match', async () => {
+    const { repos, categories, surf, providers, google } = await setup();
+    google.events.push(foreignEvent(G_SPORT, 'manual-pm', 'Surf', DATE, '16:00', '17:30'));
+    const morning = await save(repos, surf.id, INTERVAL); // 07:30–09:00: start clearly differs from 16:00
+    const a = await save(repos, surf.id, undefined, { date: '2026-10-06' }); // date only
+    const b = await save(repos, surf.id, undefined, { date: '2026-10-06' }); // a second date-only session that day: legitimate
+    const { jobs } = await enqueueForSessions(repos, [morning, a, b], categories, enabled());
+    await runJobs({ repos, providers, now: NOW });
+    for (const j of jobs) expect(await jobOf(repos, j.opId)).toMatchObject({ status: 'succeeded' });
+    expect(google.written.map((e) => e.appMeta?.sessionId).sort()).toEqual([morning.id, a.id, b.id].sort());
+    expect(google.events.find((e) => e.eventId === 'manual-pm')?.title).toBe('Surf');
+
+    // All-day vs timed on the same day is never treated as certain either way: it waits for review.
+    const c = await save(repos, surf.id); // date only, same day as the 16:00 "Surf"
+    const q = await enqueueForSessions(repos, [c], categories, enabled());
+    await runJobs({ repos, providers, now: plus(NOW, MIN) });
+    expect(await jobOf(repos, q.jobs[0].opId)).toMatchObject({ status: 'needs_review', reviewReason: t.exportStatusPossibleDuplicate });
   });
 
   it('validateConfig warns when a destination cannot be read (duplicates cannot be checked)', () => {

@@ -54,3 +54,19 @@ describe('duration input', () => {
     expect(formatHoursInput(5400)).toBe('1,5');
   });
 });
+
+describe('duration input edge cases (review regressions)', () => {
+  it('accepts the Italian singular "ora"', () => {
+    expect(parseDurationInput('1 ora')).toEqual({ ok: true, seconds: 3600 });
+    expect(parseDurationInput('1h 30')).toEqual({ ok: true, seconds: 5400 });
+    expect(parseDurationInput('1 ora e 30')).toEqual({ ok: true, seconds: 5400 });
+    expect(parseDurationInput('2 ore e 15 min')).toEqual({ ok: true, seconds: 8100 });
+  });
+  it('refuses minutes ≥ 60 after hours instead of silently carrying them', () => {
+    expect(parseDurationInput('1h75').ok).toBe(false);
+  });
+  it('stores whole minutes, at least one: sub-minute input is refused, not shown as "0 min"', () => {
+    expect(parseDurationInput('0,001')).toEqual({ ok: false, error: 'too_short' });
+    expect(parseDurationInput('0,02')).toEqual({ ok: true, seconds: 60 }); // 72 s → 1 min
+  });
+});

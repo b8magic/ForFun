@@ -13,7 +13,7 @@ import { isLocalDate } from '@/domain/dates';
 import { updateSession } from '@/state/actions';
 import { Button, Field, Note, Segmented } from '@/ui/controls';
 import { T } from '@/ui/T';
-import { palette, surfaces } from '@/ui/theme';
+import { HIT, palette, surfaces } from '@/ui/theme';
 import { t } from '@/i18n/it';
 import { errorText } from '@/sheets/manage/helpers';
 import { Check, longDateIt, Pill } from './parts';
@@ -114,6 +114,11 @@ export function ExportRow({
           <T variant="small" color={S.mute}>
             {rep.disclosure}
           </T>
+          {r.draft?.location ? (
+            <T variant="small" color={S.mute} numberOfLines={2}>
+              {`Luogo: ${r.draft.location}`}
+            </T>
+          ) : null}
           {r.draft?.notes ? (
             <T variant="small" color={S.mute} numberOfLines={open ? undefined : 2}>
               {`Descrizione: ${r.draft.notes}`}
@@ -345,7 +350,7 @@ function RowEditor({
 const styles = StyleSheet.create({
   item: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: S.faint, paddingVertical: 12, gap: 6 },
   main: { flexDirection: 'row', gap: 14, alignItems: 'flex-start' },
-  expand: { alignSelf: 'flex-start', marginLeft: 36, minHeight: 36, justifyContent: 'center' },
+  expand: { alignSelf: 'flex-start', marginLeft: 36, minHeight: HIT, justifyContent: 'center' },
   editor: { marginLeft: 36, gap: 12, paddingTop: 4, paddingBottom: 6 },
   compare: { flexDirection: 'row', gap: 12 },
   compareCol: { flex: 1, gap: 3, padding: 10, borderRadius: 10, backgroundColor: 'rgba(238,232,218,0.05)' },

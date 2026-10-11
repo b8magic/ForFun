@@ -48,12 +48,22 @@ export function DetailsSheet() {
   // Durations are re-derived for every selected date when saving; validate against the first one.
   const refDate = selection[0] ?? today;
   const ev = useMemo(() => evaluateTiming(refDate, timing, deviceZone), [refDate, timing, deviceZone]);
+  // the same clock times must hold on EVERY selected date (a DST night can make 02:30 not exist):
+  // never let one date silently lose its end time or become something else
+  const badDates = useMemo(() => {
+    if (!ev.ok || !ev.timing || selection.length < 2) return [];
+    const want = ev.timing.state;
+    return selection.filter((d) => {
+      const e = evaluateTiming(d, timing, deviceZone);
+      return !e.ok || !e.timing || e.timing.state !== want;
+    });
+  }, [ev, selection, timing, deviceZone]);
   const accent = active?.color ?? palette.flare;
   const empty = !notes.trim() && !compactPlace(place) && isTimingFormEmpty(timing);
 
   const apply = () => {
     setAttempted(true);
-    if (!ev.ok) {
+    if (!ev.ok || badDates.length) {
       // Only timing fields can be invalid here: bring them into view.
       scrollRef.current?.scrollTo({ y: Math.max(0, timingY.current - 8), animated: !reduced });
       AccessibilityInfo.announceForAccessibility(s.fixToSave);
@@ -108,6 +118,9 @@ export function DetailsSheet() {
         </Section>
 
         <View onLayout={(e) => (timingY.current = e.nativeEvent.layout.y)}>
+          {badDates.length ? (
+            <Note tone="error">{`Questo orario non vale per ${datesSummary(badDates)}: in quel giorno cambia l’ora legale. Cambia l’orario o togli quella data dalla selezione.`}</Note>
+          ) : null}
           <Section label={t.timing}>
             <TimingEditor key={`t${formKey}`} date={refDate} value={timing} onChange={setTiming} deviceZone={deviceZone} showErrors={attempted} accent={accent} testID="details-timing" />
           </Section>

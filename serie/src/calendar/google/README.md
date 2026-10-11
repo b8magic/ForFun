@@ -73,7 +73,7 @@ EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID=MMMM-yyyy.apps.googleusercontent.com   # option
 
 Alternatively, an `app.config.ts` can derive the scheme from `process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID`. Then build a **development build**, for example `npx eas-cli@latest build --profile development --platform ios`. Expo Go cannot be used.
 
-Web only: importing `@/calendar/google` calls `WebBrowser.maybeCompleteAuthSession()`, which closes the auth popup. Make sure the app root imports it, directly or through the provider registry.
+Web only: `WebBrowser.maybeCompleteAuthSession()` must run when the sign-in popup loads the app, so the popup closes and hands the result back. Importing `@/calendar/google` does it, but the registry loads that module only on first calendar use; `src/calendar/autoRuntime.ts` (imported by the root layout) therefore calls `completePendingAuthRedirect()` from `src/calendar/authRedirect.web.ts` at app start (a no-op on native and on ordinary page loads).
 
 ## Calendar API behaviour
 

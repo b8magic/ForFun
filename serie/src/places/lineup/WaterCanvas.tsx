@@ -65,7 +65,7 @@ function WaterCanvasImpl({ L, w, inMonth, brk, breakCells, sw, unfold, discTarge
   const discPath = usePathValue((b) => {
     'worklet';
     const d = disc.value;
-    discStripes(b, pattern, d.x, d.y, d.r, w.clock.value * (0.35 + 0.65 * w.ambient.value), 7);
+    discStripes(b, pattern, d.x, d.y, d.r, w.drift.value, 7);
   });
   const discDotR = useDerivedValue(() => Math.max(2.5, disc.value.r * 0.203));
   const discDotX = useDerivedValue(() => disc.value.x + Math.cos(-Math.PI / 4) * (disc.value.r + discDotR.value + 2.5));
@@ -246,8 +246,8 @@ function WaterCanvasImpl({ L, w, inMonth, brk, breakCells, sw, unfold, discTarge
   });
   const marksAlpha = useDerivedValue(() => 1 - smooth(sw.value));
   // the active pattern shapes the lines themselves: stride dashes, grain dots, pulse breath
-  const dashPhase = useDerivedValue(() => -w.clock.value * (pattern === 1 ? 14 : 3) * w.ambient.value);
-  const lineWidth = useDerivedValue(() => (pattern === 2 ? 2 + 0.55 * Math.sin(w.clock.value * 2.6) * w.ambient.value : pattern === 5 ? 2.6 : 2));
+  const dashPhase = useDerivedValue(() => -w.drift.value * (pattern === 1 ? 14 : 3));
+  const lineWidth = useDerivedValue(() => (pattern === 2 ? 2 + 0.55 * Math.sin(w.drift.value * 2.6) * w.ambient.value : pattern === 5 ? 2.6 : 2));
 
   // ── Save liquid ──
   const pillClip = Skia.RRectXY(Skia.XYWHRect(L.pillCX - L.pillW / 2, L.pillCY - L.pillH / 2, L.pillW, L.pillH), L.pillH / 2, L.pillH / 2);
@@ -335,7 +335,7 @@ function WaterCanvasImpl({ L, w, inMonth, brk, breakCells, sw, unfold, discTarge
     const pulse = u > 0.84 && u < 1 ? Math.sin(((u - 0.84) / 0.16) * Math.PI) : 0;
     for (let i = 0; i <= n; i++) {
       const x = mix(x0, x1, i / n);
-      let y = y0 + Math.sin(x * 0.08 + w.clock.value * 1.4) * 0.8 * w.ambient.value;
+      let y = y0 + Math.sin(x * 0.08 + w.drift.value * 1.4) * 0.8 * w.ambient.value;
       for (let k = 0; k < handleBumps.length; k += 2) {
         const bx = mix(x0, x1, handleBumps[k]);
         y -= handleBumps[k + 1] * 7 * Math.exp(-((x - bx) * (x - bx)) / 18);

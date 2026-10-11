@@ -24,6 +24,7 @@ export function Sheet({
   footer,
   onClose,
   scroll = true,
+  keyboardInsets = true,
   testID,
 }: {
   title: string;
@@ -32,6 +33,8 @@ export function Sheet({
   footer?: ReactNode;
   onClose?: () => void;
   scroll?: boolean;
+  /** iOS: keep the focused field above the keyboard (off when a parent already pads for it). */
+  keyboardInsets?: boolean;
   testID?: string;
 }) {
   const insets = useSafeAreaInsets();
@@ -55,7 +58,7 @@ export function Sheet({
         </Pressable>
       </View>
       {scroll ? (
-        <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingTop: 4 }}>
+        <ScrollView keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets={keyboardInsets} keyboardDismissMode="interactive" contentContainerStyle={{ paddingTop: 4 }}>
           {body}
         </ScrollView>
       ) : (
@@ -99,7 +102,7 @@ export function Field({ label, error, style, ...props }: TextInputProps & { labe
         </T>
       ) : null}
       <TextInput
-        placeholderTextColor="rgba(238,232,218,0.34)"
+        placeholderTextColor="rgba(238,232,218,0.55)"
         selectionColor={palette.flare}
         {...props}
         onFocus={(e) => {
@@ -157,11 +160,12 @@ export function Button({
       accessibilityRole="button"
       aria-disabled={!!disabled}
       aria-busy={!!busy}
+      accessibilityLabel={label}
       accessibilityHint={accessibilityHint}
       testID={testID}
       style={({ pressed }) => [
         styles.button,
-        { backgroundColor: bg, opacity: disabled ? 0.35 : pressed ? 0.8 : 1 },
+        { backgroundColor: bg, opacity: disabled ? 0.35 : busy ? 0.6 : pressed ? 0.8 : 1 },
         kind === 'secondary' && { borderWidth: 1.2, borderColor: S.faint },
         kind === 'quiet' && {
           minHeight: HIT,
@@ -175,7 +179,7 @@ export function Button({
       ]}
     >
       <T variant={kind === 'quiet' ? 'labelStrong' : 'button'} color={fg}>
-        {busy ? '…' : label}
+        {label}
       </T>
     </Pressable>
   );

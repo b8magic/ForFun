@@ -16,10 +16,17 @@ import type { Session } from '@/domain/types';
 import { getRepositories } from '@/data/database';
 import { onCommit } from '@/state/hooks';
 import { useApp } from '@/state/store';
+import { UNDO_WINDOW_MS } from '@/state/actions';
 import { enqueueForSessions, loadConfig, runJobs } from './autoExport';
 import { getProviders } from './registry';
+import { completePendingAuthRedirect } from './authRedirect';
 
-const RUN_AFTER_COMMIT_MS = 6500;
+// The root layout imports this module at app start: finish a pending web OAuth popup here
+// (no-op on native and on ordinary page loads; see authRedirect.web.ts).
+completePendingAuthRedirect();
+
+// after the longest "Annulla" window (12 s with VoiceOver, 6 s otherwise) plus a margin
+const RUN_AFTER_COMMIT_MS = UNDO_WINDOW_MS.screenReader + 2000;
 const PERIODIC_MS = 60_000;
 
 let started = false;
@@ -77,6 +84,14 @@ export async function enqueueAfterCommit(sessions: Session[]): Promise<void> {
   const config = await loadConfig(repos);
   if (!config.enabled) return;
   const res = await enqueueForSessions(repos, sessions, useApp.getState().categories, config);
+  // New jobs become due only after the "Annulla" window: no run (timer, foreground, network)
+  // can export a save that the user is still able to undo. An undone session's job is then
+  // cancelled by the engine ("La sessione non esiste più"), never written.
+  const notBefore = new Date(Date.now() + RUN_AFTER_COMMIT_MS - 500).toISOString();
+  const ids = new Set(sessions.map((x) => x.id));
+  for (const j of res.jobs) {
+    if (j.status === 'pending' && ids.has(j.sessionId) && j.attempts === 0 && !j.nextAttemptAt) await repos.exportJobs.update(j.id, { nextAttemptAt: notBefore });
+  }
   await refreshOpenJobs();
   if (res.created || res.jobs.length) schedule(RUN_AFTER_COMMIT_MS);
 }

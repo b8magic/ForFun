@@ -24,14 +24,11 @@
  * depend on `Buffer`, `btoa` or `TextEncoder` being present in the runtime.
  */
 import type { AppEventMeta } from '../types';
-import type { DurationSource, TimingState } from '@/domain/types';
+import { canonicalAppMeta, parseAppMeta } from '../appMeta';
 
 export const META_URL_PREFIX = 'serie://export?m=';
 const META_URL_RE = /^serie:\/\/export\?(?:[^#]*&)?m=([A-Za-z0-9_-]+)(?:[&#].*)?$/;
 const META_LINE_RE = /^serie:\/\/export\?m=[A-Za-z0-9_-]+$/;
-
-const TIMING_STATES: readonly TimingState[] = ['date_only', 'start_only', 'interval', 'duration_only', 'start_duration'];
-const DURATION_SOURCES: readonly DurationSource[] = ['interval', 'declared'];
 
 // ─── UTF-8 + base64url ───────────────────────────────────────────────────────
 
@@ -56,11 +53,19 @@ function utf8String(bytes: number[]): string | null {
     const b = bytes[i];
     let cp: number;
     let n: number;
-    if (b < 0x80) (cp = b), (n = 1);
-    else if (b >= 0xc2 && b < 0xe0) (cp = b & 0x1f), (n = 2);
-    else if (b >= 0xe0 && b < 0xf0) (cp = b & 0x0f), (n = 3);
-    else if (b >= 0xf0 && b < 0xf5) (cp = b & 0x07), (n = 4);
-    else return null;
+    if (b < 0x80) {
+      cp = b;
+      n = 1;
+    } else if (b >= 0xc2 && b < 0xe0) {
+      cp = b & 0x1f;
+      n = 2;
+    } else if (b >= 0xe0 && b < 0xf0) {
+      cp = b & 0x0f;
+      n = 3;
+    } else if (b >= 0xf0 && b < 0xf5) {
+      cp = b & 0x07;
+      n = 4;
+    } else return null;
     if (i + n > bytes.length) return null;
     for (let k = 1; k < n; k++) {
       const c = bytes[i + k];
@@ -108,40 +113,25 @@ export function base64UrlDecode(encoded: string): string | null {
 
 // ─── AppEventMeta ────────────────────────────────────────────────────────────
 
-/** Strict shape check; anything unexpected is treated as "no metadata". */
+/**
+ * Strict shape check; anything unexpected is treated as "no metadata". The
+ * same validator as the Google provider and the import engine (`parseAppMeta`).
+ */
 export function validateMeta(x: unknown): AppEventMeta | null {
-  if (!x || typeof x !== 'object') return null;
-  const o = x as Record<string, unknown>;
-  if (o.v !== 1) return null;
-  if (typeof o.sessionId !== 'string' || !o.sessionId) return null;
-  if (typeof o.opId !== 'string' || !o.opId) return null;
-  if (!TIMING_STATES.includes(o.timingState as TimingState)) return null;
-  const dur = o.durationSec;
-  if (dur !== null && !(typeof dur === 'number' && Number.isInteger(dur) && dur > 0)) return null;
-  const src = o.durationSource;
-  if (src !== null && !DURATION_SOURCES.includes(src as DurationSource)) return null;
-  if (typeof o.schedulingPlaceholder !== 'boolean') return null;
-  return {
-    v: 1,
-    sessionId: o.sessionId,
-    opId: o.opId,
-    timingState: o.timingState as TimingState,
-    durationSec: dur as number | null,
-    durationSource: src as DurationSource | null,
-    schedulingPlaceholder: o.schedulingPlaceholder,
-  };
+  return parseAppMeta(x);
 }
 
 export function encodeMeta(meta: AppEventMeta): string {
-  // Fixed key order keeps the payload deterministic (stable snapshots/tests).
+  // Canonical values (they always read back) in a fixed key order (deterministic payload).
+  const m = canonicalAppMeta(meta);
   const ordered: AppEventMeta = {
     v: 1,
-    sessionId: meta.sessionId,
-    opId: meta.opId,
-    timingState: meta.timingState,
-    durationSec: meta.durationSec,
-    durationSource: meta.durationSource,
-    schedulingPlaceholder: meta.schedulingPlaceholder,
+    sessionId: m.sessionId,
+    opId: m.opId,
+    timingState: m.timingState,
+    durationSec: m.durationSec,
+    durationSource: m.durationSource,
+    schedulingPlaceholder: m.schedulingPlaceholder,
   };
   return base64UrlEncode(JSON.stringify(ordered));
 }

@@ -209,7 +209,8 @@ export function categoriesRepo(db: SqlDriver, deps: Deps) {
           if (strategy.toCategoryId === id) throw new DomainError('move_to_same');
           const target = await tx.first('SELECT id FROM categories WHERE id = ?', [strategy.toCategoryId]);
           if (!target) throw new DomainError('category_missing');
-          await tx.run('UPDATE sessions SET category_id = ?, updated_at = ? WHERE category_id = ?', [strategy.toCategoryId, deps.now(), id]);
+          // moved sessions leave their creating tap behind (see sessions.update): no unique-index collision with the target's own sessions
+          await tx.run('UPDATE sessions SET category_id = ?, save_request_id = NULL, updated_at = ? WHERE category_id = ?', [strategy.toCategoryId, deps.now(), id]);
         } else if (n > 0 && strategy?.kind === 'delete_sessions') {
           await tx.run('DELETE FROM sessions WHERE category_id = ?', [id]);
         }
@@ -324,6 +325,12 @@ export function sessionsRepo(db: SqlDriver, deps: Deps) {
           notes: patch.notes !== undefined ? clean(patch.notes) : cur.notes,
           updatedAt: deps.now(),
         };
+        // The save request id only guards the creating tap against double delivery. Once a session
+        // moves to another date or activity it must not collide with its siblings from that tap.
+        if (date !== cur.date || categoryId !== cur.categoryId) {
+          await tx.run('UPDATE sessions SET save_request_id = NULL WHERE id = ?', [id]);
+          next.saveRequestId = null;
+        }
         const p = sessionParams(next);
         await tx.run(
           `UPDATE sessions SET category_id = ?, date = ?, timing_state = ?, start_time = ?, end_time = ?, end_day_offset = ?, time_zone = ?, declared_sec = ?, duration_sec = ?, duration_source = ?, place_label = ?, place_address = ?, map_url = ?, lat = ?, lng = ?, place_resolution = ?, place_note = ?, notes = ?, updated_at = ? WHERE id = ?`,

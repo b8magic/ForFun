@@ -1,5 +1,5 @@
 /**
- * Attività in sospeso — every export job with its real state. "Salvata sul
+ * Esportazioni in sospeso — every export job with its real state. "Salvata sul
  * dispositivo", "Accettato dal calendario" and cloud sync are different
  * things and are named separately. Review decisions are explicit; nothing
  * here deletes or edits an existing calendar event.
@@ -172,7 +172,7 @@ export function JobsScreen() {
                   </T>
                 ) : null}
                 <T variant="label" color={S.mute}>
-                  {[j.attempts ? `${j.attempts} ${j.attempts === 1 ? 'TENTATIVO' : 'TENTATIVI'}` : null, j.nextAttemptAt && OPEN_JOB_STATUSES.includes(j.status) ? `PROSSIMO ${when(j.nextAttemptAt)}` : null, `AGGIORNATO ${when(j.updatedAt)}`].filter(Boolean).join(' · ')}
+                  {[j.attempts ? `${j.attempts} ${j.attempts === 1 ? 'TENTATIVO' : 'TENTATIVI'}` : null, j.nextAttemptAt && j.status !== 'needs_review' && OPEN_JOB_STATUSES.includes(j.status) && j.nextAttemptAt > new Date().toISOString() ? `PROSSIMO ${when(j.nextAttemptAt)}` : null, `AGGIORNATO ${when(j.updatedAt)}`].filter(Boolean).join(' · ')}
                 </T>
                 {j.status === 'succeeded' ? <Note>{t.exportNotCloud}</Note> : null}
               </View>
@@ -197,8 +197,18 @@ export function JobsScreen() {
                         candidates[j.id].map((ev) => (
                           <View key={ev.eventId} style={{ gap: 4 }}>
                             <T variant="small" color={S.fg}>
-                              {`${t.existingEvent}: ${ev.title} · ${longDateIt(ev.start.date)}${ev.start.time ? ` ${ev.start.time}` : ''}`}
+                              {`${t.existingEvent} (${calTitle(j)}): ${ev.title} · ${longDateIt(ev.start.date)}${ev.start.time ? ` ${ev.start.time}` : ''}`}
                             </T>
+                            {ev.notes ? (
+                              <T variant="small" color={S.mute} numberOfLines={3}>
+                                {ev.notes}
+                              </T>
+                            ) : null}
+                            {s && payload ? (
+                              <T variant="small" color={S.fg}>
+                                {`${t.proposedEvent}: ${payload.title.prefix}${cat?.name ?? payload.categoryName}${payload.title.suffix} · ${longDateIt(s.date)} · ${timingSummary(s)}`}
+                              </T>
+                            ) : null}
                             <Button kind="secondary" label={t.actionLink} busy={busy === j.id} onPress={() => act(j, { kind: 'link', event: ev }, false)} />
                           </View>
                         ))

@@ -1,9 +1,9 @@
 import type { Place } from '@/domain/types';
 
+import { appleMapsUrl, formatCoordinate, googleMapsSearchUrl, openPlaceInMaps, openUrlFor, OPEN_IN_MAPS_STRINGS } from '../openInMaps';
+
 const mockOpenURL = jest.fn<Promise<true>, [string]>(async () => true);
 jest.mock('expo-linking', () => ({ openURL: (url: string) => mockOpenURL(url) }));
-
-import { appleMapsUrl, formatCoordinate, googleMapsSearchUrl, openPlaceInMaps, openUrlFor, OPEN_IN_MAPS_STRINGS } from '../openInMaps';
 
 const place = (p: Partial<Place>): Place => ({ label: null, address: null, mapUrl: null, coords: null, resolution: 'none', resolutionNote: null, ...p });
 const LONG = 'https://www.google.com/maps/place/La+Fuente/@43.5389612,-5.4021553,17z/data=!3m1!4b1!4m6!3m5!1s0x0:0x0!8m2!3d43.5389573!4d-5.3995804?entry=ttu#x';

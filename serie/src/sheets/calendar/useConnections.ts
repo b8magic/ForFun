@@ -1,6 +1,20 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { CalendarProvider, Connection, ProviderKind } from '@/calendar/types';
 import { getProviders } from '@/calendar/registry';
+import { getRepositories } from '@/data/database';
+import { runAutoExportNow } from '@/calendar/autoRuntime';
+
+/** A (re)connection is the moment failed automatic exports for that provider can succeed: retry them now, not after their backoff. */
+async function wakeFailedJobs(k: ProviderKind) {
+  try {
+    const repos = await getRepositories();
+    const failed = (await repos.exportJobs.list(['failed'])).filter((j) => j.provider === k && j.kind === 'auto');
+    for (const j of failed) await repos.exportJobs.update(j.id, { nextAttemptAt: null });
+    if (failed.length) await runAutoExportNow();
+  } catch {
+    // best effort: the periodic run still retries them
+  }
+}
 
 export interface ConnState {
   providers: Record<ProviderKind, CalendarProvider> | null;
@@ -31,6 +45,7 @@ export function useConnections() {
       try {
         const c = await providers[k].connect(access);
         setS((p) => ({ ...p, busy: null, connections: { ...p.connections, [k]: c } }));
+        if (c.status === 'connected' || c.status === 'write_only') void wakeFailedJobs(k);
         return c;
       } catch (e) {
         setS((p) => ({ ...p, busy: null, error: e instanceof Error ? e.message : String(e) }));

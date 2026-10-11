@@ -20,24 +20,35 @@ export interface Slot {
   x: number;
   y: number;
   r: number;
+  /** Slot width (disc, name and touch target). */
+  w: number;
 }
 
 /** Disc positions on a swell arc (two rows beyond five activities). */
+/** Minimum width of one activity slot: disc, a two-line name and a ≥44 pt target never overlap. */
+const MIN_SLOT_W = 96;
+
 export function arcSlots(n: number, L: LineupLayout): Slot[] {
-  const perRow = n <= 5 ? Math.max(n, 1) : Math.ceil(n / 2);
-  const rows = Math.ceil(n / perRow);
-  const r = Math.min(30, ((L.W - 2 * L.G) / perRow) * 0.3);
+  const span = L.W - 2 * L.G;
+  const maxPerRow = Math.max(1, Math.floor(span / MIN_SLOT_W));
+  const rows = Math.max(1, Math.ceil(n / maxPerRow));
+  const perRow = Math.max(1, Math.ceil(n / rows)); // balanced rows: 4 → 2 + 2, 5 → 3 + 2
+  const slotW = span / perRow;
+  const r = Math.min(30, slotW * 0.3, 26 + 8 / rows);
+  const top = L.titleTop + 92;
+  const room = L.detailsY - 60 - top; // the rows (and "Gestisci attività") stay above the details row
+  const rowGap = Math.max(100, Math.min(128, room / rows));
   const out: Slot[] = [];
   for (let k = 0; k < n; k++) {
     const row = Math.floor(k / perRow);
     const idx = k % perRow;
     const inRow = Math.min(perRow, n - row * perRow);
     const u = (idx + 0.5) / inRow;
-    const x = L.G + (L.W - 2 * L.G) * (0.06 + 0.88 * u);
-    const y = L.titleTop + 92 + row * 128 - Math.sin(Math.PI * u) * 22;
-    out.push({ x, y, r });
+    const x = L.G + span * (0.06 + 0.88 * u);
+    const y = top + row * rowGap - Math.sin(Math.PI * u) * 22;
+    out.push({ x, y, r, w: Math.min(slotW, span * 0.88 / inRow + 8) });
   }
-  return rows ? out : out;
+  return out;
 }
 
 interface Props {
@@ -103,7 +114,7 @@ const SwitcherDisc = memo(function SwitcherDisc({ c, k, slot, active, sw, onPick
   });
   const size = slot.r * 2 + slot.r * 0.9;
   return (
-    <Animated.View style={[styles.slot, { left: slot.x - 52, top: slot.y - slot.r - slot.r * 0.45, width: 104 }, style]}>
+    <Animated.View style={[styles.slot, { left: slot.x - slot.w / 2, top: slot.y - slot.r - slot.r * 0.45, width: slot.w }, style]}>
       <Pressable
         onPress={() => onPick(c.id)}
         accessibilityRole="button"
@@ -115,7 +126,7 @@ const SwitcherDisc = memo(function SwitcherDisc({ c, k, slot, active, sw, onPick
         <View style={{ width: size, height: size, opacity: active ? 0 : 1 }}>
           <IdentityDisc size={size} pattern={c.pattern} color={c.color} stripe={palette.foam} />
         </View>
-        <T variant="bodyStrong" color={palette.foam} align="center" numberOfLines={2} style={{ marginTop: 6 }}>
+        <T variant="bodyStrong" color={palette.foam} align="center" numberOfLines={2} maxFontSizeMultiplier={1.3} style={{ marginTop: 6, maxWidth: slot.w - 8 }}>
           {c.name}
         </T>
         <T variant="label" color={active ? c.color : 'transparent'} style={{ marginTop: 2 }}>

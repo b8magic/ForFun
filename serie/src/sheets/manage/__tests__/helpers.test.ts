@@ -17,7 +17,8 @@ import {
   parseMonthKey,
   suggestLook,
   yearCounts,
-} from '../helpers';
+ ALL_ACTIVITIES, monthCounts as mc, yearCounts as yc, jumpYears as jy } from '../helpers';
+
 
 const cat = (id: string, name: string, color = '#FF4D1F', pattern: PatternKind = 'swell', sortOrder = 0): Category => ({
   id,
@@ -153,5 +154,19 @@ describe('month jump', () => {
     expect(parseMonthKey('2026-13')).toBeNull();
     expect(parseMonthKey('2026-3')).toBeNull();
     expect(parseMonthKey(null)).toBeNull();
+  });
+});
+
+describe('jump counts for every activity (history filter "Tutte")', () => {
+  it('counts sessions of all activities', () => {
+    const ss = [
+      { categoryId: 'a', date: '2024-03-02' },
+      { categoryId: 'b', date: '2024-03-09' },
+      { categoryId: 'b', date: '2025-01-01' },
+    ];
+    expect(mc(ss, ALL_ACTIVITIES, 2024)[2]).toBe(2);
+    expect(yc(ss, ALL_ACTIVITIES).get(2025)).toBe(1);
+    expect(jy(ss, ALL_ACTIVITIES, '2026-10-11')[0]).toBe(2024);
+    expect(mc(ss, null, 2024)[2]).toBe(0);
   });
 });

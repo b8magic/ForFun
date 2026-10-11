@@ -196,6 +196,34 @@ export function ProviderChoice({
   );
 }
 
+/** Connection status rows (not a choice): provider, account, access, and Collega when useful. */
+export function ConnectionList({ connections, need, busy, onConnect }: { connections: Partial<Record<ProviderKind, Connection>>; need: 'read' | 'write'; busy: ProviderKind | null; onConnect: (k: ProviderKind) => void }) {
+  return (
+    <View>
+      {(['google', 'apple'] as ProviderKind[]).map((k) => {
+        const c = connections[k];
+        const ok = usable(c, need);
+        const canConnect = !!c && !ok && (c.status === 'disconnected' || c.status === 'write_only' || (c.status === 'connected' && need === 'write' && !c.canWrite));
+        return (
+          <View key={k} style={[styles.providerBlock, { paddingVertical: 10, gap: 6 }]} accessible={!canConnect} accessibilityLabel={`${PROVIDER_NAMES[k]}: ${connectionLine(c)}`} testID={`connection-${k}`}>
+            <T variant="body" color={S.fg}>
+              {PROVIDER_NAMES[k]}
+            </T>
+            <T variant="small" color={S.mute}>
+              {connectionLine(c)}
+            </T>
+            {canConnect ? (
+              <View style={{ alignItems: 'flex-start' }}>
+                <Button kind="secondary" label={t.connect} onPress={() => onConnect(k)} busy={busy === k} testID={`connect-${k}`} />
+              </View>
+            ) : null}
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
 // ─── calendars ───────────────────────────────────────────────────────────────
 
 export function calendarAccess(c: ExternalCalendar): string {
@@ -309,7 +337,7 @@ export function DateText({ label, value, onChange, testID }: { label: string; va
         value={value}
         onChangeText={onChange}
         placeholder="AAAA-MM-GG"
-        placeholderTextColor={S.faint}
+        placeholderTextColor={S.mute}
         autoCapitalize="none"
         autoCorrect={false}
         keyboardType="numbers-and-punctuation"

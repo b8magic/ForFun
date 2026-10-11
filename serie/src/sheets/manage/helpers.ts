@@ -105,6 +105,10 @@ export function parseJumpTarget(v: string | string[] | undefined): JumpTarget {
 
 const yearOf = (d: LocalDate) => Number(d.slice(0, 4));
 
+/** Category filter value meaning every activity (history's "Tutte le attività"). */
+export const ALL_ACTIVITIES = '*';
+const inFilter = (categoryId: ID, s: Pick<Session, 'categoryId'>) => categoryId === ALL_ACTIVITIES || s.categoryId === categoryId;
+
 /**
  * Years offered by "Vai a…": from the first year with a session for the
  * activity (or the current year) up to the current year. `include` widens the
@@ -114,7 +118,7 @@ const yearOf = (d: LocalDate) => Number(d.slice(0, 4));
 export function jumpYears(sessions: readonly Pick<Session, 'categoryId' | 'date'>[], categoryId: ID | null, today: LocalDate, opts: { include?: number; earlier?: number } = {}): number[] {
   const current = yearOf(today);
   let first = current;
-  if (categoryId) for (const s of sessions) if (s.categoryId === categoryId) first = Math.min(first, yearOf(s.date));
+  if (categoryId) for (const s of sessions) if (inFilter(categoryId, s)) first = Math.min(first, yearOf(s.date));
   if (opts.include != null && opts.include < first) first = opts.include;
   first -= Math.max(0, Math.floor(opts.earlier ?? 0));
   const out: number[] = [];
@@ -127,7 +131,7 @@ export function monthCounts(sessions: readonly Pick<Session, 'categoryId' | 'dat
   const out = new Array<number>(12).fill(0);
   if (!categoryId) return out;
   const prefix = `${String(year).padStart(4, '0')}-`;
-  for (const s of sessions) if (s.categoryId === categoryId && s.date.startsWith(prefix)) out[Number(s.date.slice(5, 7)) - 1]++;
+  for (const s of sessions) if (inFilter(categoryId, s) && s.date.startsWith(prefix)) out[Number(s.date.slice(5, 7)) - 1]++;
   return out;
 }
 
@@ -135,7 +139,7 @@ export function monthCounts(sessions: readonly Pick<Session, 'categoryId' | 'dat
 export function yearCounts(sessions: readonly Pick<Session, 'categoryId' | 'date'>[], categoryId: ID | null): Map<number, number> {
   const m = new Map<number, number>();
   if (!categoryId) return m;
-  for (const s of sessions) if (s.categoryId === categoryId) m.set(yearOf(s.date), (m.get(yearOf(s.date)) ?? 0) + 1);
+  for (const s of sessions) if (inFilter(categoryId, s)) m.set(yearOf(s.date), (m.get(yearOf(s.date)) ?? 0) + 1);
   return m;
 }
 

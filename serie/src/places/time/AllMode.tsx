@@ -8,6 +8,7 @@ import { memo, useMemo } from 'react';
 import { ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { Canvas, Path, Skia, Group } from '@shopify/react-native-skia';
 import type { Category, LocalDate, Session } from '@/domain/types';
+import { parseDate } from '@/domain/dates';
 import { monthGroups, type MonthGroup } from '@/domain/history';
 import { summarize, frequency, weekStreaks, monthlyBuckets, distribution, averageKnown } from '@/domain/stats';
 import { computeMilestones } from '@/domain/milestones';
@@ -15,8 +16,9 @@ import { formatDuration } from '@/domain/duration';
 import { surfaces, palette, space } from '@/ui/theme';
 import { T } from '@/ui/T';
 import { IdentityDisc } from '@/graphics/IdentityDisc';
-import { MONTHS_SHORT, t } from '@/i18n/it';
+import { MONTHS, MONTHS_SHORT, t } from '@/i18n/it';
 import { durationLine, shortDate } from './format';
+import { PeriodSummary } from './PeriodSummary';
 
 const C = surfaces.calm;
 
@@ -52,7 +54,7 @@ export function AllMode({ sessions, allSessions, categories, filterId, today, ac
       <View style={{ paddingHorizontal: space.gutter, gap: 30 }}>
         <Corduroy groups={groups} width={W} accent={accent} />
 
-        <View style={styles.bigRow} accessible accessibilityLabel={`${t.totalSessions}: ${total.sessions}. ${durationLine(total.duration)}`}>
+        <View style={styles.bigRow} accessible accessibilityLabel={`${t.totalSessions}: ${total.sessions}, ${t.activeDays(total.activeDays)}. ${durationLine(total.duration) || t.noDurations}`}>
           <View style={{ flex: 1 }}>
             <T variant="label" color={C.mute}>
               {t.totalSessions}
@@ -82,6 +84,8 @@ export function AllMode({ sessions, allSessions, categories, filterId, today, ac
           </T>
         ) : null}
 
+        <PeriodSummary sessions={sessions} today={today} accent={accent} />
+
         <Block label={t.trend}>
           <Trend values={trend.map((b) => b.summary.sessions)} width={W} accent={accent} />
           <View style={styles.trendAxis}>
@@ -95,11 +99,11 @@ export function AllMode({ sessions, allSessions, categories, filterId, today, ac
         </Block>
 
         <Block label={`${t.weeklyFrequency} · ${t.monthlyFrequency}`}>
-          <Pair a={t.perWeekAvg(freq.perWeek.toFixed(1).replace('.', ','))} b={t.perMonthAvg(freq.perMonth.toFixed(1).replace('.', ','))} note="Ultime 12 settimane" />
+          <Pair a={t.perWeekAvg(freq.perWeek.toFixed(1).replace('.', ','))} b={t.perMonthAvg(freq.perMonth.toFixed(1).replace('.', ','))} note={`Settimane complete dal ${shortDate(freq.weeksRange.from)} al ${shortDate(freq.weeksRange.to)} · mesi completi da ${MONTHS[parseDate(freq.monthsRange.from).m - 1]} a ${MONTHS[parseDate(freq.monthsRange.to).m - 1]}`} />
         </Block>
 
         <Block label={t.consistency}>
-          <Pair a={t.activeWeeks(freq.activeWeeks, freq.windowWeeks)} b={t.longestStreak(streaks.longest)} note={streaks.current ? `Serie attuale: ${streaks.current} settimane` : 'Nessuna serie in corso'} />
+          <Pair a={t.activeWeeks(freq.activeWeeks, freq.windowWeeks)} b={t.longestStreak(streaks.longest)} note={streaks.current ? t.currentStreak(streaks.current) : 'Nessuna serie in corso'} />
         </Block>
 
         {!filterId ? (
@@ -117,7 +121,7 @@ export function AllMode({ sessions, allSessions, categories, filterId, today, ac
                     </T>
                   </View>
                   <View style={styles.shareTrack}>
-                    <View style={[styles.shareFill, { width: `${Math.max(1.5, d.share * 100)}%`, backgroundColor: d.color }]} />
+                    <View style={[styles.shareFill, { width: `${d.summary.sessions > 0 ? Math.max(1.5, d.share * 100) : 0}%`, backgroundColor: d.color }]} />
                   </View>
                   <T variant="small" color={C.mute}>
                     {d.summary.sessions ? durationLine(d.summary.duration) : t.emptyMonth}
@@ -132,7 +136,7 @@ export function AllMode({ sessions, allSessions, categories, filterId, today, ac
           {milestones
             .filter((m) => m.reached || m === nextSessions || m.id === 'hours-10' || m.id === 'weeks-4')
             .map((m) => (
-              <View key={m.id} style={styles.milestone} accessible accessibilityLabel={`${m.rule}: ${m.reached && m.reachedOn ? t.reachedOn(shortDate(m.reachedOn)) : t.notReached}`}>
+              <View key={m.id} style={styles.milestone} accessible accessibilityLabel={`${m.rule}: ${m.reached && m.reachedOn ? t.reachedOn(shortDate(m.reachedOn)) : m.kind === 'sessions' ? `${t.notReached}, ${total.sessions} di ${m.threshold}` : t.notReached}`}>
                 <View style={[styles.mDot, { backgroundColor: m.reached ? accent : 'transparent', borderColor: m.reached ? accent : C.mute }]} />
                 <T variant="body" color={m.reached ? C.fg : C.mute} style={{ flex: 1 }}>
                   {m.rule}

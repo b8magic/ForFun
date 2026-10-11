@@ -92,6 +92,7 @@ export function ActivityForm({ category, categories, isActive, first, onCancel, 
   return (
     <KeyboardSafe>
       <Sheet
+        keyboardInsets={false}
         title={editing ? t.manage.editTitle : first ? t.createActivity : t.newActivity}
         eyebrow={t.activities}
         testID="activity-form"

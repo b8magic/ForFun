@@ -18,6 +18,9 @@ export const MAX_RIPPLES = 10;
 
 export interface Water {
   clock: SharedValue<number>;
+  /** Decorative phase (stripes, dashes, shimmer): advances only while ambient motion is on, so it
+   *  stops under reduced motion and never jumps when the preference changes. */
+  drift: SharedValue<number>;
   crest: SharedValue<number[]>;
   crestVel: SharedValue<number[]>;
   target: SharedValue<number[]>;

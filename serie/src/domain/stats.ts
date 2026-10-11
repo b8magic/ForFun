@@ -103,21 +103,49 @@ export function monthlyBuckets(sessions: readonly Session[], today: LocalDate, m
 }
 
 export interface Frequency {
-  /** Mean sessions per week over the window. */
+  /** Mean sessions per week over the last `windowWeeks` COMPLETE weeks (the week in progress is excluded). */
   perWeek: number;
-  /** Mean sessions per month over the window. */
+  /** Mean sessions per month over the last `windowMonths` COMPLETE months (the month in progress is excluded). */
   perMonth: number;
-  /** Weeks in the window with ≥1 session. */
+  /** Complete weeks in the window with ≥1 session. */
   activeWeeks: number;
   windowWeeks: number;
+  windowMonths: number;
+  /** Inclusive date ranges actually used, so the UI can state them. */
+  weeksRange: { from: LocalDate; to: LocalDate };
+  monthsRange: { from: LocalDate; to: LocalDate };
 }
 
-export function frequency(sessions: readonly Session[], today: LocalDate, windowWeeks = 12): Frequency {
-  const wk = weeklyBuckets(sessions, today, windowWeeks);
-  const total = wk.reduce((a, b) => a + b.sessions, 0);
-  const months = monthlyBuckets(sessions, today, Math.max(1, Math.round(windowWeeks / 4.345)));
-  const mTotal = months.reduce((a, b) => a + b.summary.sessions, 0);
-  return { perWeek: total / windowWeeks, perMonth: mTotal / months.length, activeWeeks: wk.filter((w) => w.sessions > 0).length, windowWeeks };
+/**
+ * Weekly and monthly frequency over complete periods only: a partially elapsed
+ * week or month would otherwise drag the averages down and mislabel the window.
+ */
+export function frequency(sessions: readonly Session[], today: LocalDate, windowWeeks = 12, windowMonths = 3): Frequency {
+  const weekEnd = addDays(startOfWeek(today), -1);
+  const weekStart = addDays(startOfWeek(today), -7 * windowWeeks);
+  const curMonth = monthOf(today);
+  const monthStart = firstOfMonth(addMonths(curMonth, -windowMonths));
+  const monthEnd = lastOfMonth(addMonths(curMonth, -1));
+  const inRange = (d: LocalDate, a: LocalDate, b: LocalDate) => compareDates(d, a) >= 0 && compareDates(d, b) <= 0;
+  let weekTotal = 0;
+  let monthTotal = 0;
+  const weeks = new Set<LocalDate>();
+  for (const s of sessions) {
+    if (inRange(s.date, weekStart, weekEnd)) {
+      weekTotal++;
+      weeks.add(startOfWeek(s.date));
+    }
+    if (inRange(s.date, monthStart, monthEnd)) monthTotal++;
+  }
+  return {
+    perWeek: weekTotal / windowWeeks,
+    perMonth: monthTotal / windowMonths,
+    activeWeeks: weeks.size,
+    windowWeeks,
+    windowMonths,
+    weeksRange: { from: weekStart, to: weekEnd },
+    monthsRange: { from: monthStart, to: monthEnd },
+  };
 }
 
 /** Longest run of consecutive ISO weeks with ≥1 session, and the current run ending at today's week. */

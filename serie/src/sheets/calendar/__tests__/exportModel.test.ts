@@ -56,6 +56,8 @@ describe('date ranges', () => {
     expect(checkRange('2026-01-01', '2026-02-01')).toEqual({ ok: true, from: '2026-01-01', to: '2026-02-01' });
     expect(checkRange('2026-02-01', '2026-01-01').ok).toBe(false);
     expect(checkRange('2026-2-1', '2026-03-01').ok).toBe(false);
+    expect(checkRange('2026-10-01', '2026-10-12', '2026-10-11').ok).toBe(false); // no future sessions from an import
+    expect(checkRange('2026-10-01', '2026-10-11', '2026-10-11').ok).toBe(true);
   });
   it('presets end today and clamp month ends', () => {
     expect(presetRange('3m', '2026-05-31')).toEqual({ from: '2026-03-01', to: '2026-05-31' });

@@ -51,6 +51,18 @@ describe('save', () => {
     expect(await mockRepos.sessions.listAll()).toHaveLength(1);
   });
 
+  it('a failure after the commit (refreshing the list) is still a success: no error, no retry, no duplicate', async () => {
+    A.toggleDate('2026-10-04');
+    jest.spyOn(mockRepos.sessions, 'listAll').mockRejectedValueOnce(new Error('read failed'));
+    expect(await A.save()).toBe(true);
+    const s = useApp.getState();
+    expect(s.saveError).toBeNull();
+    expect(s.selection).toEqual([]);
+    expect(s.sessions.map((x) => x.date)).toEqual(['2026-10-04']);
+    expect(await A.save()).toBe(false); // nothing left to save
+    expect(await mockRepos.sessions.listAll()).toHaveLength(1);
+  });
+
   it('never selects future dates', () => {
     expect(A.toggleDate('2026-10-12')).toBe(false);
     expect(useApp.getState().selection).toEqual([]);

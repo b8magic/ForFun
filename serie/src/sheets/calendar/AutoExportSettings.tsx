@@ -32,7 +32,7 @@ import { t } from '@/i18n/it';
 import { IdentityDisc } from '@/graphics/IdentityDisc';
 import { useConnections } from './useConnections';
 import { useCalendars } from './useCalendars';
-import { CalendarList, ChoiceRow, LabelChips, ProviderChoice, PROVIDER_NAMES, usable } from './parts';
+import { CalendarList, ChoiceRow, ConnectionList, LabelChips, PROVIDER_NAMES, usable } from './parts';
 import { SPAN_CHOICES } from './exportModel';
 
 const S = surfaces.night;
@@ -117,7 +117,7 @@ export function AutoExportSettings() {
           value={config.enabled}
           onChange={setEnabled}
           disabled={!config.enabled && !validation.runnable}
-          hint={config.enabled ? 'Salvata sul dispositivo ≠ accettata dal calendario ≠ sincronizzata nel cloud: lo stato di ogni esportazione è in “Attività in sospeso”.' : 'Spenta: Serie esporta solo quando lo chiedi tu.'}
+          hint={config.enabled ? 'Salvata sul dispositivo ≠ accettata dal calendario ≠ sincronizzata nel cloud: lo stato di ogni esportazione è in “Esportazioni in sospeso”.' : 'Spenta: Serie esporta solo quando lo chiedi tu.'}
           testID="auto-enabled"
         />
         {!config.enabled && !validation.runnable ? <Note>Per attivarla scegli almeno un calendario di destinazione qui sotto.</Note> : null}
@@ -134,15 +134,7 @@ export function AutoExportSettings() {
       </Section>
 
       <Section label="Connessioni">
-        <ProviderChoice
-          connections={conn.connections}
-          value={(['google', 'apple'] as ProviderKind[]).filter((k) => !!config.destinations[k])}
-          onChange={(v) => update((c) => ({ ...c, destinations: { ...(v.includes('google') ? { google: c.destinations.google } : {}), ...(v.includes('apple') ? { apple: c.destinations.apple } : {}) } }))}
-          need="write"
-          multi
-          busy={conn.busy}
-          onConnect={(k) => conn.connect(k, 'readwrite')}
-        />
+        <ConnectionList connections={conn.connections} need="write" busy={conn.busy} onConnect={(k) => conn.connect(k, 'readwrite')} />
         {conn.error ? <Note tone="error">{conn.error}</Note> : null}
       </Section>
 
@@ -203,13 +195,18 @@ export function AutoExportSettings() {
                     return { ...cfg, scope: { categoryIds: ids.includes(c.id) ? ids.filter((x) => x !== c.id) : [...ids, c.id] } };
                   })
                 }
-                right={
-                  inScope ? (
-                    <Button kind="quiet" label={openOverride === c.id ? 'Chiudi' : 'Calendari'} onPress={() => setOpenOverride((k) => (k === c.id ? null : c.id))} testID={`auto-override-${c.id}`} />
-                  ) : undefined
-                }
                 testID={`auto-cat-${c.id}`}
               />
+              {inScope ? (
+                <View style={{ paddingLeft: 36, alignItems: 'flex-start' }}>
+                  <Button
+                    kind="quiet"
+                    label={openOverride === c.id ? `Chiudi calendari di ${c.name}` : `Calendari di ${c.name}`}
+                    onPress={() => setOpenOverride((k) => (k === c.id ? null : c.id))}
+                    testID={`auto-override-${c.id}`}
+                  />
+                </View>
+              ) : null}
               {openOverride === c.id && inScope ? (
                 <View style={{ paddingLeft: 36, gap: 8, paddingBottom: 10 }}>
                   <Segmented

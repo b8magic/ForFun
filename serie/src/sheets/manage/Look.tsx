@@ -106,7 +106,7 @@ export function LookPreview({ name, color, pattern }: { name: string; color: str
     >
       <IdentityDisc size={104} pattern={pattern} color={color} stripe={palette.foam} />
       <View style={{ flex: 1, minWidth: 0, gap: 6 }}>
-        <T variant="heading" color={shown ? S.fg : 'rgba(238,232,218,0.32)'} numberOfLines={2}>
+        <T variant="heading" color={shown ? S.fg : S.mute} numberOfLines={2}>
           {shown || t.newActivity}
         </T>
         <T variant="label" color={S.mute} numberOfLines={1}>

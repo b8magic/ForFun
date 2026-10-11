@@ -29,8 +29,10 @@ export type CoordsSource = 'pin' | 'query' | 'viewport';
  *  - directions    a route (`/maps/dir/`) without a destination coordinate
  *  - no_location   a Google Maps link that names nothing readable (e.g. `?cid=` only)
  *  - interstitial  a Google consent / "sorry" page without a `continue` target
+ *  - not_a_place   a Google Maps page that is not a place, search or map view (a contributor
+ *                  profile, a My Maps map, an embed…): its camera position is not a place
  */
-export type UnsupportedReason = 'not_maps' | 'directions' | 'no_location' | 'interstitial';
+export type UnsupportedReason = 'not_maps' | 'directions' | 'no_location' | 'interstitial' | 'not_a_place';
 
 /** not_a_url: the text is not a link; out_of_range: |lat| > 90 or |lng| > 180. */
 export type InvalidReason = 'not_a_url' | 'out_of_range';
@@ -60,7 +62,10 @@ const MAX_UNWRAP_DEPTH = 3;
 
 // ─── URL plumbing ────────────────────────────────────────────────────────────
 
-const URL_RE = /^([a-z][a-z0-9+.-]*):\/\/(?:[^@/?#\s]*@)?([^:/?#\s]+)(:\d*)?([^?#\s]*)(?:\?([^#\s]*))?(?:#\S*)?$/i;
+// The authority ends at the first '/', backslash, '?' or '#', and user info runs to its LAST '@':
+// the WHATWG rules fetch() applies to http(s). "https://evil.com<backslash>@maps.app.goo.gl/x" is
+// therefore host evil.com here too: the host this module checks is the host a request would reach.
+const URL_RE = /^([a-z][a-z0-9+.-]*):\/\/(?:[^/\\?#\s]*@)?([^:/\\?#\s@]+)(:\d*)?([^?#\s]*)(?:\?([^#\s]*))?(?:#\S*)?$/i;
 
 /** Splits an absolute URL; null when the text is not one. */
 export function splitUrl(href: string): UrlParts | null {
@@ -153,7 +158,9 @@ export function isGoogleOwnedUrl(href: string): boolean {
 // ─── Extracting the link from pasted text ────────────────────────────────────
 
 const OPENERS = /^[(<[{«"'“‘]+/;
-const TRAILERS = /[.,;:!?>\]}»"'”’]+$/;
+const TRAILERS = /[.,;:!?>\]}»"'”’…]+$/;
+// Invisible marks some apps put around links (zero-width space/joiners, LRM/RLM, word joiner, BOM).
+const INVISIBLE = /[\u200B-\u200F\u2060\uFEFF]/g;
 
 function trimToken(token: string): string {
   let t = token.replace(OPENERS, '');
@@ -186,6 +193,7 @@ function looksLikeMaps(href: string): boolean {
 export function extractLink(input: string): string | null {
   if (typeof input !== 'string') return null;
   const urls = input
+    .replace(INVISIBLE, ' ')
     .trim()
     .split(/\s+/)
     .map(trimToken)
@@ -205,7 +213,10 @@ function cleanLabel(s: string | null | undefined): string | null {
   if (s == null) return null;
   const t = s.replace(/[​-‍﻿]/g, '').replace(/\s+/g, ' ').trim();
   if (!t) return null;
-  return t.length > MAX_LABEL ? t.slice(0, MAX_LABEL).trimEnd() : t;
+  if (t.length <= MAX_LABEL) return t;
+  // Never cut a surrogate pair (emoji, rare CJK) in half.
+  const end = /[\uD800-\uDBFF]/.test(t.charAt(MAX_LABEL - 1)) ? MAX_LABEL - 1 : MAX_LABEL;
+  return t.slice(0, end).trimEnd();
 }
 
 const zero = (n: number) => (n === 0 ? 0 : n); // no -0
@@ -324,8 +335,19 @@ function unwrap(target: string | undefined, depth: number, href: string, otherwi
   return { kind: 'unsupported', reason: otherwise, url: href };
 }
 
+/**
+ * Page shapes whose position describes a place: the map root (`/maps?q=…`, `maps.google.com/?ll=…`),
+ * `/place/`, `/search/`, `/preview/` and the bare camera `/@lat,lng,z`. Anything else under /maps
+ * (`/maps/contrib/<id>/reviews/@…`, My Maps `/maps/d/viewer?ll=…`, `/maps/embed`, …) is not read:
+ * its camera or centre is not a place, and reporting it as one would be guessing.
+ */
+const PLACE_PAGES = new Set(['', 'place', 'search', 'preview']);
+
 function parsePlace(segs: string[], params: Map<string, string>, href: string): MapsLink {
+  // `/maps/u/<n>/…` is the same page for a signed-in account index.
+  if (segs[0] === 'u' && /^\d+$/.test(segs[1] ?? '')) segs = segs.slice(2);
   const first = segs[0] ?? '';
+  if (!PLACE_PAGES.has(first) && !first.startsWith('@')) return { kind: 'unsupported', reason: 'not_a_place', url: href };
   const placeId = cleanLabel(params.get('query_place_id'));
   // Mutable state in an object: closures assigning plain `let`s defeat TypeScript's narrowing.
   const st: { name: string | null; search: string | null; explicit: { coords: Coordinates; label: string | null } | null; outOfRange: boolean } = {

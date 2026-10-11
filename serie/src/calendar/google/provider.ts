@@ -13,7 +13,7 @@
  *  - App metadata lives in extendedProperties.private (`serie_*` keys).
  * Writes: sendUpdates=none, no attendees, reminders {useDefault:false, overrides:[]}.
  */
-import type { LocalDate, TimingState, DurationSource } from '@/domain/types';
+import type { LocalDate } from '@/domain/types';
 import { addDays, compareDates, isLocalDate } from '@/domain/dates';
 import { epochToZoned, isValidTimeZone, isWallTime, zonedToEpoch, zoneOffsetMinutes } from '@/domain/zoned';
 import type {
@@ -29,6 +29,7 @@ import type {
   ListEventsQuery,
 } from '../types';
 import { ProviderError } from '../types';
+import { canonicalAppMeta, parseAppMeta } from '../appMeta';
 import type { GCalCalendarListEntry, GCalColors, GCalDateTime, GCalEvent, GCalEventBody, GoogleCalendarApi } from './api';
 import { chunkWindow } from './api';
 import type { GoogleAccess } from './auth';
@@ -48,51 +49,44 @@ export const APP_META_KEYS = {
 
 export const APP_META_PREFIX = 'serie_';
 
-const TIMING_STATES: readonly TimingState[] = ['date_only', 'start_only', 'interval', 'duration_only', 'start_duration'];
-const DURATION_SOURCES: readonly DurationSource[] = ['interval', 'declared'];
-
-/** AppEventMeta → private extended properties (null values are omitted). */
+/** AppEventMeta → private extended properties (canonical form; null values are omitted). */
 export function metaToPrivate(meta: AppEventMeta): Record<string, string> {
+  const m = canonicalAppMeta(meta);
   const p: Record<string, string> = {
-    [APP_META_KEYS.v]: String(meta.v),
-    [APP_META_KEYS.session]: meta.sessionId,
-    [APP_META_KEYS.op]: meta.opId,
-    [APP_META_KEYS.timing]: meta.timingState,
-    [APP_META_KEYS.sched]: meta.schedulingPlaceholder ? '1' : '0',
+    [APP_META_KEYS.v]: String(m.v),
+    [APP_META_KEYS.session]: m.sessionId,
+    [APP_META_KEYS.op]: m.opId,
+    [APP_META_KEYS.timing]: m.timingState,
+    [APP_META_KEYS.sched]: m.schedulingPlaceholder ? '1' : '0',
   };
-  if (meta.durationSec != null) p[APP_META_KEYS.dur] = String(meta.durationSec);
-  if (meta.durationSource != null) p[APP_META_KEYS.src] = meta.durationSource;
+  if (m.durationSec != null) p[APP_META_KEYS.dur] = String(m.durationSec);
+  if (m.durationSource != null) p[APP_META_KEYS.src] = m.durationSource;
   return p;
 }
 
 /**
- * Private extended properties → AppEventMeta. Anything malformed or
- * inconsistent yields null: untrusted metadata never restores timing.
+ * Private extended properties → AppEventMeta. The strings are decoded here and
+ * the result goes through the validator every reader shares (`parseAppMeta`):
+ * anything malformed or inconsistent yields null, so untrusted metadata never
+ * restores timing.
  */
 export function privateToMeta(p: Record<string, string> | null | undefined): AppEventMeta | null {
   if (!p || p[APP_META_KEYS.v] !== '1') return null;
-  const sessionId = p[APP_META_KEYS.session];
-  const opId = p[APP_META_KEYS.op];
-  const timing = p[APP_META_KEYS.timing] as TimingState | undefined;
-  if (!sessionId || !opId || !timing || !TIMING_STATES.includes(timing)) return null;
-
   const durRaw = p[APP_META_KEYS.dur];
-  let durationSec: number | null = null;
-  if (durRaw != null && durRaw !== '') {
-    if (!/^\d+$/.test(durRaw) || +durRaw <= 0 || !Number.isSafeInteger(+durRaw)) return null;
-    durationSec = +durRaw;
-  }
+  let durationSec: number | null | undefined = null;
+  if (durRaw != null && durRaw !== '') durationSec = /^\d+$/.test(durRaw) ? Number(durRaw) : undefined;
+  if (durationSec === undefined) return null;
   const srcRaw = p[APP_META_KEYS.src];
-  let durationSource: DurationSource | null = null;
-  if (srcRaw != null && srcRaw !== '') {
-    if (!DURATION_SOURCES.includes(srcRaw as DurationSource)) return null;
-    durationSource = srcRaw as DurationSource;
-  }
-  if ((durationSec == null) !== (durationSource == null)) return null;
-
   const sched = p[APP_META_KEYS.sched];
-  if (sched != null && sched !== '0' && sched !== '1') return null;
-  return { v: 1, sessionId, opId, timingState: timing, durationSec, durationSource, schedulingPlaceholder: sched === '1' };
+  return parseAppMeta({
+    v: 1,
+    sessionId: p[APP_META_KEYS.session],
+    opId: p[APP_META_KEYS.op],
+    timingState: p[APP_META_KEYS.timing],
+    durationSec,
+    durationSource: srcRaw == null || srcRaw === '' ? null : srcRaw,
+    schedulingPlaceholder: sched === '1' ? true : sched === '0' ? false : undefined,
+  });
 }
 
 // ─── Google event → ExternalEvent ────────────────────────────────────────────
@@ -366,6 +360,14 @@ export class GoogleCalendarProvider implements CalendarProvider {
   }
 
   async listCalendars(): Promise<ExternalCalendar[]> {
+    const w = await this.active('any');
+    if (!w.canRead && w.canWrite) {
+      // Write-only consent (calendar.events) cannot read the calendar list. The account's primary
+      // calendar (id = account email) is the one destination we can name honestly.
+      return [
+        { provider: 'google', accountId: w.accountId, calendarId: w.accountId, accountLabel: w.accountLabel ?? w.accountId, title: S.primaryCalendar, color: null, access: 'writer', canRead: false, canWrite: true, isPrimary: true, sourceType: null, sourceName: null },
+      ];
+    }
     const c = await this.active('read');
     const items = await this.deps.api.listCalendars();
     return items.map((entry) => {

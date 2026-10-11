@@ -263,7 +263,7 @@ export function TimingEditor({ date, value: form, onChange, deviceZone, showErro
               onChangeText={(v) => set({ zone: v })}
               onBlur={() => touch('zone')}
               placeholder={deviceZone}
-              placeholderTextColor="rgba(238,232,218,0.34)"
+              placeholderTextColor="rgba(238,232,218,0.55)"
               selectionColor={palette.flare}
               autoCapitalize="none"
               autoCorrect={false}
@@ -324,7 +324,7 @@ function TimeInput({
       <View style={[styles.timeBox, { borderBottomColor: invalid ? palette.danger : focused ? palette.foam : S.faint }]}>
         <TextInput
           placeholder={s.timePlaceholder}
-          placeholderTextColor="rgba(238,232,218,0.28)"
+          placeholderTextColor="rgba(238,232,218,0.55)"
           selectionColor={palette.flare}
           keyboardType="numbers-and-punctuation"
           maxLength={5}

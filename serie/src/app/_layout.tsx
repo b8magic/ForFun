@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Platform, View , AppState } from 'react-native';
+import { AccessibilityInfo, AppState, Platform, View } from 'react-native';
 import { Stack } from 'expo-router';
 import { useFonts } from 'expo-font';
 import { StatusBar } from 'expo-status-bar';
@@ -39,9 +39,20 @@ export default function RootLayout() {
     const sub = AppState.addEventListener('change', (s) => {
       if (s === 'active') refreshToday();
     });
+    // follow iOS "Riduci movimento" live, not only at launch
+    AccessibilityInfo.isReduceMotionEnabled()
+      .then((v) => useApp.setState({ systemReducedMotion: v }))
+      .catch(() => undefined);
+    const motionSub = AccessibilityInfo.addEventListener('reduceMotionChanged', (v) => useApp.setState({ systemReducedMotion: v }));
+    // the app may stay open across midnight: the new day must become selectable
+    const dayTimer = setInterval(() => {
+      if (AppState.currentState === 'active') refreshToday();
+    }, 30_000);
     return () => {
       live = false;
       sub.remove();
+      motionSub.remove();
+      clearInterval(dayTimer);
       stopAuto?.();
     };
   }, []);

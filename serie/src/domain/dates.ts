@@ -12,6 +12,9 @@ export interface YMD {
   d: number; // 1–31
 }
 
+/** Earliest date Serie accepts for a session or a range (typos like 1026 would create centuries of empty history). */
+export const EARLIEST_DATE: LocalDate = '1900-01-01';
+
 export function isLocalDate(s: unknown): s is LocalDate {
   if (typeof s !== 'string') return false;
   const m = RE.exec(s);

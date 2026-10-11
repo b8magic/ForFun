@@ -31,7 +31,7 @@ describe('resolveTitle / base overrides', () => {
   it('recomputes previews on prefix/suffix changes without re-appending and keeps overrides', () => {
     let overrides: BaseTitleOverrides = {};
     overrides = setBaseOverride(overrides, 's1', 'Surf all’alba', cat);
-    const steps: Array<[string, string]> = [
+    const steps: [string, string][] = [
       ['🌊 ', ''],
       ['🌊 ', ' · Lido'],
       ['🏄 ', ' · Lido'],

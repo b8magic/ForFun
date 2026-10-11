@@ -13,7 +13,10 @@ export default function Composition() {
   const place = useApp((s) => s.place);
   return (
     <View style={styles.root}>
-      <Lineup />
+      {/* while STORIA covers the Lineup, VoiceOver must not reach the controls underneath */}
+      <View style={StyleSheet.absoluteFill} accessibilityElementsHidden={place === 'time'} importantForAccessibility={place === 'time' ? 'no-hide-descendants' : 'auto'} aria-hidden={place === 'time'}>
+        <Lineup />
+      </View>
       <TimePlace visible={place === 'time'} />
       <Toast />
     </View>

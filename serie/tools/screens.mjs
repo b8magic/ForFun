@@ -60,7 +60,8 @@ await tap('next-month', 500);
 await tap('day-2026-10-04', 100);
 await tap('save', 2600);
 
-// 01 lineup with a live selection
+// 01 lineup with a live selection (after the previous save's toast has gone)
+await page.waitForTimeout(6500);
 for (const d of ['2026-10-06', '2026-10-08', '2026-10-10']) await tap(`day-${d}`, 160);
 await page.waitForTimeout(700);
 await shot('01-lineup');
@@ -72,7 +73,8 @@ await page.waitForTimeout(2600);
 // 03 switcher
 await tap('activity-switcher', 1000);
 await shot('03-switcher');
-await tap('activity-switcher', 1000);
+await page.locator('[aria-label="Chiudi"]').first().tap({ position: { x: 200, y: 40 } }); // the backdrop closes the switcher
+await page.waitForTimeout(1000);
 // 04–06 history
 await tap('history-handle', 1300);
 await tap('month-2026-09', 700);

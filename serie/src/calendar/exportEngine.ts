@@ -24,7 +24,10 @@
  *                             - 'update' only when explicitly chosen, only for
  *                               a linked event in a writable destination.
  *                           Failures are recorded per row (and as manual export
- *                           jobs) so re-running skips successes.
+ *                           jobs) so re-running skips successes. A failed create
+ *                           that may still have landed leaves the job
+ *                           'uncertain' (looked up by op id before any retry).
+ *                           Runs under the same lock as automatic export.
  *
  * Never adds attendees or reminders (EventDraft has no such fields; providers
  * write none), never deletes events, never touches the stored session.
@@ -32,12 +35,13 @@
 import { ProviderError, type CalendarProvider, type Connection, type EventDraft, type ExternalCalendar, type ExternalEvent } from './types';
 import type { CalendarRef, Category, ExportJobStatus, LocalDate, ProviderKind, Session } from '@/domain/types';
 import { DomainError, OPEN_JOB_STATUSES, type ExportJobRecord, type ExportLinkRecord, type ProvenanceRecord, type Repositories } from '@/data/repositories';
-import { addDays, compareDates, isLocalDate } from '@/domain/dates';
+import { compareDates } from '@/domain/dates';
 import { t } from '@/i18n/it';
 import { destinationKey, exportOpId } from './opId';
 import type { ResolvedTitle } from './titles';
-import { buildEventDraft, durationLabel, snapshotFromDraft, snapshotFromEvent, type ExportOverride, type TimeRepresentation } from './representation';
+import { buildEventDraft, durationLabel, snapshotFromDraft, type ExportOverride, type TimeRepresentation } from './representation';
 import { classifyDuplicates, type DuplicateCheck, type DuplicateProposal } from './duplicates';
+import { linkSnapshot, noteAttemptOnPayload, readDestinationEvents, paddedWindow, sameAccountId, withExportLock, writeMayHaveApplied, type EventIdentity } from './exportCore';
 
 // ─── strings (Italian) ───────────────────────────────────────────────────────
 
@@ -181,17 +185,8 @@ export function canWriteDestination(d: Pick<ExportDestinationInput, 'calendar' |
 
 /** Inclusive date window covering the outgoing dates, padded by one day on each side. */
 export function exportWindow(sessions: readonly Session[], overrides: Readonly<Record<string, ExportOverride>> = {}): { from: LocalDate; to: LocalDate } | null {
-  let from: LocalDate | null = null;
-  let to: LocalDate | null = null;
-  for (const s of sessions) {
-    const d = overrides[s.id]?.date ?? s.date;
-    for (const x of [s.date, d]) {
-      if (!isLocalDate(x)) continue; // a malformed override is reported on its row, never breaks the read
-      if (!from || compareDates(x, from) < 0) from = x;
-      if (!to || compareDates(x, to) > 0) to = x;
-    }
-  }
-  return from && to ? { from: addDays(from, -1), to: addDays(to, 1) } : null;
+  // A malformed override date is reported on its row; it never breaks the read.
+  return paddedWindow(sessions.flatMap((s) => [s.date, overrides[s.id]?.date ?? s.date]));
 }
 
 const sameDest = (l: Pick<ExportLinkRecord, 'provider' | 'accountId' | 'calendarId'>, ref: CalendarRef) =>
@@ -231,19 +226,12 @@ export async function loadDestinationEvents(
   if (!canCheckDestination(dest)) return { events: null, error: dest.connection.detail ?? null };
   const w = exportWindow(sessions, opts.overrides);
   if (!w) return { events: [], error: null };
+  const ids = new Set(sessions.map((s) => s.id));
+  const wanted: EventIdentity[] = [];
+  for (const l of links) if (sameDest(l, dest.ref) && l.sessionId && ids.has(l.sessionId)) wanted.push({ eventId: l.externalEventId, occurrenceKey: l.occurrenceKey ?? null });
+  for (const p of opts.provenance ?? []) if (sameDest(p, dest.ref) && p.sessionId && ids.has(p.sessionId)) wanted.push({ eventId: p.externalEventId, occurrenceKey: p.occurrenceKey ?? null });
   try {
-    const listed = await provider.listEvents({ calendarIds: [dest.ref.calendarId], from: w.from, to: w.to, signal: opts.signal });
-    const events = listed.filter((e) => e.status !== 'cancelled' && e.calendarId === dest.ref.calendarId);
-    const ids = new Set(sessions.map((s) => s.id));
-    const wanted: Array<{ eventId: string; occurrenceKey: string | null }> = [];
-    for (const l of links) if (sameDest(l, dest.ref) && l.sessionId && ids.has(l.sessionId)) wanted.push({ eventId: l.externalEventId, occurrenceKey: l.occurrenceKey ?? null });
-    for (const p of opts.provenance ?? []) if (sameDest(p, dest.ref) && p.sessionId && ids.has(p.sessionId)) wanted.push({ eventId: p.externalEventId, occurrenceKey: p.occurrenceKey ?? null });
-    for (const w of wanted) {
-      if (events.some((e) => e.eventId === w.eventId && (e.occurrenceKey ?? null) === w.occurrenceKey)) continue;
-      const ev = await provider.getEvent(dest.ref.calendarId, w.eventId, w.occurrenceKey);
-      if (ev && ev.status !== 'cancelled') events.push(ev);
-    }
-    return { events, error: null };
+    return { events: await readDestinationEvents(provider, dest.ref.calendarId, w, wanted, opts.signal), error: null };
   } catch (e) {
     return { events: null, error: e instanceof Error ? e.message : String(e) };
   }
@@ -660,14 +648,7 @@ const isUncertain = (e: unknown) => !(e instanceof ProviderError) || e.code === 
  * the window of an earlier manual attempt, each padded by a day.
  */
 function draftWindow(draft: EventDraft, sessionDate: LocalDate, prev?: { from: LocalDate; to: LocalDate } | null): { from: LocalDate; to: LocalDate } {
-  const dates = [draft.start.date, draft.end.date, sessionDate].filter((d) => isLocalDate(d)).sort(compareDates);
-  let from = addDays(dates[0], -1);
-  let to = addDays(dates[dates.length - 1], 1);
-  if (prev) {
-    if (compareDates(prev.from, from) < 0) from = prev.from;
-    if (compareDates(prev.to, to) > 0) to = prev.to;
-  }
-  return { from, to };
+  return paddedWindow([draft.start.date, draft.end.date, sessionDate], prev) ?? { from: draft.start.date, to: draft.end.date };
 }
 
 function payloadWindow(job: ExportJobRecord | undefined): { from: LocalDate; to: LocalDate } | null {
@@ -678,8 +659,13 @@ function payloadWindow(job: ExportJobRecord | undefined): { from: LocalDate; to:
 /**
  * Execute the confirmed selection, destination by destination. Each row's
  * failure is isolated; each destination's connection problems are isolated.
+ * Serialised with automatic export runs on the same database (`withExportLock`).
  */
-export async function executePlan(input: ExecuteInput): Promise<ExecuteResult> {
+export function executePlan(input: ExecuteInput): Promise<ExecuteResult> {
+  return withExportLock(input.repos.exportJobs, () => executePlanNow(input));
+}
+
+async function executePlanNow(input: ExecuteInput): Promise<ExecuteResult> {
   const now = input.now ?? (() => new Date().toISOString());
   const { exportLinks, exportJobs } = input.repos;
   const results: DestinationResult[] = [];
@@ -703,7 +689,7 @@ export async function executePlan(input: ExecuteInput): Promise<ExecuteResult> {
           } else {
             // Google calendar ids (e.g. 'primary') are account-relative: the account in the ref must be the signed-in one.
             const expected = [dest.connection.accountId, dest.ref.provider === 'google' ? dest.ref.accountId : null].filter((x): x is string => !!x);
-            if (conn.accountId && expected.some((a) => a.toLowerCase() !== conn.accountId!.toLowerCase())) gate = { code: 'account_mismatch', message: EXPORT_STRINGS.accountMismatch };
+            if (conn.accountId && expected.some((a) => !sameAccountId(dest.ref.provider, a, conn.accountId))) gate = { code: 'account_mismatch', message: EXPORT_STRINGS.accountMismatch };
           }
         } catch (e) {
           gate = { code: 'connection_unavailable', message: errMessage(e) || EXPORT_STRINGS.connectionUnavailable };
@@ -739,9 +725,10 @@ export async function executePlan(input: ExecuteInput): Promise<ExecuteResult> {
       const payload: ManualExportJobPayload = { v: 1, source: 'manual_export', categoryName, window, draft };
       const cur = openJobs.get(row.opId);
       if (cur) {
-        // An open automatic job for the same operation keeps its own payload (the auto runner reads it).
-        const nextPayload = cur.kind === 'manual' ? payload : cur.payload;
-        await exportJobs.update(cur.id, { status: 'running', attempts: cur.attempts + 1, ...(cur.kind === 'manual' ? { payload } : {}) });
+        // An open automatic job for the same operation keeps its own payload (the auto runner reads it),
+        // noting where this attempt writes so an uncertain outcome is looked up there.
+        const nextPayload = cur.kind === 'manual' ? payload : noteAttemptOnPayload(cur.payload, draft.start.date);
+        await exportJobs.update(cur.id, { status: 'running', attempts: cur.attempts + 1, payload: nextPayload });
         openJobs.set(row.opId, { ...cur, status: 'running', attempts: cur.attempts + 1, payload: nextPayload });
         return;
       }
@@ -790,12 +777,7 @@ export async function executePlan(input: ExecuteInput): Promise<ExecuteResult> {
           await closeJob(row.opId, 'succeeded');
           return { ...none, result: 'skipped', code: 'already_exported', message: EXPORT_STRINGS.alreadyExported, link: existing, event: target };
         }
-        const tm = row.session.timing;
-        const known = tm.durationSec != null && tm.durationSec > 0 ? tm.durationSec : null;
-        // Serie's own event for this session carries the timing it was written with: record THAT,
-        // so a later difference with the session is reported instead of being masked.
-        const own = target.appMeta && target.appMeta.sessionId === row.session.id ? target.appMeta : null;
-        const meta = own ?? { timingState: tm.state, durationSec: known, durationSource: known != null ? tm.durationSource : null, schedulingPlaceholder: target.appMeta?.schedulingPlaceholder ?? false };
+        // Serie's own event for this session records the timing it was written with (see `linkedEventMeta`).
         const link = await exportLinks.upsert({
           sessionId: row.session.id,
           provider: dest.ref.provider,
@@ -805,7 +787,7 @@ export async function executePlan(input: ExecuteInput): Promise<ExecuteResult> {
           occurrenceKey: target.occurrenceKey,
           status: 'linked',
           opId: row.opId,
-          snapshot: snapshotFromEvent(target, meta, categoryName),
+          snapshot: linkSnapshot(row.session, target, categoryName),
           exportedAt: now(),
         });
         await closeJob(row.opId, 'succeeded');
@@ -862,8 +844,7 @@ export async function executePlan(input: ExecuteInput): Promise<ExecuteResult> {
         return found && found.status !== 'cancelled' && found.appMeta?.opId === row.opId ? found : null;
       };
       const linkFound = async (found: ExternalEvent) => {
-        const snap = snapshotFromEvent(found, found.appMeta ?? draft.appMeta, categoryName);
-        const link = await storeCreated(row, found, snap);
+        const link = await storeCreated(row, found, linkSnapshot(row.session, found, categoryName));
         await closeJob(row.opId, 'succeeded', { lastError: null });
         return { ...none, result: 'created' as const, code: 'reconciled' as const, message: null, event: found, link };
       };
@@ -885,18 +866,24 @@ export async function executePlan(input: ExecuteInput): Promise<ExecuteResult> {
         ev = await p.createEvent(calId, draft);
       } catch (e) {
         const errorCode = e instanceof ProviderError ? e.code : null;
-        if (isUncertain(e)) {
-          await closeJob(row.opId, 'uncertain', { lastError: errMessage(e), nextAttemptAt: now() });
+        const retryAfterMs = e instanceof ProviderError && e.retryable ? e.retryAfterMs : null;
+        const retryAt = retryAfterMs ? new Date(Date.parse(now()) + retryAfterMs).toISOString() : null;
+        if (writeMayHaveApplied(e)) {
+          // The event may exist (same rule as automatic export): the job stays 'uncertain', so every
+          // later attempt — manual or automatic — looks it up by op id before creating.
+          await closeJob(row.opId, 'uncertain', { lastError: errMessage(e), nextAttemptAt: retryAt ?? now() });
           try {
             const found = await reconcile();
             if (found) return linkFound(found);
           } catch {
             /* stays uncertain: the next attempt reconciles before creating */
           }
-          return { ...none, result: 'pending', code: 'uncertain', message: EXPORT_STRINGS.uncertain, errorCode };
+          return isUncertain(e)
+            ? { ...none, result: 'pending', code: 'uncertain', message: EXPORT_STRINGS.uncertain, errorCode }
+            : { ...none, result: 'failed', code: 'provider_error', message: errMessage(e), errorCode };
         }
+        // Refused before anything was stored (unauthorized, forbidden, not found, invalid, rate limited).
         const retryable = (e as ProviderError).retryable;
-        const retryAt = retryable && (e as ProviderError).retryAfterMs ? new Date(Date.parse(now()) + (e as ProviderError).retryAfterMs!).toISOString() : null;
         await closeJob(row.opId, retryable ? 'failed' : 'needs_review', { lastError: errMessage(e), reviewReason: retryable ? null : errMessage(e), nextAttemptAt: retryAt });
         return { ...none, result: 'failed', code: 'provider_error', message: errMessage(e), errorCode };
       }
@@ -934,6 +921,6 @@ export async function executePlan(input: ExecuteInput): Promise<ExecuteResult> {
   }
 
   const totals = zeroCounts();
-  for (const r of results) for (const k of Object.keys(totals) as Array<keyof ExportCounts>) totals[k] += r.counts[k];
+  for (const r of results) for (const k of Object.keys(totals) as (keyof ExportCounts)[]) totals[k] += r.counts[k];
   return { destinations: results, totals };
 }

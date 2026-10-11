@@ -72,8 +72,8 @@ const YearRow = memo(function YearRow({ g, accent }: { g: YearGroup; accent: str
             aria-disabled={m.future}
             testID={`year-month-${m.key}`}
           >
-            <T variant="label" color={C.mute} style={{ fontSize: 9, letterSpacing: 0.6 }}>
-              {MONTHS_SHORT[m.month.m - 1][0]}
+            <T variant="label" color={C.mute} style={{ letterSpacing: 0.6 }}>
+              {MONTHS_SHORT[m.month.m - 1]}
             </T>
             <T variant={m.summary.sessions ? 'dataStrong' : 'data'} color={m.future ? C.faint : m.summary.sessions ? C.fg : C.mute} style={{ fontSize: 12 }}>
               {m.future ? '—' : m.summary.sessions}
@@ -132,6 +132,6 @@ function YearSwell({ width, counts, max, accent }: { width: number; counts: numb
 const styles = StyleSheet.create({
   year: { paddingHorizontal: space.gutter, paddingTop: 18, paddingBottom: 18, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: C.faint },
   head: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' },
-  cols: { flexDirection: 'row', marginTop: 2 },
-  col: { flex: 1, alignItems: 'center', minHeight: 44, justifyContent: 'center', gap: 1 },
+  cols: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 2 },
+  col: { width: '16.66%', alignItems: 'center', minHeight: 48, justifyContent: 'center', gap: 1 },
 });

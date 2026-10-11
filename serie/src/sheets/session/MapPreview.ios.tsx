@@ -13,10 +13,17 @@ import { t } from '@/i18n/it';
 import { MapCaption } from './MapCaption';
 import { coordsA11y } from './placeForm';
 import type { MapPreviewProps } from './mapPreview.types';
+import { MapReadout } from './MapReadout';
+import { APPLE_MAPS_OK } from './mapsAvailable';
 
 const ZOOM = 14;
 
-export function MapPreview({ coords, label, onPick, accent = palette.flare, testID }: MapPreviewProps) {
+/** iOS 17+: Apple Maps; iOS 16: the textual readout (expo-maps would render an empty view). */
+export function MapPreview(props: MapPreviewProps) {
+  return APPLE_MAPS_OK ? <AppleMapPreview {...props} /> : <MapReadout {...props} />;
+}
+
+function AppleMapPreview({ coords, label, onPick, accent = palette.flare, testID }: MapPreviewProps) {
   const ref = useRef<AppleMaps.MapView>(null);
   const lat = coords?.lat;
   const lng = coords?.lng;

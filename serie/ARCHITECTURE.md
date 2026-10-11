@@ -22,7 +22,7 @@ Moving Lineup → Time is the "white water" transformation: the week-lines compr
 - 5–6 **week-lines**. Days sit on their line: numeral above, tick on the line. Recorded sessions = foam rings on a small permanent bump; several sessions on a date = stacked rings + count. Selected = the line lifts into a **crest** carrying a flare dot; the numeral rides the crest.
 - `+ NOTA · LUOGO · ORARIO  (FACOLTATIVO)` link → optional details for the current selection (never required).
 - **Save** control: pill whose flare liquid rises with each selection; label "Salva N sessioni"; disabled with "Seleziona le date" when empty.
-- Bottom: history handle (mini ridgeline of recent months + `STORIA`), tap or drag up → Time.
+- Bottom: history handle (ridgeline of the last 8 weeks + `STORIA`), tap → Time.
 
 ## 2. Signature interactions
 
@@ -30,10 +30,10 @@ Moving Lineup → Time is the "white water" transformation: the week-lines compr
 
 **B · Select dates.** Tap toggles a date. Press = the line dips (resistance), release = crest rises on the `crest` spring and sends a ripple along its line and into neighbours; global tension (line undulation, liquid level) grows with the number of selected dates. Future dates are disabled. Month swipe = a swell passing (lines slide with a wave). Selection persists across month navigation within the activity; a counter shows how many are selected overall.
 
-**C · Save.** `await repository.saveSessions(...)` (single transaction, idempotent request id) **then** the break: drawback → the lines rise into a curling wave (turtle-curve generator ported from the trailer) → dots ride the lip → dots fly into the history handle, whose ridgeline gains the new peaks. A confirmation toast ("4 sessioni salvate · Surf", with **Annulla** for a few seconds). Any touch skips to the settled state. On failure: the wave recoils, crests stay selected, inline error + **Riprova**. Haptics: light impact per crest, success notification on save.
+**C · Save.** `await repository.saveSessions(...)` (single transaction, idempotent request id) **then** the break: drawback → the lines rise into a curling wave (turtle-curve generator ported from the trailer) → dots ride the lip → dots fly into the history handle, whose ridgeline gains the new peaks. A confirmation toast ("4 sessioni salvate · Surf", with **Annulla** for a few seconds). A tap on a date during the break fast-forwards it and selects that date. Undo ends the break. On failure there is no wave: crests stay selected, an inline error appears, VoiceOver announces it, and Save becomes **Riprova** (same request id, so it can't duplicate). With reduced motion the calendar just settles with the new rings. Haptics: light impact per crest, success notification on save.
 
 ## 3. Motion grammar (src/motion/grammar.ts)
-Phases → curves: swell (sine in-out), build (cubic in), crest (back-out), break (expo in-out), flow (quint out), settle (damped spring ζ≈0.36–0.55). Hierarchy: touch 90–160 ms < flow 520 ms < transform 760 ms < break ≈1.6 s. Readable content holds still. Every animation is a function of state + time (interruptible, continues from the current value). Reduced motion (system setting, overridable in Impostazioni): no ripples/ambient drift, transformations become ≤180 ms cross-fades, all states remain visible.
+Phases → curves: swell (sine in-out), build (cubic in), crest (back-out), break (expo in-out), flow (quint out), settle (damped spring ζ≈0.36–0.55). Hierarchy: touch 90–160 ms < flow 520 ms < transform 760 ms < break ≈1.7 s. Readable content holds still. Every animation is a function of state + time (interruptible, continues from the current value). Reduced motion (system setting, overridable in Impostazioni): no ripples/ambient drift, transformations become ≤180 ms cross-fades, all states remain visible.
 
 ## 4. Module map
 

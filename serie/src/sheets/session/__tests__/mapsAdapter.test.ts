@@ -60,6 +60,11 @@ describe('maps adapter', () => {
     expect(placeWithLink(linked, '')).toMatchObject({ mapUrl: null, coords: null, resolution: 'none' });
     const pinned: Place = { ...linked, resolution: 'manual' };
     expect(placeWithLink(pinned, '')).toMatchObject({ mapUrl: null, coords: { lat: 1, lng: 2 }, resolution: 'manual' });
+    // a pin kept while a short link is still resolving survives the link being cleared
+    const pendingWithPin: Place = { ...linked, mapUrl: 'https://maps.app.goo.gl/abc', resolution: 'pending' };
+    expect(placeWithLink(pendingWithPin, '')).toMatchObject({ mapUrl: null, coords: { lat: 1, lng: 2 }, resolution: 'manual' });
+    const pendingNoPin: Place = { ...pendingWithPin, coords: null };
+    expect(placeWithLink(pendingNoPin, '')).toMatchObject({ mapUrl: null, coords: null, resolution: 'none' });
   });
 
   it('a failed network resolution keeps the link and reports "unresolved"', async () => {

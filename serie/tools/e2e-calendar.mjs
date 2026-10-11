@@ -215,7 +215,7 @@ await check('automatic export: off by default, enabled with a destination, runs 
   await tap('prev-month', 500);
   await tap('day-2026-09-20', 150);
   await tap('save', 2400);
-  await page.waitForTimeout(9000);
+  await page.waitForTimeout(15000); // jobs run after the longest undo window (14 s)
   await go('calendar/jobs');
   await visible('jobs');
   await tap('jobs-filter-done', 400);

@@ -37,7 +37,16 @@ describe('frequency & consistency', () => {
     const w = weeklyBuckets(list, '2026-10-11', 4);
     expect(w.map((b) => b.weekStart)).toEqual(['2026-09-14', '2026-09-21', '2026-09-28', '2026-10-05']);
     expect(w.map((b) => b.sessions)).toEqual([0, 1, 0, 2]);
-    expect(frequency(list, '2026-10-11', 4).activeWeeks).toBe(2);
+    // complete weeks only: the week of 2026-10-05 (Mon–Sun 10-11) is the current week and is excluded
+    expect(frequency(list, '2026-10-11', 4).activeWeeks).toBe(1);
+  });
+  it('frequency uses complete weeks and complete months, and says which', () => {
+    const list = ['2026-07-03', '2026-08-10', '2026-08-20', '2026-09-01', '2026-09-28', '2026-10-01', '2026-10-09'].map((d) => mkSession({ date: d }));
+    const f = frequency(list, '2026-10-11', 4, 3);
+    expect(f.weeksRange).toEqual({ from: '2026-09-07', to: '2026-10-04' });
+    expect(f.perWeek).toBeCloseTo(2 / 4); // 09-28 and 10-01 (week of 09-28); 10-09 is in the current week
+    expect(f.monthsRange).toEqual({ from: '2026-07-01', to: '2026-09-30' });
+    expect(f.perMonth).toBeCloseTo(5 / 3); // July 1, August 2, September 2; October is in progress
   });
   it('computes week streaks', () => {
     const list = ['2026-09-07', '2026-09-14', '2026-09-21', '2026-10-05', '2026-10-06'].map((d) => mkSession({ date: d }));

@@ -74,14 +74,14 @@ export default function CalendarHub() {
                 {statusText(c)}
               </T>
               <View style={{ flexDirection: 'row', gap: 10, flexWrap: 'wrap' }}>
-                {canConnect ? <Button kind="secondary" label={t.connect} onPress={() => connect(k, 'readwrite')} busy={busy === k} testID={`connect-${k}`} /> : null}
+                {canConnect ? <Button kind="secondary" label={t.connect} onPress={() => connect(k, 'read')} busy={busy === k} testID={`connect-${k}`} /> : null}
                 {c?.status === 'connected' || c?.status === 'write_only' ? <Button kind="quiet" label={t.disconnect} onPress={() => disconnect(k)} busy={busy === k} /> : null}
               </View>
             </View>
           );
         })}
         {error ? <Note tone="error">{error}</Note> : null}
-        <Note>Serie chiede l’accesso ai calendari solo quando usi queste funzioni. Le sessioni restano salvate sul dispositivo anche senza calendari collegati.</Note>
+        <Note>Collega chiede solo la lettura; la scrittura viene chiesta quando esporti. Serie chiede l’accesso ai calendari solo quando usi queste funzioni. Le sessioni restano salvate sul dispositivo anche senza calendari collegati.</Note>
       </Section>
 
       <Section label="Scambio">

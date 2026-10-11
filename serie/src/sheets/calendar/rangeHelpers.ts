@@ -1,6 +1,6 @@
 /** Pure date-range helpers for the calendar tools (unit-tested). */
 import type { LocalDate } from '@/domain/types';
-import { addDays, compareDates, isLocalDate, parseDate } from '@/domain/dates';
+import { addDays, compareDates, EARLIEST_DATE, isLocalDate, parseDate } from '@/domain/dates';
 
 export type RangePreset = '3m' | '1y' | '5y' | 'custom';
 export const RANGE_PRESETS: { key: RangePreset; label: string }[] = [
@@ -28,10 +28,13 @@ export function presetRange(p: Exclude<RangePreset, 'custom'>, today: LocalDate)
 
 export type RangeCheck = { ok: true; from: LocalDate; to: LocalDate } | { ok: false; error: string };
 
-export function checkRange(from: string, to: string): RangeCheck {
+export function checkRange(from: string, to: string, latest?: LocalDate): RangeCheck {
   if (!isLocalDate(from.trim())) return { ok: false, error: 'Data iniziale non valida: usa AAAA-MM-GG.' };
   if (!isLocalDate(to.trim())) return { ok: false, error: 'Data finale non valida: usa AAAA-MM-GG.' };
   if (compareDates(from.trim(), to.trim()) > 0) return { ok: false, error: 'La data iniziale viene dopo quella finale.' };
+  if (compareDates(from.trim(), EARLIEST_DATE) < 0) return { ok: false, error: 'La data iniziale è troppo lontana nel passato: controlla l’anno.' };
+  // sessions are things already done: an import never creates future sessions (logging refuses them too)
+  if (latest && compareDates(to.trim(), latest) > 0) return { ok: false, error: 'La data finale non può essere nel futuro: si importano solo attività già svolte.' };
   return { ok: true, from: from.trim(), to: to.trim() };
 }
 

@@ -29,7 +29,7 @@ export function DateEditor({ value, onChange, today, fallback, showErrors, testI
   const check = checkSessionDate(value, today);
   const base = check.ok ? check.date : fallback;
   const atToday = base >= today;
-  const error = !check.ok && (touched || showErrors) ? (check.error === 'future' ? s.errDateFuture : s.errDateFormat) : null;
+  const error = !check.ok && (touched || showErrors) ? (check.error === 'future' ? s.errDateFuture : check.error === 'too_early' ? s.errDateTooEarly : s.errDateFormat) : null;
 
   return (
     <View style={{ gap: 8 }}>
@@ -44,7 +44,7 @@ export function DateEditor({ value, onChange, today, fallback, showErrors, testI
             setTouched(true);
           }}
           placeholder={s.datePlaceholder}
-          placeholderTextColor="rgba(238,232,218,0.3)"
+          placeholderTextColor="rgba(238,232,218,0.55)"
           selectionColor={palette.flare}
           keyboardType="numbers-and-punctuation"
           autoCorrect={false}

@@ -13,6 +13,7 @@ import { stepWater, zeros, addRipple, type Water } from './water';
 export function useWater(L: LineupLayout, weeks: LocalDate[][], selection: LocalDate[], counts: Map<string, number>, reduced: boolean, month: string, visible = true, kind = 0): Water {
   const w: Water = {
     clock: useSharedValue(0),
+    drift: useSharedValue(0),
     crest: useSharedValue(zeros()),
     crestVel: useSharedValue(zeros()),
     target: useSharedValue(zeros()),
@@ -40,6 +41,7 @@ export function useWater(L: LineupLayout, weeks: LocalDate[][], selection: Local
     'worklet';
     const dt = Math.min(1 / 30, Math.max(0, (f.timeSincePreviousFrame ?? 16) / 1000));
     w.clock.set(w.clock.get() + dt);
+    w.drift.set(w.drift.get() + dt * w.ambient.get());
     stepWater(w, dt);
   }, true);
 

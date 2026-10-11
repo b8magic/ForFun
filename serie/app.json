@@ -10,7 +10,9 @@
       "supportsTablet": false,
       "bundleIdentifier": "app.serie.ios",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "UIStatusBarStyle": "UIStatusBarStyleLightContent",
+        "CFBundleDevelopmentRegion": "it"
       }
     },
     "android": {
@@ -35,17 +37,27 @@
           "image": "./assets/splash-icon.png",
           "imageWidth": 200,
           "resizeMode": "contain",
-          "backgroundColor": "#0C0B09",
-          "dark": {
-            "image": "./assets/splash-icon.png",
-            "backgroundColor": "#0C0B09"
-          }
+          "backgroundColor": "#0C0B09"
         }
       ],
       "expo-sqlite",
-      "expo-localization",
+      [
+        "expo-localization",
+        {
+          "supportedLocales": {
+            "ios": [
+              "it"
+            ]
+          }
+        }
+      ],
       "expo-web-browser",
-      "expo-secure-store",
+      [
+        "expo-secure-store",
+        {
+          "faceIDPermission": false
+        }
+      ],
       "expo-maps",
       "@react-native-community/datetimepicker",
       [

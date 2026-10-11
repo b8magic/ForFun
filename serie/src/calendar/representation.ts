@@ -35,6 +35,7 @@ import { buildTiming, describeSwitch, type TimingChange, type TimingError, type 
 import { formatDuration } from '@/domain/duration';
 import { t } from '@/i18n/it';
 import { resolveTitle, type ResolvedTitle } from './titles';
+import { canonicalAppMeta } from './appMeta';
 
 // ─── user-facing strings (Italian) ───────────────────────────────────────────
 
@@ -220,7 +221,7 @@ function zonedPlus(date: LocalDate, start: WallTime, timeZone: string, seconds: 
   return wallAt(e, timeZone);
 }
 
-const zoneNoteOf = (...kinds: Array<'exact' | 'ambiguous' | 'nonexistent'>): ReadyRepresentation['zoneNote'] =>
+const zoneNoteOf = (...kinds: ('exact' | 'ambiguous' | 'nonexistent')[]): ReadyRepresentation['zoneNote'] =>
   kinds.includes('nonexistent') ? 'nonexistent_time' : kinds.includes('ambiguous') ? 'ambiguous_time' : null;
 
 function timed(
@@ -365,8 +366,9 @@ export function placeToLocation(place: Place | null | undefined): { location: st
 
 const blankToNull = (s: string | null | undefined): string | null => (s == null || s.trim() === '' ? null : s);
 
+/** Metadata written into the outgoing event: the session's TRUE timing, in the canonical form every reader accepts. */
 export function appMetaFor(session: Session, opId: string, schedulingPlaceholder: boolean): AppEventMeta {
-  return {
+  return canonicalAppMeta({
     v: 1,
     sessionId: session.id,
     opId,
@@ -374,7 +376,7 @@ export function appMetaFor(session: Session, opId: string, schedulingPlaceholder
     durationSec: knownSec(session.timing),
     durationSource: knownSec(session.timing) != null ? session.timing.durationSource : null,
     schedulingPlaceholder,
-  };
+  });
 }
 
 export interface DraftOptions {

@@ -122,7 +122,7 @@ await check('statistics acceptance: date-only, start-only 08:00, 09:00–11:00, 
   const l = await monthLabel('2026-09');
   await page.screenshot({ path: path.join(SHOTS, '01-acceptance-history.png') });
   assert(/4 sessioni · 4 giorni attivi/.test(l), `counts: ${l}`);
-  assert(/3 h 30 min registrate/.test(l), `hours: ${l}`);
+  assert(/3 h 30 min di tempo registrato/.test(l), `hours: ${l}`);
   assert(/durata disponibile per 2 di 4 sessioni/.test(l), `coverage: ${l}`);
 });
 
@@ -133,7 +133,7 @@ await check('editing the interval to start-only updates totals and coverage (1 h
   await tap('session-save', 1200);
   await page.waitForTimeout(600);
   const l = (await $('month-2026-09').getAttribute('aria-label')) ?? '';
-  assert(/1 h 30 min registrate/.test(l) && /1 di 4/.test(l), `after edit: ${l}`);
+  assert(/1 h 30 min di tempo registrato/.test(l) && /1 di 4/.test(l), `after edit: ${l}`);
 });
 
 await check('deleting the duration-only session leaves no known duration (honest empty state)', async () => {
@@ -159,7 +159,7 @@ await check('one duration applied to two dates gives each session its own 1 h (2
   assert(/Salva 2 sessioni/.test(await text('save')), await text('save'));
   await save();
   const l = await monthLabel('2026-10');
-  assert(/2 sessioni/.test(l) && /2 h registrate/.test(l) && /2 di 2/.test(l), `october: ${l}`);
+  assert(/2 sessioni/.test(l) && /2 h di tempo registrato/.test(l) && /2 di 2/.test(l), `october: ${l}`);
   await backToLog();
 });
 

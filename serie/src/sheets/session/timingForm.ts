@@ -89,7 +89,7 @@ export function formFromTiming(timing: Timing, fallbackZone: string): TimingForm
   };
 }
 
-export type FieldError = 'time' | 'end_before_start' | 'equal_times' | 'duration' | 'duration_too_long' | 'zone' | 'needs_start';
+export type FieldError = 'time' | 'end_before_start' | 'equal_times' | 'duration' | 'duration_too_short' | 'duration_too_long' | 'zone' | 'needs_start';
 export type TimingField = 'start' | 'end' | 'duration' | 'zone';
 
 export interface TimingEvaluation {
@@ -147,7 +147,7 @@ function parseFields(form: TimingForm, fallbackZone: string): Parsed {
   if (modeHasDuration(mode) && form.duration.trim()) {
     const p = parseDurationInput(form.duration);
     if (p.ok) declaredSec = p.seconds;
-    else errors.duration = p.error === 'too_long' ? 'duration_too_long' : 'duration';
+    else errors.duration = p.error === 'too_long' ? 'duration_too_long' : p.error === 'too_short' ? 'duration_too_short' : 'duration';
   }
   const typedZone = form.zone.trim();
   const zone = typedZone || fallbackZone;
@@ -302,6 +302,8 @@ export function fieldErrorCopy(e: FieldError): string {
       return t.errDuration;
     case 'duration_too_long':
       return s.errDurationTooLong;
+    case 'duration_too_short':
+      return t.errDurationTooShort;
     case 'zone':
       return s.errZone;
     case 'needs_start':

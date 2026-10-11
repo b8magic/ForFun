@@ -143,7 +143,7 @@ function TimeBody() {
             {t.placeLog}
           </T>
         </Pressable>
-        <Pressable onPress={() => router.push('/jump?target=history')} accessibilityRole="button" style={styles.back} hitSlop={8} testID="jump-history">
+        <Pressable onPress={() => router.push(`/jump?target=history&cat=${filterId ?? 'all'}`)} accessibilityRole="button" style={styles.back} hitSlop={8} testID="jump-history">
           <T variant="labelStrong" color={C.fg}>
             {t.jumpTo}
           </T>
@@ -173,7 +173,7 @@ function TimeBody() {
         ]}
         testID="scale"
       />
-      <View style={{ gap: 2, marginTop: 4 }} accessible accessibilityLabel={`${cat ? t.totalForActivity(cat.name) : t.allActivities}: ${t.sessions(total.sessions)}. ${durationLine(total.duration)}`}>
+      <View style={{ gap: 2, marginTop: 4 }} accessible accessibilityLabel={`${cat ? t.totalForActivity(cat.name) : t.allActivities}: ${t.sessions(total.sessions)}, ${t.activeDays(total.activeDays)}. ${durationLine(total.duration) || t.noDurations}`}>
         <T variant="label" color={C.mute}>
           {cat ? t.totalForActivity(cat.name) : t.allActivities}
         </T>

@@ -14,9 +14,12 @@
  *    link that carries no coordinates.
  *  - Offline, timeouts and odd responses produce 'unresolved' with an Italian note; the link and
  *    the session are kept. Nothing here can block saving.
- *  - Only Google-owned hosts are contacted (short-link hosts, google.*, consent.google.*). When a
- *    redirect points anywhere else, resolution stops there without requesting it and the link is
- *    reported 'unsupported'. Requests omit credentials (no Google cookies).
+ *  - This module only requests Google-owned hosts (short-link hosts, google.*, consent.google.*),
+ *    and requests the URL rebuilt from the parsed parts (https, no user info), so the host that
+ *    was checked is the host contacted. When a Location points anywhere else, resolution stops
+ *    there without requesting it and the link is reported 'unsupported'. (A fetch that ignores
+ *    `redirect: 'manual'` follows the chain itself; this module cannot stop that, it only refuses
+ *    to read a non-Google landing page.) Requests omit credentials (no Google cookies).
  *  - No location permission is involved anywhere.
  *
  * Network notes (Expo SDK 57): the global `fetch` is expo/fetch on native unless
@@ -24,11 +27,13 @@
  * Location header come back), so short links are followed hop by hop and resolution stops at the
  * first Google Maps URL. Implementations that ignore 'manual' follow redirects themselves and
  * expose the final `response.url`, which is parsed instead. A browser returns an opaque redirect
- * for 'manual'; that hop is retried with 'follow'. Cross-origin reads are then usually blocked by
- * CORS on web: reported as 'blocked' (not as offline) → 'unresolved'.
+ * for 'manual'; that hop is retried with 'follow'. In a browser (Expo web) the cross-origin request
+ * to the short-link host normally fails the CORS check outright (even in 'manual' mode the redirect
+ * response must carry CORS headers): a rejected request there is reported as 'blocked', not as
+ * offline, unless the browser itself says it is offline.
  */
 import type { Coordinates, Place } from '@/domain/types';
-import { absolutize, isGoogleOwnedUrl, labelFromLink, parseMapsLink, type MapsLink } from './parseLink';
+import { absolutize, inRange, isGoogleOwnedUrl, labelFromLink, parseMapsLink, splitUrl, type MapsLink } from './parseLink';
 import { MAPS_STRINGS } from './strings';
 
 export const DEFAULT_RESOLVE_TIMEOUT_MS = 8000;
@@ -90,6 +95,27 @@ export type ShortLinkResult =
 
 const isRedirectStatus = (s: number) => s === 301 || s === 302 || s === 303 || s === 307 || s === 308;
 const toHttps = (u: string) => u.replace(/^http:\/\//i, 'https://');
+
+/**
+ * The URL actually requested for `href`: rebuilt from the parsed parts as https on the default
+ * port, without user info or fragment. Fetching this (not the raw string) means the host that
+ * passed the Google check is the host contacted, whatever quirks the raw text had.
+ */
+export function requestUrlFor(href: string): string | null {
+  const p = splitUrl(href);
+  if (!p || (p.scheme !== 'https' && p.scheme !== 'http')) return null;
+  return `https://${p.host}${p.path || '/'}${p.query ? `?${p.query}` : ''}`;
+}
+
+/** Running in a web browser (Expo web), not React Native: cross-origin reads are subject to CORS there. */
+function inBrowser(): boolean {
+  const g = globalThis as { document?: unknown; navigator?: { product?: string; onLine?: boolean } };
+  return typeof g.document === 'object' && g.document !== null && g.navigator?.product !== 'ReactNative';
+}
+
+const browserSaysOffline = () => (globalThis as { navigator?: { onLine?: boolean } }).navigator?.onLine === false;
+
+const finiteOr = (v: number | undefined, fallback: number) => (typeof v === 'number' && Number.isFinite(v) ? v : fallback);
 const needsNetwork = (l: MapsLink) => l.kind === 'short' || (l.kind === 'unsupported' && l.reason === 'interstitial');
 
 class Timeout extends Error {
@@ -118,8 +144,8 @@ export async function resolveShortLink(url: string, options: ResolveOptions = {}
   const fetchImpl = options.fetchImpl ?? globalFetch();
   if (!fetchImpl) return fail('no_fetch');
 
-  const timeoutMs = Math.max(1, options.timeoutMs ?? DEFAULT_RESOLVE_TIMEOUT_MS);
-  const maxRedirects = Math.max(0, options.maxRedirects ?? DEFAULT_MAX_REDIRECTS);
+  const timeoutMs = Math.max(1, finiteOr(options.timeoutMs, DEFAULT_RESOLVE_TIMEOUT_MS));
+  const maxRedirects = Math.max(0, Math.floor(finiteOr(options.maxRedirects, DEFAULT_MAX_REDIRECTS)));
   const deadline = Date.now() + timeoutMs;
   const controller = typeof AbortController === 'function' ? new AbortController() : null;
   let timedOut = false;
@@ -165,11 +191,13 @@ export async function resolveShortLink(url: string, options: ResolveOptions = {}
   try {
     for (;;) {
       const link = parseMapsLink(current);
+      // A redirect to something that is not even a web link (an app scheme, an intent://…) is still "not Google Maps".
+      if (link.kind === 'invalid' && link.reason === 'not_a_url') return { status: 'resolved', link: { kind: 'unsupported', reason: 'not_maps', url: current }, finalUrl: current, hops };
       if (link.kind !== 'short' && !(link.kind === 'unsupported' && link.reason === 'interstitial')) {
         return { status: 'resolved', link, finalUrl: current, hops };
       }
-      const target = toHttps(link.url);
-      if (!isGoogleOwnedUrl(target)) return { status: 'resolved', link: { kind: 'unsupported', reason: 'not_maps', url: current }, finalUrl: current, hops };
+      const target = requestUrlFor(link.url);
+      if (!target || !isGoogleOwnedUrl(target)) return { status: 'resolved', link: { kind: 'unsupported', reason: 'not_maps', url: current }, finalUrl: current, hops };
       if (fetched.has(target)) return fail(link.kind === 'short' ? 'too_many_redirects' : 'interstitial');
       fetched.add(target);
 
@@ -186,13 +214,18 @@ export async function resolveShortLink(url: string, options: ResolveOptions = {}
       if (location) {
         next = absolutize(location, target);
       } else {
-        const landed = res.url && toHttps(res.url) !== target ? res.url : null; // the platform followed redirects
-        if (landed) fetched.add(toHttps(landed));
+        const landedAt = res.url ? (requestUrlFor(res.url) ?? toHttps(res.url)) : null;
+        const landed = res.url && landedAt !== target ? res.url : null; // the platform followed redirects
+        if (landedAt) fetched.add(landedAt);
         const here = landed ? parseMapsLink(landed) : link;
-        if (needsNetwork(here) && res.status >= 200 && res.status < 300) {
-          // A 200 on a short link or consent page: the target may be in the HTML.
+        if (needsNetwork(here)) {
+          // Still on a short link or consent page, and this response is the end of whatever chain the
+          // platform followed: an error status is that page's answer (e.g. 404 for an unknown id).
+          if (res.status < 200 || res.status >= 300) return fail('http_error');
+          // A 200: the target may be in the HTML; without one there is nothing left to follow.
           const html = await timed(Promise.resolve().then(() => res.text()));
-          next = findTargetInHtml(html, landed ?? target) ?? landed;
+          next = findTargetInHtml(html, landed ?? target);
+          if (!next) return fail('interstitial');
         } else {
           next = landed;
         }
@@ -205,7 +238,9 @@ export async function resolveShortLink(url: string, options: ResolveOptions = {}
     }
   } catch {
     // After an opaque redirect the network clearly works: a rejected follow-up is the browser's CORS block.
-    return fail(timedOut ? 'timeout' : sawOpaqueRedirect ? 'blocked' : 'network_error');
+    // In a browser that says it is online, a rejected cross-origin request is the same block.
+    if (timedOut) return fail('timeout');
+    return fail(sawOpaqueRedirect || (inBrowser() && !browserSaysOffline()) ? 'blocked' : 'network_error');
   }
 }
 
@@ -281,8 +316,15 @@ function typedLabel(prev: Place | null): string | null {
   return derived && sameText(derived, label) ? null : label;
 }
 
+/**
+ * The pin the user placed by hand, if any: coordinates on a 'manual' place, or on a 'pending' one —
+ * a short link waiting for the network keeps only a manual pin (see placeFromParsed 'short'), and
+ * the session sheet hands that pending place back to resolvePlaceFromLink.
+ */
 function manualPin(prev: Place | null): Coordinates | null {
-  return prev?.resolution === 'manual' && prev.coords ? { lat: prev.coords.lat, lng: prev.coords.lng } : null;
+  const c = prev?.coords;
+  if (!c || (prev.resolution !== 'manual' && prev.resolution !== 'pending') || !inRange(c.lat, c.lng)) return null;
+  return { lat: c.lat, lng: c.lng };
 }
 
 function base(prev: Place | null, link: string, linkLabel: string | null): Place {
@@ -326,6 +368,8 @@ function placeFromParsed(prev: Place | null, link: string, parsed: MapsLink, not
           return withoutPosition(prev, link, null, 'unresolved', MAPS_STRINGS.interstitial);
         case 'directions':
           return withoutPosition(prev, link, null, 'unsupported', MAPS_STRINGS.directions);
+        case 'not_a_place':
+          return withoutPosition(prev, link, null, 'unsupported', MAPS_STRINGS.notAPlace);
         case 'not_maps':
           return withoutPosition(prev, link, null, 'unsupported', noteOverride ?? null);
       }

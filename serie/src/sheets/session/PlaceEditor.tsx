@@ -6,7 +6,7 @@
  * link is kept as-is with an honest status line.
  */
 import { useEffect, useRef, useState, useLayoutEffect } from 'react';
-import { AccessibilityInfo, Linking, Platform, Pressable, StyleSheet, View } from 'react-native';
+import { AccessibilityInfo, Linking, Pressable, StyleSheet, View } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import type { Place } from '@/domain/types';
 import { Field, Note } from '@/ui/controls';
@@ -15,6 +15,7 @@ import { T } from '@/ui/T';
 import { t } from '@/i18n/it';
 import { MapPreview } from './MapPreview';
 import { mapsTarget, placeWithLink, resolvePending } from './mapsAdapter';
+import { APPLE_MAPS_OK } from './mapsAvailable';
 import { emptyPlace, placeStatus, placeTitle, withManualPin } from './placeForm';
 
 const S = surfaces.night;
@@ -92,7 +93,8 @@ export function PlaceEditor({ value, onChange, accent = palette.flare, testID = 
   // While typing a link by hand, don't nag with "not a maps link" on every keystroke.
   const showStatus = status && !(linkFocused && p.resolution === 'unsupported');
   const hasAny = !!(p.label?.trim() || p.address?.trim() || p.mapUrl?.trim() || p.coords);
-  const canPin = Platform.OS === 'ios';
+  // a manual pin needs a real map: Apple Maps on iOS 17+ only
+  const canPin = APPLE_MAPS_OK;
   // Without coordinates a map is only useful where the user can place the pin by hand (iOS).
   const showMap = !!p.coords || (canPin && (pinning || (!!p.mapUrl && p.resolution === 'unresolved')));
 

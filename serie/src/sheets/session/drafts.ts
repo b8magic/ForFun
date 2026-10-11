@@ -4,7 +4,7 @@
  * inputs (SessionPatch / SessionDetailsDraft). Unit-tested.
  */
 import type { ID, LocalDate, Place, Session, SessionDetailsDraft, Timing } from '@/domain/types';
-import { addDays, compareDates, diffDays, isLocalDate, parseDate, todayIn, weekdayMon0 } from '@/domain/dates';
+import { addDays, compareDates, diffDays, isLocalDate, parseDate, todayIn, weekdayMon0, EARLIEST_DATE } from '@/domain/dates';
 import { DATE_ONLY } from '@/domain/timing';
 import { epochToZoned, isValidTimeZone } from '@/domain/zoned';
 import type { SessionPatch } from '@/data/repositories';
@@ -14,13 +14,14 @@ import { sameTiming } from './timingForm';
 
 // ─── dates ───────────────────────────────────────────────────────────────────
 
-export type DateCheck = { ok: true; date: LocalDate } | { ok: false; error: 'format' | 'future' };
+export type DateCheck = { ok: true; date: LocalDate } | { ok: false; error: 'format' | 'future' | 'too_early' };
 
 /** A session date typed as AAAA-MM-GG; future dates cannot be logged. */
 export function checkSessionDate(raw: string, today: LocalDate): DateCheck {
   const v = raw.trim();
   if (!isLocalDate(v)) return { ok: false, error: 'format' };
   if (compareDates(v, today) > 0) return { ok: false, error: 'future' };
+  if (compareDates(v, EARLIEST_DATE) < 0) return { ok: false, error: 'too_early' };
   return { ok: true, date: v };
 }
 

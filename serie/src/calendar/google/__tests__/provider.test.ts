@@ -345,7 +345,8 @@ describe('GoogleCalendarProvider', () => {
     const p = mkProvider(['openid', 'email', GOOGLE_SCOPES.write]);
     expect((await p.getConnection()).status).toBe('write_only');
     expect((await rejection(p.listEvents({ calendarIds: ['primary'], from: '2026-01-01', to: '2026-01-31' }))).code).toBe('forbidden');
-    expect((await rejection(p.listCalendars())).code).toBe('forbidden');
+    // the calendar list is not read either: only the primary calendar is offered as a destination
+    expect((await p.listCalendars()).map((c) => c.canRead)).toEqual([false]);
     expect(calls).toHaveLength(0);
   });
 
@@ -518,6 +519,15 @@ describe('GoogleCalendarProvider regressions', () => {
     const { calls } = installFetch(() => ({ body: { event: {} } }));
     expect((await rejection(mkProvider(['openid', 'email', GOOGLE_SCOPES.write]).listLabels())).code).toBe('forbidden');
     expect(calls).toHaveLength(0);
+  });
+
+  it('write-only consent offers the primary calendar as the only destination, without reading the calendar list', async () => {
+    const { calls } = installFetch(() => ({ body: { items: [] } }));
+    const cals = await mkProvider(['openid', 'email', GOOGLE_SCOPES.write]).listCalendars();
+    expect(calls).toHaveLength(0);
+    expect(cals).toHaveLength(1);
+    expect(cals[0]).toMatchObject({ provider: 'google', isPrimary: true, canWrite: true, canRead: false });
+    expect(cals[0].calendarId).toBe(cals[0].accountId);
   });
 
   it('metadata with a duration beyond the safe integer range is rejected', () => {

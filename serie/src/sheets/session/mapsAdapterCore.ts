@@ -63,8 +63,9 @@ export function makeMapsAdapter(maps: MapsModule) {
     const base = current ?? emptyPlace();
     const url = link.trim();
     if (!url) {
-      // Link removed: a manual pin survives, link-derived coordinates do not.
-      const manual = base.resolution === 'manual' && base.coords;
+      // Link removed: a manual pin survives (also one kept while a short link was resolving),
+      // link-derived coordinates do not.
+      const manual = (base.resolution === 'manual' || base.resolution === 'pending') && base.coords;
       return { ...base, mapUrl: null, coords: manual ? base.coords : null, resolution: manual ? 'manual' : 'none', resolutionNote: null };
     }
     if (url === base.mapUrl?.trim() && base.resolution !== 'none') return base;

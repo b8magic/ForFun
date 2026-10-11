@@ -2,13 +2,14 @@
  * Actions: commit to storage first, then update state. Animations are a
  * consequence of a successful commit, never a condition for it.
  */
+import { AccessibilityInfo } from 'react-native';
 import { useApp, type MotionPref, type Place, type TimeScale } from './store';
 import type { Category, ID, LocalDate, PatternKind, Session, SessionDetailsDraft } from '@/domain/types';
 import { addMonths, compareDates, monthOf, todayIn, type MonthRef } from '@/domain/dates';
 import { deviceTimeZone } from '@/domain/zoned';
 import { getRepositories } from '@/data/database';
 import { bootstrap, KEYS } from '@/data/bootstrap';
-import { DomainError, type DeleteStrategy, type SessionPatch } from '@/data/repositories';
+import { DomainError, type DeleteStrategy, type Repositories, type SessionPatch } from '@/data/repositories';
 import { newId } from '@/platform/ids';
 import { haptics } from '@/platform/haptics';
 import { t } from '@/i18n/it';
@@ -22,12 +23,23 @@ let breakSeq = 0;
 /** The request id of the save in flight / last failed save: retries reuse it so a duplicated delivery can't double-insert. */
 let pendingRequestId: string | null = null;
 
+let screenReader = false;
+/** Kept in sync by the Toast host (AccessibilityInfo). */
+export const setScreenReaderActive = (on: boolean) => {
+  screenReader = on;
+};
+/** How long "Annulla" stays available after a save (longer with VoiceOver). Auto-export waits longer than this. */
+export const UNDO_WINDOW_MS = { default: 6000, screenReader: 12000 } as const;
+
 export function showToast(text: string, opts: { action?: { label: string; run: () => void }; tone?: 'neutral' | 'error'; ms?: number } = {}) {
   const id = ++toastSeq;
   set({ toast: { id, text, action: opts.action, tone: opts.tone } });
+  const base = opts.ms ?? 4200;
+  // with VoiceOver an action toast stays until it has been heard and reached
+  const ms = screenReader && opts.action ? Math.max(base, UNDO_WINDOW_MS.screenReader) : base;
   setTimeout(() => {
     if (get().toast?.id === id) set({ toast: null });
-  }, opts.ms ?? 4200);
+  }, ms);
 }
 
 export const dismissToast = () => set({ toast: null });
@@ -143,11 +155,29 @@ export async function save(): Promise<boolean> {
   pendingRequestId = requestId;
   const dates = s.selection.slice();
   set({ saving: true, saveError: null });
+  let res: Awaited<ReturnType<Repositories['sessions']['saveBatch']>>;
+  let repos: Repositories;
   try {
-    const repos = await getRepositories();
-    const res = await repos.sessions.saveBatch({ categoryId: category.id, dates, requestId, shared: s.pendingDetails ?? undefined });
-    pendingRequestId = null;
-    const sessions = await repos.sessions.listAll();
+    repos = await getRepositories();
+    res = await repos.sessions.saveBatch({ categoryId: category.id, dates, requestId, shared: s.pendingDetails ?? undefined });
+  } catch (e) {
+    // nothing was committed: the selection stays, Riprova reuses the same request id
+    set({ saving: false, saveError: t.saveFailed });
+    haptics.error();
+    AccessibilityInfo.announceForAccessibility(t.saveFailed);
+    if (!(e instanceof DomainError)) console.warn('save failed', e);
+    return false;
+  }
+  // Committed. From here on the save is a success whatever happens next (no retry, no duplicate).
+  pendingRequestId = null;
+  {
+    let sessions: Session[];
+    try {
+      sessions = await repos.sessions.listAll();
+    } catch {
+      const known = new Set(get().sessions.map((x) => x.id));
+      sessions = [...get().sessions, ...res.sessions.filter((x) => !known.has(x.id))];
+    }
     set({
       sessions,
       selection: [],
@@ -161,14 +191,9 @@ export async function save(): Promise<boolean> {
       if (get().highlightSaveId === requestId) set({ highlightSaveId: null });
     }, 15000);
     haptics.success();
-    showToast(t.saved(res.sessions.length, category.name), { action: { label: t.undo, run: () => void undoLastSave() }, ms: 6000 });
+    showToast(t.saved(res.sessions.length, category.name), { action: { label: t.undo, run: () => void undoLastSave() }, ms: UNDO_WINDOW_MS.default });
     afterCommit(res.sessions).catch(() => undefined); // calendar auto-export never blocks or undoes a local save
     return true;
-  } catch (e) {
-    set({ saving: false, saveError: t.saveFailed });
-    haptics.error();
-    if (!(e instanceof DomainError)) console.warn('save failed', e);
-    return false;
   }
 }
 
@@ -178,7 +203,7 @@ export async function undoLastSave() {
   if (!ls) return;
   const repos = await getRepositories();
   await repos.sessions.remove(ls.ids);
-  set({ lastSave: null });
+  set({ lastSave: null, highlightSaveId: null, breakCancel: get().breakCancel + 1 });
   await reloadSessions();
   showToast(t.undone);
 }
@@ -231,6 +256,9 @@ export async function deleteCategory(id: ID, strategy?: DeleteStrategy) {
     activeId = categories[0]?.id ?? null;
     await repos.settings.set(KEYS.lastActive, activeId);
     if (categories[0]) notice = t.activeContextChanged(categories[0].name);
+    // like a switch: details prepared for the deleted activity are not carried over
+    pendingRequestId = null;
+    set({ pendingDetails: null, saveError: null });
   }
   set({ categories, sessions, activeId, activeNotice: notice, selection: activeId === get().activeId ? get().selection : [] });
 }

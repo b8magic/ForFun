@@ -34,6 +34,7 @@ import { MONTHS, t } from '@/i18n/it';
 import { DomainError, type ExportLinkRecord, type ProvenanceRecord, type Repositories } from '@/data/repositories';
 import { Mutex } from '@/data/driver';
 import { REPR_STRINGS } from './representation';
+import { APP_META_TIMING_STATES, parseAppMeta } from './appMeta';
 
 // ─── strings (Italian, user-facing) ──────────────────────────────────────────
 
@@ -305,10 +306,10 @@ export function matchEvent(e: ExternalEvent, filters: ImportFilters, ctx: MatchC
 
 // ─── timing ──────────────────────────────────────────────────────────────────
 
-const TIMING_STATES: readonly TimingState[] = ['date_only', 'start_only', 'interval', 'duration_only', 'start_duration'];
 
+/** Serie's metadata on an event, through the validator both providers use (`parseAppMeta`). */
 function validMeta(m: AppEventMeta | null | undefined): AppEventMeta | null {
-  return m && m.v === 1 && typeof m.sessionId === 'string' && TIMING_STATES.includes(m.timingState) ? m : null;
+  return parseAppMeta(m);
 }
 
 /** Trusted timing for an event: its Serie metadata, else the snapshot of a stored export link. */
@@ -316,7 +317,7 @@ export function trustedTimingOf(e: ExternalEvent, link: ExportLinkRecord | null 
   const m = validMeta(e.appMeta);
   if (m) return { timingState: m.timingState, durationSec: m.durationSec, schedulingPlaceholder: !!m.schedulingPlaceholder, source: 'app_meta' };
   const s = link?.snapshot;
-  if (s && TIMING_STATES.includes(s.timingState)) {
+  if (s && APP_META_TIMING_STATES.includes(s.timingState)) {
     return { timingState: s.timingState, durationSec: s.durationSec, schedulingPlaceholder: !!s.schedulingPlaceholder, source: 'export_snapshot' };
   }
   return null;
@@ -810,7 +811,7 @@ export function buildReview(input: BuildReviewInput): ReviewItem[] {
   const provIx = indexProvenance(input.provenance);
   const linkIx = indexExportLinks(input.exportLinks);
   const seen = new Set<string>();
-  const out: Array<ReviewItem & { sortKey: number }> = [];
+  const out: (ReviewItem & { sortKey: number })[] = [];
   for (const e of input.events) {
     if (!matchEvent(e, input.filters, ctx)) continue;
     const key = eventKey(e);
@@ -1008,7 +1009,7 @@ export type CommitSkipReason = 'not_selectable' | 'duplicate_item' | 'already_im
 export interface CommitImportResult {
   /** Sessions created by this call, as stored. */
   sessions: Session[];
-  skipped: Array<{ key: string; reason: CommitSkipReason }>;
+  skipped: { key: string; reason: CommitSkipReason }[];
 }
 
 /**
@@ -1073,7 +1074,7 @@ async function commitImportLocked(repos: Repositories, input: CommitImportInput)
   const linkIx = indexExportLinks(unique.length ? await repos.exportLinks.all() : []);
   const provIx = indexProvenance(provenance);
 
-  const toCreate: Array<{ item: ReviewItem; session: Session }> = [];
+  const toCreate: { item: ReviewItem; session: Session }[] = [];
   for (const item of unique) {
     const e = item.event;
     if (lookupProvenance(e, provIx)?.sessionId) {

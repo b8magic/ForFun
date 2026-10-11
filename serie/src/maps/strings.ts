@@ -13,6 +13,8 @@ export const MAPS_STRINGS = {
   nameOnly: 'Il link indica il luogo solo per nome, senza coordinate. Puoi posizionare il punto a mano.',
   noCoordinates: 'Il link non contiene coordinate. Puoi posizionare il punto a mano.',
   directions: 'È un link di indicazioni stradali, non di un singolo luogo.',
+  /** A Google Maps page that is not a place (a profile, a My Maps map…). */
+  notAPlace: 'Il link di Google Maps non indica un singolo luogo.',
   notALink: 'Non è un link valido.',
   outOfRange: 'Le coordinate nel link non sono valide.',
   shortNotMaps: 'Il link breve porta a una pagina che non è di Google Maps.',
