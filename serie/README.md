@@ -70,6 +70,17 @@ Local alternative on a Mac: `npx expo run:ios` (simulator) or `npx expo run:ios 
 
 Google Calendar uses sensitive scopes: users outside the OAuth test-user list need Google's app verification first (see below).
 
+### Sideload with SideStore / AltStore (no paid Apple account)
+
+The repository has a GitHub Actions workflow that builds an **unsigned** IPA on a macOS runner: `.github/workflows/ios-ipa.yml`. Start it from **Actions → "iOS IPA (unsigned, sideload)" → Run workflow**. It runs only on demand, because macOS minutes in a private repo are limited.
+
+- Build 1 took about 6 minutes (`macos-26`, Xcode 26.6). Output: prerelease `ipa-<n>` with `Serie-unsigned.ipa` and its `.sha256`, plus a 7-day artifact.
+- The IPA is unsigned. SideStore or **AltStore Classic** (not AltStore PAL) re-sign it with your Apple ID and change the bundle id to `app.serie.ios.<TEAMID>`.
+- iPhone with **iOS 16.4+** and Developer Mode on. The place map needs iOS 17; iOS 16 shows the text readout.
+- With a free Apple ID the app expires after 7 days (SideStore/AltStore refresh it) and uses 1 of 3 active app slots and 1 of 10 weekly App IDs.
+- The repository is private, so download the release asset in Safari while signed in to github.com, then share it to SideStore/AltStore.
+- Google Calendar is enabled only if the repository variable (or secret) `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID` is set before the build. On a re-signed app, Google sign-in is best-effort because the bundle id changes. iPhone calendars always work.
+
 ### Web (verification build only)
 
 ```bash
