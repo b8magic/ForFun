@@ -66,6 +66,17 @@ Open it in Xcode instead: `tools/open-in-xcode.sh` checks Xcode 26.4+, Node and 
 
 No local build at all: `.github/workflows/ios-simulator.yml` (**Actions → "iOS Simulator (build + smoke test)"**, about 15 macOS minutes) builds `Serie.app` for the Simulator and uploads it as an artifact; drag it onto the Simulator window. The same run executes the native smoke test in `maestro/` (launch, save, restart, history, activity switch, place + Apple Maps, export to the simulator's own iPhone calendar) through `tools/sim-smoke.sh`, with a screen recording, screenshots and the app log.
 
+### Live changes on a Mac (change → see it in seconds)
+
+```bash
+cd serie && tools/live.sh            # iOS Simulator
+cd serie && tools/live.sh --device   # iPhone on the cable (Xcode → Settings → Accounts: your Apple ID)
+```
+
+`tools/live.sh` builds and installs the development app **Serie Dev** (`APP_VARIANT=development`, bundle id `app.serie.ios.dev`, so it sits next to an installed release). It then starts Metro and pulls new commits of the current branch every 5 seconds, **fast-forward only**: local edits are never touched. Each pushed code change reaches the app through Fast Refresh, with a macOS notification naming the commit.
+
+When a pushed change touches native inputs (dependencies, `app.json`/`app.config.ts`, fonts, icon, splash), the script asks for a restart and rebuilds Serie Dev. The first build takes about 5–10 minutes.
+
 ### TestFlight / App Store
 
 1. Create the app in App Store Connect with bundle id **`app.serie.ios`** (or change `ios.bundleIdentifier` in `app.json`).
