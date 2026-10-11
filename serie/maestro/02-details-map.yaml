@@ -101,6 +101,12 @@ name: 02 dettagli, luogo e mappa
 - tapOn:
     id: sheet-close
     waitToSettleTimeoutMs: 1500
+# the history header (and its back button) scrolled away above the session
+- scrollUntilVisible:
+    element:
+      id: back-to-log
+    direction: UP
+    timeout: 15000
 - tapOn:
     id: back-to-log
     waitToSettleTimeoutMs: 1500

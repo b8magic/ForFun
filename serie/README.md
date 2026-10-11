@@ -166,7 +166,7 @@ The e2e suites drive the real UI and assert on what a user sees:
 
 ## Status
 
-What was actually checked, and how. Nothing here was run on an iPhone: this repository was built in a Linux container without Xcode, a device or Google credentials.
+What was actually checked, and how. This repository was built in a Linux container without Xcode, a device or Google credentials. The native app was run on an **iOS Simulator** (iPhone 17 Pro, iOS 26.5, GitHub's macOS runner), never on a physical iPhone.
 
 ### Implemented and verified
 
@@ -177,17 +177,17 @@ What was actually checked, and how. Nothing here was run on an iPhone: this repo
 | Signature journey on the web build: launch in Surf, multi-date save, persistence after restart, switching activity, Month/Year/All history, details, edit/delete updating totals, reduced motion | `tools/e2e.mjs` (10 checks) and `tools/e2e-flows.mjs` (11 checks), headless Chromium |
 | Calendar import, export and automatic export: UI, engines and the local database together | `tools/e2e-calendar.mjs` (9 checks) against the in-memory **test** calendars, plus Jest for the engines and both providers (with a fetch mock for Google and a fake EventKit for Apple) |
 | Native configuration: Italian localization, dark UI, calendar permission text (iOS 16 + 17), no location permission, encryption flag, Google URL scheme, registered fonts, splash | `expo prebuild --platform ios` in a scratch copy (generated `Info.plist` inspected) and `expo-doctor` (21/21) |
+| The native iOS app, Release build: launch, multi-date save, persistence in native SQLite across restarts, Month/Year/All history, activity switch remembered across restarts, the form sheets' layout, the details sheet with a Google Maps link resolved to Apple Maps (expo-maps), the session page with its map, iPhone calendars through EventKit (full access, calendar list, export of one session: "1 creati") | `.github/workflows/ios-simulator.yml`: `tools/sim-smoke.sh` plus the Maestro flows in `maestro/` on an iOS Simulator, with screen recording, screenshots and app log reviewed. This run found three bugs, now fixed: sheet content under the header/footer (Fabric view flattening plus react-native-screens' form-sheet ScrollView correction), and two calendar loads dropped by their own effect re-run |
 | Type safety and lint | `tsc --noEmit` and `expo lint`: 0 errors |
 | Adversarial review | 5 independent review dimensions, each checked by a skeptic: 67 confirmed findings, all fixed and re-verified by the suites above |
 
 Totals at the last run: **777 unit tests in 38 suites**, **30 e2e checks**, 0 type errors, 0 lint problems.
 
-### Implemented, not verified on a device
+### Implemented, not verified on a physical iPhone
 
-- Skia rendering on the iPhone GPU and Reanimated worklets on the UI thread. Frame rate and memory were **not measured**. The web build runs Skia on CanvasKit/SwiftShader, which says nothing about iPhone performance.
-- Haptics, the iOS form sheets, keyboard insets, VoiceOver announcements, Dynamic Type and the Apple Maps preview (iOS 17+; iOS 16 shows the text readout).
-- The `expo-sqlite` driver on a device (unit-tested against a fake only).
-- iPhone calendars (EventKit): permissions, reading and writing. Tested against a fake EventKit only.
+- Skia and Reanimated on a real iPhone GPU: frame rate and memory were **not measured** (the Simulator renders on the Mac and says nothing about iPhone performance).
+- Haptics, VoiceOver announcements and Dynamic Type; iOS 16 and 17 (the Simulator run used iOS 26.5).
+- iPhone calendars on a real device with the user's own calendars, the permission prompt itself (the Simulator run pre-granted access), and import from iPhone calendars (export only was driven natively).
 - Google Calendar: OAuth and the REST calls. Tested against a fetch mock only; **no real calendar was read or written**.
 - The `serie://export?m=…` link opening the exported session from Apple Calendar (unit-tested redirect only).
 
