@@ -1,0 +1,162 @@
+# Serie — iOS Simulator build + native smoke test.
+#
+# On demand only (Actions → "iOS Simulator (build + smoke test)" → Run workflow): macOS minutes on a
+# private repo are limited, so nothing runs on push. About 15 minutes.
+#
+# Produces (artifacts, 7 days):
+#   - "Serie-simulator": Serie.app for the iOS Simulator (zip). On a Mac with Xcode: unzip and drag
+#     Serie.app onto the Simulator window, or `xcrun simctl install booted Serie.app`.
+#     It does NOT run on an iPhone (that is the IPA from ios-ipa.yml).
+#   - "smoke-test": screen recording, screenshots, app log, Maestro reports, crash reports (if any).
+# The smoke test (tools/sim-smoke.sh) launches the Release build on an iPhone simulator, then runs the
+# Maestro flows in serie/maestro/ (save, restart, history, activity switch, place + Apple Maps,
+# export to the simulator's own iPhone calendar).
+name: iOS Simulator (build + smoke test)
+
+on:
+  workflow_dispatch:
+    inputs:
+      smoke:
+        description: Esegui anche il test automatico (video + Maestro)
+        type: boolean
+        default: true
+
+concurrency:
+  group: ios-sim-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  sim:
+    name: Simulator build and smoke test
+    runs-on: macos-26
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash # explicit → bash -eo pipefail, so `cmd | tee` fails when cmd fails
+        working-directory: serie
+    env:
+      CI: '1'
+      EXPO_NO_TELEMETRY: '1'
+      MAESTRO_VERSION: 2.11.0
+      MAESTRO_CLI_NO_ANALYTICS: '1'
+      MAESTRO_CLI_ANALYSIS_NOTIFICATION_DISABLED: 'true'
+      MAESTRO_DRIVER_STARTUP_TIMEOUT: '180000'
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Select Xcode 26.6 (Expo SDK 57 needs 26.4 or later)
+        working-directory: .
+        run: |
+          XC=/Applications/Xcode_26.6.app
+          [ -d "$XC" ] || XC=/Applications/Xcode.app
+          sudo xcode-select -s "$XC/Contents/Developer"
+          V=$(xcodebuild -version | awk 'NR==1{print $2}')
+          echo "Xcode $V · Simulator SDK $(xcrun --sdk iphonesimulator --show-sdk-version)"
+          case "$V" in
+            26.[4-9]*|26.[1-9][0-9]*) ;;
+            *) echo "::error::Expo SDK 57 needs Xcode >= 26.4 (found $V)"; exit 1 ;;
+          esac
+          xcrun simctl list runtimes | grep -i ios || true
+          echo "OUT=$RUNNER_TEMP/out" >> "$GITHUB_ENV"
+          mkdir -p "$RUNNER_TEMP/out"
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: serie/package-lock.json
+
+      - name: Install JS dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Generate the iOS project (Continuous Native Generation)
+        run: npx expo prebuild --platform ios --clean --no-install
+
+      - name: Install CocoaPods (prebuilt React Native core and Hermes)
+        run: |
+          cd ios
+          pod install 2>&1 | tee "$OUT/pod-install.log"
+
+      - name: Build for the iOS Simulator (Release, JS bundle embedded)
+        run: |
+          WS=$(ls -d ios/*.xcworkspace | head -1)
+          SCHEME=$(basename "$WS" .xcworkspace)
+          xcodebuild \
+            -workspace "$WS" \
+            -scheme "$SCHEME" \
+            -configuration Release \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath "$RUNNER_TEMP/dd" \
+            ARCHS=arm64 \
+            ONLY_ACTIVE_ARCH=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            build \
+            2>&1 | tee "$OUT/xcodebuild.log" | (command -v xcbeautify >/dev/null && xcbeautify --renderer github-actions || cat)
+          APP=$(ls -d "$RUNNER_TEMP"/dd/Build/Products/Release-iphonesimulator/*.app | head -1)
+          test -f "$APP/main.jsbundle"
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' -c 'Print :CFBundleShortVersionString' "$APP/Info.plist"
+          # arm64 simulator code must carry a signature: the linker adds an ad-hoc one; make sure
+          codesign -v "$APP" 2>/dev/null || codesign --force --deep --sign - "$APP"
+          echo "APP=$APP" >> "$GITHUB_ENV"
+          (cd "$(dirname "$APP")" && ditto -c -k --sequesterRsrc --keepParent "$(basename "$APP")" "$GITHUB_WORKSPACE/Serie-simulator.zip")
+          du -h "$GITHUB_WORKSPACE/Serie-simulator.zip"
+
+      - name: Upload Serie.app (Simulator)
+        uses: actions/upload-artifact@v7
+        with:
+          name: Serie-simulator
+          path: Serie-simulator.zip
+          retention-days: 7
+          if-no-files-found: error
+
+      - name: Install Maestro ${{ env.MAESTRO_VERSION }}
+        if: inputs.smoke
+        run: |
+          java -version 2>&1 | head -1
+          curl -fsSL "https://get.maestro.mobile.dev" | bash
+          echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
+
+      - name: Smoke test on an iPhone simulator
+        if: inputs.smoke
+        run: |
+          tools/sim-smoke.sh "$APP" "$OUT"
+
+      - name: Summary (also when the test fails)
+        if: always() && inputs.smoke
+        run: |
+          { echo "### Smoke test (iOS Simulator)"; cat "$OUT/summary.md" 2>/dev/null || echo "not run"; } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload the smoke test results
+        if: always() && inputs.smoke
+        uses: actions/upload-artifact@v7
+        with:
+          name: smoke-test
+          path: |
+            ${{ env.OUT }}/summary.md
+            ${{ env.OUT }}/serie-simulator.mp4
+            ${{ env.OUT }}/screens/
+            ${{ env.OUT }}/app.log
+            ${{ env.OUT }}/maestro-*.xml
+            ${{ env.OUT }}/maestro/
+            ${{ env.OUT }}/crashes/
+            ${{ env.OUT }}/recordVideo.log
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: Keep the build logs (failure, timeout or cancel)
+        if: failure() || cancelled()
+        uses: actions/upload-artifact@v7
+        with:
+          name: build-logs
+          path: |
+            ${{ env.OUT }}/pod-install.log
+            ${{ env.OUT }}/xcodebuild.log
+          retention-days: 7
+          overwrite: true
+          if-no-files-found: ignore

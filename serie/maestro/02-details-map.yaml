@@ -1,0 +1,82 @@
+# Native smoke test 2/3: details sheet with a place from a Google Maps link → Apple Maps (expo-maps),
+# save, then open the session from history and see its map. Needs 01 (active activity: Corsa).
+appId: app.serie.ios
+name: 02 dettagli, luogo e mappa
+---
+- launchApp
+- extendedWaitUntil:
+    visible:
+      id: activity-switcher
+    timeout: 60000
+- tapOn:
+    id: prev-month
+- tapOn:
+    id: day-${PREV}-15
+- tapOn:
+    id: details-link
+- extendedWaitUntil:
+    visible:
+      id: details-place-name
+    timeout: 10000
+- tapOn:
+    id: details-place-name
+- inputText: Livorno
+- pressKey: Enter
+- tapOn:
+    id: details-place-link
+- inputText: "https://www.google.com/maps/place/Livorno/@43.5485,10.3106,15z"
+- pressKey: Enter
+- extendedWaitUntil:
+    visible:
+      id: map-caption
+    timeout: 15000
+- takeScreenshot: 10-details-map
+- tapOn:
+    id: details-apply
+- extendedWaitUntil:
+    visible:
+      id: save
+      text: "Salva 1 sessione.*"
+    timeout: 10000
+- tapOn:
+    id: save
+- extendedWaitUntil:
+    visible:
+      text: "1 sessione salvata.*"
+    timeout: 15000
+- extendedWaitUntil:
+    notVisible:
+      id: toast
+    timeout: 30000
+
+# open it from history: the session page shows the place on the map
+- tapOn:
+    id: history-handle
+- extendedWaitUntil:
+    visible:
+      id: month-${PREV}
+    timeout: 10000
+- tapOn:
+    id: month-${PREV}
+- tapOn:
+    id: mini-${PREV}-15
+- tapOn:
+    id: "session-(?!editor).+"
+- extendedWaitUntil:
+    visible:
+      id: session-editor
+    timeout: 10000
+- scrollUntilVisible:
+    element:
+      id: map-caption
+    direction: DOWN
+    timeout: 15000
+- takeScreenshot: 11-session-map
+- tapOn:
+    id: sheet-close
+- tapOn:
+    id: back-to-log
+- extendedWaitUntil:
+    visible:
+      id: activity-switcher
+    timeout: 10000

@@ -62,6 +62,10 @@ iOS Simulator instead of a device: `npx eas-cli@latest build --profile developme
 
 Local alternative on a Mac: `npx expo run:ios` (simulator) or `npx expo run:ios --device`. This generates `ios/` with Continuous Native Generation; don't edit `ios/` by hand.
 
+Open it in Xcode instead: `tools/open-in-xcode.sh` checks Xcode 26.4+, Node and CocoaPods, generates `ios/`, installs the pods, switches Run to Release (JS bundle embedded, no Metro needed) and opens the workspace. Pick a simulator and press Run.
+
+No local build at all: `.github/workflows/ios-simulator.yml` (**Actions → "iOS Simulator (build + smoke test)"**, about 15 macOS minutes) builds `Serie.app` for the Simulator and uploads it as an artifact; drag it onto the Simulator window. The same run executes the native smoke test in `maestro/` (launch, save, restart, history, activity switch, place + Apple Maps, export to the simulator's own iPhone calendar) through `tools/sim-smoke.sh`, with a screen recording, screenshots and the app log.
+
 ### TestFlight / App Store
 
 1. Create the app in App Store Connect with bundle id **`app.serie.ios`** (or change `ios.bundleIdentifier` in `app.json`).

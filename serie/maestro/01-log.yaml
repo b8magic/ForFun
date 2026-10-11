@@ -1,0 +1,113 @@
+# Native smoke test 1/3 (Maestro, iOS Simulator): the same checks as tools/e2e.mjs, on the real app.
+# First launch in Surf → select 2 dates → save → restart → still there → history → switch activity.
+# PREV = the previous month as YYYY-MM (passed by tools/sim-smoke.sh), so every date is in the past.
+appId: app.serie.ios
+name: 01 registra, riavvia, storia, attività
+---
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible:
+      id: activity-switcher
+    timeout: 60000
+- assertVisible:
+    id: activity-switcher
+    text: "Attività attiva: Surf.*"
+- assertVisible:
+    id: save
+    text: "Seleziona le date"
+- takeScreenshot: 01-first-launch
+
+- tapOn:
+    id: prev-month
+- tapOn:
+    id: day-${PREV}-10
+- tapOn:
+    id: day-${PREV}-12
+- assertVisible:
+    id: save
+    text: "Salva 2 sessioni.*Surf"
+- takeScreenshot: 02-selection
+- tapOn:
+    id: save
+- extendedWaitUntil:
+    visible:
+      text: "2 sessioni salvate.*"
+    timeout: 15000
+- takeScreenshot: 03-saved
+- extendedWaitUntil:
+    notVisible:
+      id: toast
+    timeout: 30000
+- assertVisible:
+    id: day-${PREV}-10
+    text: ".*1 sessione registrata.*"
+- assertVisible:
+    id: save
+    text: "Seleziona le date"
+
+# restart: the sessions come back from SQLite, the old selection does not
+- stopApp
+- launchApp
+- extendedWaitUntil:
+    visible:
+      id: activity-switcher
+    timeout: 60000
+- assertVisible:
+    id: activity-switcher
+    text: "Attività attiva: Surf.*"
+- tapOn:
+    id: prev-month
+- assertVisible:
+    id: day-${PREV}-12
+    text: ".*1 sessione registrata.*"
+- takeScreenshot: 04-after-restart
+
+# history: month, year, all time
+- tapOn:
+    id: history-handle
+- extendedWaitUntil:
+    visible:
+      id: back-to-log
+    timeout: 10000
+- tapOn:
+    id: month-${PREV}
+- takeScreenshot: 05-history-month
+- tapOn:
+    id: scale-year
+- takeScreenshot: 06-history-year
+- tapOn:
+    id: scale-all
+- takeScreenshot: 07-history-all
+- tapOn:
+    id: scale-month
+- tapOn:
+    id: back-to-log
+- extendedWaitUntil:
+    visible:
+      id: activity-switcher
+    timeout: 10000
+
+# activity switcher, remembered across a restart
+- tapOn:
+    id: activity-switcher
+- extendedWaitUntil:
+    visible:
+      id: activity-Corsa
+    timeout: 10000
+- takeScreenshot: 08-switcher
+- tapOn:
+    id: activity-Corsa
+- extendedWaitUntil:
+    visible:
+      id: activity-switcher
+      text: "Attività attiva: Corsa.*"
+    timeout: 10000
+- stopApp
+- launchApp
+- extendedWaitUntil:
+    visible:
+      id: activity-switcher
+      text: "Attività attiva: Corsa.*"
+    timeout: 60000
+- takeScreenshot: 09-corsa-after-restart

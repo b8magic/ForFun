@@ -1,0 +1,74 @@
+# Native smoke test 3/3: iPhone calendars (EventKit) on the simulator's own test calendars.
+# Connect → export the Corsa session to the default calendar → result "Creati: 1". Needs 02.
+appId: app.serie.ios
+name: 03 calendari di iPhone, esportazione
+---
+- launchApp
+- extendedWaitUntil:
+    visible:
+      id: activity-switcher
+    timeout: 60000
+- tapOn:
+    id: menu
+- tapOn:
+    id: menu-calendars
+- extendedWaitUntil:
+    visible:
+      id: calendar-hub
+    timeout: 10000
+- takeScreenshot: 20-calendar-hub
+- tapOn:
+    id: connect-apple
+# only if the permission was not pre-granted
+- runFlow:
+    when:
+      visible: "Allow Full Access"
+    commands:
+      - tapOn: "Allow Full Access"
+- extendedWaitUntil:
+    visible:
+      text: "lettura e scrittura"
+    timeout: 15000
+- takeScreenshot: 21-calendar-connected
+- scrollUntilVisible:
+    element:
+      id: go-export
+    direction: DOWN
+- tapOn:
+    id: go-export
+- extendedWaitUntil:
+    visible:
+      id: export-next-1
+    timeout: 10000
+- tapOn:
+    id: export-next-1
+- extendedWaitUntil:
+    visible:
+      text: ".*\\(principale\\).*"
+    timeout: 15000
+- tapOn:
+    text: ".*\\(principale\\).*"
+- takeScreenshot: 22-export-destination
+- tapOn:
+    id: export-next-2
+- extendedWaitUntil:
+    visible:
+      id: export-next-3
+    timeout: 10000
+- tapOn:
+    id: export-next-3
+- extendedWaitUntil:
+    visible:
+      id: export-confirm
+    timeout: 20000
+- takeScreenshot: 23-export-review
+- tapOn:
+    id: export-confirm
+- extendedWaitUntil:
+    visible:
+      id: export-finish
+    timeout: 30000
+- assertVisible: "Creati: 1"
+- takeScreenshot: 24-export-done
+- tapOn:
+    id: export-finish

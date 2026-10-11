@@ -5,7 +5,7 @@
 set -e
 cd "$(dirname "$0")/.."
 OUT=dist-web
-LOG=/tmp/claude-0/-home-user-ForFun/95d9cc13-7e3c-5b9b-9777-89259157d415/scratchpad/export.log
+LOG=${TMPDIR:-/tmp}/serie-web-export.log
 mkdir -p "$(dirname "$LOG")"
 if [ "$1" = "--e2e" ]; then
   OUT=dist-web-e2e
