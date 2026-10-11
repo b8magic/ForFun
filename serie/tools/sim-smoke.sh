@@ -99,11 +99,17 @@ stop_capture
 trap - EXIT
 V=$OUT/serie-simulator.mp4
 if [ -s "$V" ]; then
-  if command -v ffmpeg >/dev/null; then
-    ffmpeg -v error -y -i "$V" -vf "scale=540:-2,fps=30" -c:v libx264 -preset veryfast -crf 28 -an "$OUT/small.mp4"
-  else
-    avconvert --preset Preset1920x1080 --source "$V" --output "$OUT/small.mp4" >/dev/null 2>&1
+  # macOS runners have no ffmpeg: a static build from PyPI (imageio-ffmpeg) in a throwaway venv
+  FF=$(command -v ffmpeg || true)
+  if [ -z "$FF" ] && python3 -m venv "$OUT/.ffvenv" >/dev/null 2>&1 && "$OUT/.ffvenv/bin/pip" -q install imageio-ffmpeg >/dev/null 2>&1; then
+    FF=$("$OUT/.ffvenv/bin/python" -c 'import imageio_ffmpeg; print(imageio_ffmpeg.get_ffmpeg_exe())' 2>/dev/null || true)
   fi
+  if [ -n "$FF" ]; then
+    "$FF" -v error -y -i "$V" -vf "scale=540:-2,fps=30" -c:v libx264 -preset veryfast -crf 28 -an "$OUT/small.mp4" || say "- ffmpeg failed"
+  else
+    avconvert --preset Preset1920x1080 --source "$V" --output "$OUT/small.mp4" || say "- avconvert failed"
+  fi
+  rm -rf "$OUT/.ffvenv"
   if [ -s "$OUT/small.mp4" ]; then mv "$OUT/small.mp4" "$V"; fi
   say "- Video: $(du -h "$V" | cut -f1)"
 fi
