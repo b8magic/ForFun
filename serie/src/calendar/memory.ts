@@ -101,6 +101,12 @@ function fromDraft(cal: ExternalCalendar, id: string, d: EventDraft): ExternalEv
   return { ...base(cal, id, d.title), notes: d.notes, location: d.location, allDay: d.allDay, start: t(d.start), end: t(d.end), colorId: cal.provider === 'google' ? d.colorId : null, appMeta: d.appMeta, updated: new Date().toISOString() };
 }
 
+// Real providers answer later than a microtask (EventKit over the native bridge, Google over the
+// network). Answering after a macrotask lets the web e2e reproduce races that only showed natively,
+// like a calendar list that a re-rendering effect cancelled and never loaded again.
+const LAG_MS = 40;
+const lag = () => new Promise<void>((r) => setTimeout(r, LAG_MS));
+
 export function createMemoryProvider(kind: ProviderKind): CalendarProvider {
   const cals = CALENDARS.filter((c) => c.provider === kind);
   const account = cals[0];
@@ -120,26 +126,32 @@ export function createMemoryProvider(kind: ProviderKind): CalendarProvider {
     kind,
     capabilities: { eventLabels: kind === 'google' },
     async getConnection() {
+      await lag();
       return conn();
     },
     async connect() {
+      await lag();
       st().connected[kind] = true;
       persist();
       return conn();
     },
     async disconnect() {
+      await lag();
       st().connected[kind] = false;
       persist();
     },
     async listCalendars() {
+      await lag();
       need();
       return cals.map((c) => ({ ...c }));
     },
     async listLabels() {
+      await lag();
       need();
       return kind === 'google' ? LABELS : [];
     },
     async listEvents(q: ListEventsQuery) {
+      await lag();
       need();
       const ids = new Set(q.calendarIds);
       const out = st().events.filter((e) => e.provider === kind && ids.has(e.calendarId) && overlaps(e, q.from, q.to) && (q.includeCancelled || e.status !== 'cancelled'));
@@ -147,14 +159,17 @@ export function createMemoryProvider(kind: ProviderKind): CalendarProvider {
       return out.map((e) => ({ ...e }));
     },
     async getEvent(calendarId, eventId) {
+      await lag();
       need();
       return st().events.find((e) => e.provider === kind && e.calendarId === calendarId && e.eventId === eventId) ?? null;
     },
     async findByOpId(calendarId, opId) {
+      await lag();
       need();
       return st().events.find((e) => e.provider === kind && e.calendarId === calendarId && e.appMeta?.opId === opId) ?? null;
     },
     async createEvent(calendarId, draft) {
+      await lag();
       need();
       const c = cal(calendarId);
       if (!c.canWrite) throw new ProviderError('forbidden', 'Calendario in sola lettura.');
@@ -166,6 +181,7 @@ export function createMemoryProvider(kind: ProviderKind): CalendarProvider {
       return { ...e };
     },
     async updateEvent(calendarId, eventId, draft) {
+      await lag();
       need();
       const c = cal(calendarId);
       const i = st().events.findIndex((e) => e.provider === kind && e.calendarId === calendarId && e.eventId === eventId);

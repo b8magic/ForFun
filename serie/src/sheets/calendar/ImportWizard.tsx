@@ -44,6 +44,7 @@ import { timingSummary } from '@/places/time/format';
 import { monthKey, monthOf } from '@/domain/dates';
 import { useConnections } from './useConnections';
 import { CalendarList, Check, checkRange, DateText, Footer, LabelChips, longDateIt, Pill, presetRange, ProviderChoice, PROVIDER_NAMES, RANGE_PRESETS, Steps, usable, type RangePreset } from './parts';
+import { useMountedRef } from './useMountedRef';
 
 const S = surfaces.night;
 const STEPS = 4;
@@ -139,29 +140,36 @@ export function ImportWizard() {
     setSourceError(null);
   };
 
-  // calendars + labels of the chosen provider, read once per provider
+  // calendars + labels of the chosen provider, read once per provider. Storing the calendars re-runs
+  // this effect, so a load is never cancelled by a re-run (the labels, read right after, were dropped
+  // that way): only an unmount drops the result. A failed load may be retried.
+  const mounted = useMountedRef();
+  const requested = useRef<Partial<Record<ProviderKind, true>>>({});
+  const providerNow = useRef(provider);
   useEffect(() => {
-    if (!p || !usable(conn.connections[p.kind], 'read') || calsBy[p.kind]) return;
-    let live = true;
+    providerNow.current = provider;
+  }, [provider]);
+  useEffect(() => {
+    if (!p || !usable(conn.connections[p.kind], 'read') || requested.current[p.kind]) return;
+    const kind = p.kind;
+    requested.current[kind] = true;
     (async () => {
       try {
         const cals = await p.listCalendars();
-        if (!live) return;
-        setCalsBy((m) => ({ ...m, [p.kind]: cals }));
+        if (!mounted.current) return;
+        setCalsBy((m) => ({ ...m, [kind]: cals }));
         const readable = cals.filter((c) => c.canRead);
-        if (readable.length === 1) setCalSel(new Set([readable[0].calendarId]));
+        if (readable.length === 1 && providerNow.current === kind) setCalSel(new Set([readable[0].calendarId]));
         if (p.capabilities.eventLabels) {
           const l = await p.listLabels().catch(() => []);
-          if (live) setLabels(l);
+          if (mounted.current) setLabels(l);
         }
       } catch (e) {
-        if (live) setSourceError(providerMessage(e));
+        delete requested.current[kind];
+        if (mounted.current) setSourceError(providerMessage(e));
       }
     })();
-    return () => {
-      live = false;
-    };
-  }, [p, conn.connections, calsBy]);
+  }, [p, conn.connections, mounted]);
   const calendars = provider ? (calsBy[provider] ?? null) : null;
 
   const counts = useMemo(() => selectionCounts(items, selection, SCOPES[scope]), [items, selection, scope]);

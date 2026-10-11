@@ -54,13 +54,15 @@ name: 03 calendari di iPhone, esportazione
 - tapOn:
     id: export-next-1
     waitToSettleTimeoutMs: 1500
+# the simulator's own calendars; the app preselects the default (principale) or the only writable one
 - extendedWaitUntil:
     visible:
-      text: ".*\\(principale\\).*"
-    timeout: 15000
+      id: "dest-apple-.+"
+    timeout: 20000
 - tapOn:
     text: ".*\\(principale\\).*"
     waitToSettleTimeoutMs: 1500
+    optional: true
 - takeScreenshot: 22-export-destination
 - tapOn:
     id: export-next-2

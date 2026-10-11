@@ -34,6 +34,7 @@ import { errorText } from '@/sheets/manage/helpers';
 import { useConnections } from './useConnections';
 import { CalendarList, checkRange, DateText, Footer, LabelChips, longDateIt, Pill, presetRange, ProviderChoice, PROVIDER_NAMES, Steps, usable } from './parts';
 import { DEFAULT_SETTINGS, editSettings, linkSettings, resetAllTitles, ROW_FILTERS, SPAN_CHOICES, startOnlyCount, toOptions, type DestSettings, type ReviewFilter, type SettingsMap } from './exportModel';
+import { useMountedRef } from './useMountedRef';
 import { ExportRow } from './ExportRow';
 
 const S = surfaces.night;
@@ -80,14 +81,8 @@ export function ExportWizard() {
   const [running, setRunning] = useState<{ done: number; total: number } | null>(null);
   const [result, setResult] = useState<ExecuteResult | null>(null);
   const abort = useRef<AbortController | null>(null);
-  const mounted = useRef(true);
-  useEffect(
-    () => () => {
-      mounted.current = false;
-      abort.current?.abort(); // reads only: a confirmed export keeps running (see execute)
-    },
-    [],
-  );
+  const mounted = useMountedRef();
+  useEffect(() => () => abort.current?.abort(), []); // reads only: a confirmed export keeps running (see execute)
   const loadedWindow = useRef<string | null>(null);
 
   const category = categories.find((c) => c.id === categoryId) ?? null;
@@ -108,36 +103,37 @@ export function ExportWizard() {
     if (k) setChosen([k]);
   }, [conn.connections, chosen.length]);
 
-  // calendars (and Google labels) for each chosen provider
+  // calendars (and Google labels) for each chosen provider, read once per provider. Setting the
+  // "loading" placeholder re-runs this effect, so a load is never cancelled by a re-run: only an
+  // unmount drops its result (see useMountedRef). Before, the result was dropped and the step stayed
+  // on "Lettura dei calendari…" with EventKit (seen on the iOS Simulator).
+  const requested = useRef<Partial<Record<ProviderKind, true>>>({});
   useEffect(() => {
-    let live = true;
     for (const k of chosen) {
       const p = conn.providers?.[k];
-      if (!p || !usable(conn.connections[k], 'write') || cals[k] !== undefined) continue;
+      if (!p || !usable(conn.connections[k], 'write') || requested.current[k]) continue;
+      requested.current[k] = true;
       setCals((m) => ({ ...m, [k]: null }));
       (async () => {
         try {
           const list = await p.listCalendars();
-          if (!live) return;
+          if (!mounted.current) return;
           setCals((m) => ({ ...m, [k]: list }));
           const writable = list.filter((c) => c.canWrite);
           const primary = writable.find((c) => c.isPrimary) ?? (writable.length === 1 ? writable[0] : null);
           if (primary) setCalSel((m) => (m[k] ? m : { ...m, [k]: primary.calendarId }));
           if (p.capabilities.eventLabels) {
             const l = await p.listLabels().catch(() => []);
-            if (live) setLabels(l);
+            if (mounted.current) setLabels(l);
           }
         } catch (e) {
-          if (!live) return;
+          if (!mounted.current) return;
           setCals((m) => ({ ...m, [k]: [] }));
           setCalErr((m) => ({ ...m, [k]: e instanceof Error ? e.message : String(e) }));
         }
       })();
     }
-    return () => {
-      live = false;
-    };
-  }, [chosen, conn.providers, conn.connections, cals]);
+  }, [chosen, conn.providers, conn.connections, mounted]);
 
   const calOf = useCallback((k: ProviderKind) => (cals[k] ?? []).find((c) => c.calendarId === calSel[k]) ?? null, [cals, calSel]);
 
@@ -264,7 +260,7 @@ export function ExportWizard() {
     } finally {
       if (mounted.current) setRunning(null);
     }
-  }, [plan, conn.providers]);
+  }, [plan, conn.providers, mounted]);
 
   const editKind = editing && chosen.includes(editing) ? editing : chosen[0];
   const cur = settingsFor(editKind);

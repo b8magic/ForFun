@@ -71,9 +71,20 @@ name: 02 dettagli, luogo e mappa
 - tapOn:
     id: month-${PREV}
     waitToSettleTimeoutMs: 1500
+# the expanded month's mini calendar and its day panel can be below the fold
+- scrollUntilVisible:
+    element:
+      id: mini-${PREV}-15
+    direction: DOWN
+    timeout: 15000
 - tapOn:
     id: mini-${PREV}-15
     waitToSettleTimeoutMs: 1500
+- scrollUntilVisible:
+    element:
+      id: "session-(?!editor).+"
+    direction: DOWN
+    timeout: 15000
 - tapOn:
     id: "session-(?!editor).+"
     waitToSettleTimeoutMs: 1500
