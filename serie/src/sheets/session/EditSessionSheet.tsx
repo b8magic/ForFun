@@ -23,6 +23,7 @@ import { DateEditor } from './DateEditor';
 import { PlaceEditor } from './PlaceEditor';
 import { SheetScroll } from './SheetScroll';
 import { TimingEditor } from './TimingEditor';
+import { useConfirmDiscard } from './useConfirmDiscard';
 import { buildSessionPatch, checkSessionDate, instantDate, isEmptyPatch, provenanceSpanText, shortDate } from './drafts';
 import { evaluateTiming, formFromTiming, type TimingForm } from './timingForm';
 
@@ -106,6 +107,7 @@ function Editor({ session, categories, today, onDeleting }: { session: Session; 
   const patch = ev.ok && ev.timing ? buildSessionPatch(session, { date, categoryId, notes, place, timing: ev.timing }) : null;
   const dirty = !dateCheck.ok || !ev.ok || (patch != null && !isEmptyPatch(patch));
   const valid = dateCheck.ok && ev.ok;
+  const allowLeave = useConfirmDiscard(dirty && busy == null);
 
   const save = async () => {
     setAttempted(true);
@@ -122,6 +124,7 @@ function Editor({ session, categories, today, onDeleting }: { session: Session; 
     try {
       await updateSession(session.id, patch);
       showToast(t.changesSaved);
+      allowLeave();
       close();
     } catch (e) {
       const msg = saveErrorText(e);
@@ -144,6 +147,7 @@ function Editor({ session, categories, today, onDeleting }: { session: Session; 
     try {
       await deleteSession(session.id);
       showToast(s.sessionDeleted);
+      allowLeave();
       close();
     } catch (e) {
       onDeleting(false);

@@ -14,7 +14,8 @@
  *   enqueueForSessions  called right after a local commit; idempotent (op id);
  *                       unapproved representations / ambiguity go straight to
  *                       'needs_review' ("Da rivedere") without blocking saving.
- *   runJobs             processes due auto jobs: offline → stays pending;
+ *   runJobs             processes due auto jobs: offline → Google jobs stay
+ *                       pending (EventKit is on-device and runs offline);
  *                       unauthorized/denied/disconnected → 'failed' + backoff;
  *                       write-only → 'needs_review' (duplicates cannot be
  *                       checked); rate limited → 'failed' with backoff (1 m,
@@ -24,7 +25,9 @@
  *                       read and classified with `classifyDuplicates`
  *                       (recognized → linked, possible duplicate → review).
  *                       'succeeded' means accepted by the calendar integration,
- *                       not synced to any cloud.
+ *                       not synced to any cloud. A job changed by someone else
+ *                       during the run (cancelled, taken over by a manual
+ *                       export) is never written and keeps their decision.
  *   resolveReviewJob    skip / retry / approve a span / create separately / link.
  *   disableAutoExport   stops future enqueues; optionally cancels open auto
  *                       jobs. Never deletes or edits calendar events.
@@ -73,6 +76,7 @@ export const AUTO_EXPORT_STRINGS = {
     noProvider: 'Integrazione non disponibile in questa build.',
     uncertain: t.jobUncertain,
     storeFailed: 'Evento accettato dal calendario ma non registrato in Serie: verifico al prossimo tentativo.',
+    superseded: 'Già gestita da un’altra operazione: nessuna scrittura.',
     generic: t.errorGeneric,
   },
   cancelled: {
@@ -103,6 +107,7 @@ export const AUTO_EXPORT_STRINGS = {
     calendar_not_found: 'Calendario di destinazione non trovato.',
     calendar_unverified: 'Calendario non verificabile ora: collega il servizio per controllarlo.',
     calendar_not_writable: 'Calendario di sola lettura: scegline uno in cui si può scrivere.',
+    calendar_not_readable: 'Calendario non leggibile: i doppioni non si possono verificare, ogni esportazione andrà rivista.',
     account_mismatch: 'Il calendario non appartiene all’account indicato.',
     start_only_span_invalid: 'Intervallo di pianificazione non valido: da 1 a 1440 minuti.',
     both_equivalent: t.equivalentWarning,
@@ -407,7 +412,11 @@ export function validateConfig(config: AutoExportConfig, calendars: readonly Ext
       if (!cal) issue('calendar_not_found', 'error', categoryId, provider);
       else if (!sameAccount(provider, cal.accountId, ref.accountId)) issue('account_mismatch', 'error', categoryId, provider);
       else if (!cal.canWrite) issue('calendar_not_writable', 'error', categoryId, provider);
-      else found[provider] = cal;
+      else {
+        // Write-only access is never presented as checked: every job would wait in review.
+        if (!cal.canRead) issue('calendar_not_readable', 'warning', categoryId, provider);
+        found[provider] = cal;
+      }
     }
     const destinationError = issues.slice(before).some((i) => i.severity === 'error');
     if (set.google && set.apple && !destinationError) {
@@ -647,6 +656,12 @@ export interface AutoJobPayload extends JobSettings {
   /** Outgoing date of the last write attempt (reconciliation window). */
   attemptedDate: LocalDate | null;
   /**
+   * An earlier write may have been applied and has not been looked up yet:
+   * `findByOpId` runs before anything else. Survives "Da rivedere" and retries,
+   * so a review never turns an uncertain write into a fresh creation.
+   */
+  reconcile: boolean;
+  /**
    * The destination calendar as last listed by its provider. Lets the "Both"
    * rule be evaluated when that provider is momentarily unreachable.
    */
@@ -692,6 +707,7 @@ export function parsePayload(raw: unknown): AutoJobPayload | null {
     deferred: raw.deferred === 'offline' || raw.deferred === 'rate_limit' ? raw.deferred : null,
     review,
     attemptedDate: typeof raw.attemptedDate === 'string' ? raw.attemptedDate : null,
+    reconcile: raw.reconcile === true,
     calendar: isCalendar(raw.calendar) ? raw.calendar : null,
   };
 }
@@ -781,6 +797,7 @@ export async function enqueueForSessions(
           deferred: null,
           review: d.review ? { code: d.review.code, eventIds: [] } : null,
           attemptedDate: null,
+          reconcile: false,
           calendar: findCal(opts.calendars, d.ref),
         };
         const job = await repos.exportJobs.enqueue({
@@ -813,6 +830,20 @@ export const BACKOFF_SCHEDULE_MS: readonly number[] = Object.freeze([60_000, 5 *
 
 /** Re-check interval while offline (a reconnection run processes the job immediately). */
 export const OFFLINE_RECHECK_MS = 60_000;
+
+/**
+ * A job found 'running' is reclaimed as uncertain only when it has not been
+ * touched for this long: a fresher one is being written right now by another
+ * operation (a manual export takes over the job of the same operation), and
+ * re-running it would create a second event.
+ */
+export const RUNNING_STALE_MS = 5 * 60_000;
+
+/**
+ * Providers whose calls need the network. EventKit (Apple) writes to the
+ * on-device calendar store, which syncs on its own, so its jobs run offline.
+ */
+const NETWORK_PROVIDERS: ReadonlySet<ProviderKind> = new Set<ProviderKind>(['google']);
 
 /** Delay before the next attempt after `attempt` failed attempts (≥ 1); a provider's Retry-After wins when longer. */
 export function backoffDelayMs(attempt: number, retryAfterMs?: number | null): number {
@@ -856,12 +887,19 @@ export interface RunJobsResult {
 
 type Outcome =
   | { kind: 'succeeded'; attempted: boolean; eventId: string | null }
-  | { kind: 'review'; note: ReviewNote; attempted: boolean; eventIds?: string[] }
+  | { kind: 'review'; note: ReviewNote; attempted: boolean; eventIds?: string[]; reconcile: boolean }
   | { kind: 'failed'; message: string; retryAfterMs?: number | null; keepUncertain: boolean }
   | { kind: 'uncertain'; message: string }
   | { kind: 'offline'; message: string; keepUncertain: boolean }
   | { kind: 'deferred'; untilMs: number; message: string }
-  | { kind: 'cancelled'; message: string };
+  | { kind: 'cancelled'; message: string }
+  /** Another operation (user decision, manual export) changed the job meanwhile: left untouched. */
+  | { kind: 'superseded'; status: ExportJobStatus; message: string };
+
+/** Per-job run state: `claimed` once this run marked the job 'running' for its write. */
+interface JobRunState {
+  claimed: boolean;
+}
 
 type ConnResult = { ok: true; conn: Connection } | { ok: false; error: unknown };
 type CalResult = { ok: true; calendars: ExternalCalendar[] } | { ok: false; error: unknown; retryable: boolean; message: string };
@@ -891,9 +929,14 @@ async function runJobsNow(input: RunJobsInput): Promise<RunJobsResult> {
   const config = input.config ?? (await loadConfig(repos));
 
   // A job left 'running' by an interrupted run may have been written: reconcile before any retry.
+  // Only stale ones — a fresh 'running' job is being written by another operation right now.
   for (const j of await repos.exportJobs.list(['running'])) {
-    if (j.kind === 'auto') await repos.exportJobs.update(j.id, { status: 'uncertain', lastError: S.error.uncertain, nextAttemptAt: iso(nowMs()) });
+    if (j.kind !== 'auto') continue;
+    const age = nowMs() - Date.parse(j.updatedAt);
+    if (Number.isFinite(age) && Math.abs(age) < RUNNING_STALE_MS) continue;
+    await repos.exportJobs.update(j.id, { status: 'uncertain', lastError: S.error.uncertain, nextAttemptAt: iso(nowMs()) });
   }
+  const jobRow = async (id: string): Promise<ExportJobRecord | null> => (await repos.exportJobs.list()).find((j) => j.id === id) ?? null;
 
   const allJobs = await repos.exportJobs.list();
   const jobsByOp = new Map<string, ExportJobRecord[]>();
@@ -938,6 +981,8 @@ async function runJobsNow(input: RunJobsInput): Promise<RunJobsResult> {
       p = (async (): Promise<CalResult> => {
         const provider = input.providers[kind];
         if (!provider) return { ok: false, error: null, retryable: false, message: S.error.noProvider };
+        // Known offline: no network call (an Apple job may still ask for the Google side).
+        if (!online && NETWORK_PROVIDERS.has(kind)) return { ok: false, error: new ProviderError('offline', S.error.offline), retryable: true, message: S.error.offline };
         const c = await connectionOf(kind);
         if (!c.ok) return { ok: false, error: c.error, retryable: c.error instanceof ProviderError && c.error.retryable, message: errMessage(c.error) };
         if (c.conn.status !== 'connected' && c.conn.status !== 'write_only') return { ok: false, error: null, retryable: false, message: c.conn.detail ?? S.error.disconnected };
@@ -956,16 +1001,17 @@ async function runJobsNow(input: RunJobsInput): Promise<RunJobsResult> {
   const outcomes: JobRunOutcome[] = [];
   for (const job of queue) {
     const payload = parsePayload(job.payload);
+    const st: JobRunState = { claimed: false };
     let eventId: string | null = null;
     let outcome: Outcome;
     try {
-      outcome = await processJob(job, payload);
+      outcome = await processJob(job, payload, st);
     } catch (e) {
       // Unexpected failure outside a provider write (e.g. storage): retry later, keep reconciliation duty.
-      outcome = { kind: 'failed', message: errMessage(e), keepUncertain: job.status === 'uncertain' };
+      outcome = { kind: 'failed', message: errMessage(e), keepUncertain: job.status === 'uncertain' || payload?.reconcile === true || st.claimed };
     }
     if (outcome.kind === 'succeeded') eventId = outcome.eventId;
-    const status = await apply(job, payload, outcome);
+    const status = await apply(job, payload, outcome, st);
     remember(job, status, payload);
     outcomes.push({
       jobId: job.id,
@@ -981,10 +1027,11 @@ async function runJobsNow(input: RunJobsInput): Promise<RunJobsResult> {
 
   // ── per job ────────────────────────────────────────────────────────────────
 
-  async function processJob(job: ExportJobRecord, payload: AutoJobPayload | null): Promise<Outcome> {
-    let mustReconcile = job.status === 'uncertain';
+  async function processJob(job: ExportJobRecord, payload: AutoJobPayload | null, st: JobRunState): Promise<Outcome> {
+    let mustReconcile = job.status === 'uncertain' || payload?.reconcile === true;
     const failed = (message: string, retryAfterMs: number | null = null): Outcome => ({ kind: 'failed', message, retryAfterMs, keepUncertain: mustReconcile });
-    const review = (code: ReviewCode, message?: string, eventIds?: string[]): Outcome => ({ kind: 'review', note: reviewNote(code, message), attempted: false, eventIds });
+    const review = (code: ReviewCode, message?: string, eventIds?: string[]): Outcome => ({ kind: 'review', note: reviewNote(code, message), attempted: false, eventIds, reconcile: mustReconcile });
+    const needsNetwork = NETWORK_PROVIDERS.has(job.provider);
 
     if (!payload) return review('invalid_payload');
     const session = await repos.sessions.get(job.sessionId);
@@ -994,7 +1041,7 @@ async function runJobsNow(input: RunJobsInput): Promise<RunJobsResult> {
     const existing = await repos.exportLinks.byOp(job.opId);
     if (existing) return { kind: 'succeeded', attempted: false, eventId: existing.externalEventId };
 
-    if (!online) return { kind: 'offline', message: S.error.offline, keepUncertain: mustReconcile };
+    if (!online && needsNetwork) return { kind: 'offline', message: S.error.offline, keepUncertain: mustReconcile };
     const provider = input.providers[job.provider];
     if (!provider) return failed(S.error.noProvider);
     const blocked = blockedUntil.get(job.provider);
@@ -1004,7 +1051,7 @@ async function runJobsNow(input: RunJobsInput): Promise<RunJobsResult> {
       if (!(e instanceof ProviderError)) return phase === 'write' ? { kind: 'uncertain', message: S.error.uncertain } : failed(errMessage(e));
       switch (e.code) {
         case 'offline':
-          online = false;
+          if (needsNetwork) online = false;
           return { kind: 'offline', message: S.error.offline, keepUncertain: mustReconcile || phase === 'write' };
         case 'rate_limited': {
           const delay = backoffDelayMs(job.attempts + 1, e.retryAfterMs);
@@ -1094,6 +1141,7 @@ async function runJobsNow(input: RunJobsInput): Promise<RunJobsResult> {
         return { kind: 'succeeded', attempted: true, eventId: found.eventId };
       }
       mustReconcile = false;
+      payload.reconcile = false;
     }
 
     // Never back into the source calendar (directly or through the other route).
@@ -1101,12 +1149,21 @@ async function runJobsNow(input: RunJobsInput): Promise<RunJobsResult> {
     if (provenance.length) {
       const others = [...new Set(provenance.filter((p) => p.provider !== job.provider).map((p) => p.provider))];
       const lists: Partial<Record<ProviderKind, ExternalCalendar[]>> = { [job.provider]: own.calendars };
+      let transient: unknown = null;
       for (const k of others) {
         const r = await calendarsOf(k);
         if (r.ok) lists[k] = r.calendars;
+        else if (r.retryable && transient == null) transient = r.error ?? new ProviderError('unavailable', r.message);
       }
       const sv = sourceVerdict(job, provenance, cal, (p) => findCal(lists[p.provider], p), lists.google);
       if (sv === 'same' || sv === 'equivalent') return { kind: 'cancelled', message: S.cancelled.sourceCalendar };
+      // The source side is only momentarily unreachable (offline, rate limited): wait instead of asking the user.
+      // (Not `providerError`: a rate limit of the OTHER provider must not hold back this provider's jobs.)
+      if (sv === 'unknown' && transient != null) {
+        return transient instanceof ProviderError && transient.code === 'offline'
+          ? { kind: 'offline', message: S.error.offline, keepUncertain: mustReconcile }
+          : failed(errMessage(transient), transient instanceof ProviderError ? transient.retryAfterMs : null);
+      }
       if (sv === 'unknown') return review('source_calendar_unknown');
     }
 
@@ -1118,7 +1175,7 @@ async function runJobsNow(input: RunJobsInput): Promise<RunJobsResult> {
 
     // Representation approved by the rules (or by an approval from the review)?
     const approval = representationApproval(session.timing.state, payload.representation, payload.approvedSpanMin);
-    if (!approval.approved) return { kind: 'review', note: approval.review, attempted: false };
+    if (!approval.approved) return { kind: 'review', note: approval.review, attempted: false, reconcile: mustReconcile };
     const res = draftFor(session, categoryName, job.opId, job.provider, payload, approval.startOnlySpanMin);
     if (res.status === 'invalid') return review('invalid_timing', res.representation.disclosure);
     if (res.status === 'pending_representation') return review('start_only_not_approved');
@@ -1130,6 +1187,8 @@ async function runJobsNow(input: RunJobsInput): Promise<RunJobsResult> {
     const importSources = provenance
       .filter((p) => p.sessionId != null && p.provider === job.provider && p.calendarId === job.calendarId)
       .map((p) => ({ sessionId: p.sessionId as string, externalEventId: p.externalEventId, occurrenceKey: p.occurrenceKey }));
+    // A forwarded imported session may already sit in the destination under its original title.
+    const originalTitles = provenance.filter((p) => p.sessionId != null).map((p) => ({ sessionId: p.sessionId as string, title: p.originalTitle }));
     let events: ExternalEvent[];
     try {
       events = await readDestination(provider, job, draft, destLinks.filter((l) => l.sessionId === session.id));
@@ -1138,7 +1197,7 @@ async function runJobsNow(input: RunJobsInput): Promise<RunJobsResult> {
     }
     const [check] = classifyDuplicates(
       [{ session, opId: job.opId, draft, finalTitle: res.title.final, baseTitle: res.title.base, date: res.representation.outgoingDate }],
-      { categoryName, prefix: payload.title.prefix, suffix: payload.title.suffix, links: destLinks, priorLinks, importSources, events },
+      { categoryName, prefix: payload.title.prefix, suffix: payload.title.suffix, links: destLinks, priorLinks, importSources, originalTitles, events },
     );
     switch (check.class) {
       case 'already_exported':
@@ -1161,8 +1220,14 @@ async function runJobsNow(input: RunJobsInput): Promise<RunJobsResult> {
         break;
     }
 
-    // Write.
+    // Write — only if nobody changed the job while it was being checked (the user
+    // cancelled or skipped it, or a manual export took it over).
+    const cur = await jobRow(job.id);
+    if (!cur || cur.status !== job.status || cur.updatedAt !== job.updatedAt) return { kind: 'superseded', status: cur?.status ?? job.status, message: S.error.superseded };
+    const linkedMeanwhile = await repos.exportLinks.byOp(job.opId);
+    if (linkedMeanwhile) return { kind: 'succeeded', attempted: false, eventId: linkedMeanwhile.externalEventId };
     await repos.exportJobs.update(job.id, { status: 'running', payload: { ...payload, attemptedDate: draft.start.date } });
+    st.claimed = true;
     payload.attemptedDate = draft.start.date;
     let created: ExternalEvent;
     try {
@@ -1232,7 +1297,16 @@ async function runJobsNow(input: RunJobsInput): Promise<RunJobsResult> {
     return events;
   }
 
-  async function apply(job: ExportJobRecord, payload: AutoJobPayload | null, o: Outcome): Promise<ExportJobStatus> {
+  async function apply(job: ExportJobRecord, payload: AutoJobPayload | null, o: Outcome, st: JobRunState): Promise<ExportJobStatus> {
+    if (o.kind === 'superseded') return o.status;
+    if (o.kind !== 'succeeded') {
+      // Someone else decided meanwhile (e.g. "Annulla quelle in sospeso" during this run): keep their decision.
+      // A success is always recorded: the event exists and its link is stored.
+      const cur = await jobRow(job.id);
+      if (!cur) return job.status;
+      const changed = st.claimed ? cur.status !== 'running' : cur.status !== job.status || cur.updatedAt !== job.updatedAt;
+      if (changed) return cur.status;
+    }
     const now = nowMs();
     const base: AutoJobPayload | null = payload ? { ...payload, deferred: null } : null;
     const withPayload = <T extends object>(patch: T, p: AutoJobPayload | null) => (p ? { ...patch, payload: p } : patch);
@@ -1240,7 +1314,7 @@ async function runJobsNow(input: RunJobsInput): Promise<RunJobsResult> {
       case 'succeeded':
         await repos.exportJobs.update(
           job.id,
-          withPayload({ status: 'succeeded' as const, attempts: job.attempts + (o.attempted ? 1 : 0), lastError: null, reviewReason: null, nextAttemptAt: null }, base && { ...base, review: null }),
+          withPayload({ status: 'succeeded' as const, attempts: job.attempts + (o.attempted ? 1 : 0), lastError: null, reviewReason: null, nextAttemptAt: null }, base && { ...base, review: null, reconcile: false }),
         );
         return 'succeeded';
       case 'review':
@@ -1248,24 +1322,24 @@ async function runJobsNow(input: RunJobsInput): Promise<RunJobsResult> {
           job.id,
           withPayload(
             { status: 'needs_review' as const, attempts: job.attempts + (o.attempted ? 1 : 0), lastError: null, reviewReason: o.note.message, nextAttemptAt: null },
-            base && { ...base, review: { code: o.note.code, eventIds: o.eventIds ?? [] } },
+            base && { ...base, review: { code: o.note.code, eventIds: o.eventIds ?? [] }, reconcile: o.reconcile },
           ),
         );
         return 'needs_review';
       case 'failed': {
         const attempts = job.attempts + 1;
         const status: ExportJobStatus = o.keepUncertain ? 'uncertain' : 'failed';
-        await repos.exportJobs.update(job.id, withPayload({ status, attempts, lastError: o.message, reviewReason: null, nextAttemptAt: iso(now + backoffDelayMs(attempts, o.retryAfterMs)) }, base));
+        await repos.exportJobs.update(job.id, withPayload({ status, attempts, lastError: o.message, reviewReason: null, nextAttemptAt: iso(now + backoffDelayMs(attempts, o.retryAfterMs)) }, base && { ...base, reconcile: o.keepUncertain }));
         return status;
       }
       case 'uncertain': {
         const attempts = job.attempts + 1;
-        await repos.exportJobs.update(job.id, withPayload({ status: 'uncertain' as const, attempts, lastError: o.message, reviewReason: null, nextAttemptAt: iso(now + backoffDelayMs(attempts)) }, base));
+        await repos.exportJobs.update(job.id, withPayload({ status: 'uncertain' as const, attempts, lastError: o.message, reviewReason: null, nextAttemptAt: iso(now + backoffDelayMs(attempts)) }, base && { ...base, reconcile: true }));
         return 'uncertain';
       }
       case 'offline': {
         const status: ExportJobStatus = o.keepUncertain ? 'uncertain' : 'pending';
-        await repos.exportJobs.update(job.id, withPayload({ status, lastError: o.message, nextAttemptAt: iso(now + OFFLINE_RECHECK_MS) }, payload && { ...payload, deferred: 'offline' as const }));
+        await repos.exportJobs.update(job.id, withPayload({ status, lastError: o.message, nextAttemptAt: iso(now + OFFLINE_RECHECK_MS) }, payload && { ...payload, deferred: 'offline' as const, reconcile: o.keepUncertain }));
         return status;
       }
       case 'deferred': {
@@ -1304,8 +1378,8 @@ export async function resolveReviewJob(repos: Repositories, jobId: string, actio
   if (job.kind !== 'auto') throw new DomainError('not_auto_job', jobId);
   if (job.status === 'running' || job.status === 'succeeded' || job.status === 'cancelled') throw new DomainError('job_not_open', jobId);
   const payload = parsePayload(job.payload);
-  // A retry keeps the reconciliation duty of an uncertain job.
-  const reopen = job.status === 'uncertain' ? ('uncertain' as const) : ('pending' as const);
+  // A retry keeps the reconciliation duty of an uncertain job (also after it passed through review).
+  const reopen = job.status === 'uncertain' || payload?.reconcile ? ('uncertain' as const) : ('pending' as const);
   const cleared = { reviewReason: null, lastError: null, nextAttemptAt: null };
 
   switch (action.kind) {

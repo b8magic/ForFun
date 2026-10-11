@@ -2,15 +2,16 @@
  * Manual export engine: one activity per operation, one or two destinations.
  *
  *   loadDestinationEvents   read the REAL destination (window around the
- *                           sessions + linked events outside it). Unreadable →
- *                           null, which makes every row 'not_checked'.
+ *                           sessions + linked / import-source events outside
+ *                           it). Unreadable → null: every row 'not_checked'.
  *   buildExportPlan         pure: per destination, a review row per session
  *                           with title, draft (or pending representation),
  *                           duplicate class, status, Italian reason, default
  *                           action, allowed actions and selection. Destinations
  *                           are independent (settings, checks, results).
  *   setRowChoice / setSelection / mergeChoices
- *                           immutable review edits, preserved across rebuilds.
+ *                           immutable review edits, preserved across rebuilds
+ *                           while the row's situation is unchanged.
  *   executePlan             writes only the confirmed selection, per
  *                           destination, idempotently:
  *                             - link already stored for the op id → skipped;
@@ -31,7 +32,7 @@
 import { ProviderError, type CalendarProvider, type Connection, type EventDraft, type ExternalCalendar, type ExternalEvent } from './types';
 import type { CalendarRef, Category, ExportJobStatus, LocalDate, ProviderKind, Session } from '@/domain/types';
 import { DomainError, OPEN_JOB_STATUSES, type ExportJobRecord, type ExportLinkRecord, type ProvenanceRecord, type Repositories } from '@/data/repositories';
-import { addDays, compareDates } from '@/domain/dates';
+import { addDays, compareDates, isLocalDate } from '@/domain/dates';
 import { t } from '@/i18n/it';
 import { destinationKey, exportOpId } from './opId';
 import type { ResolvedTitle } from './titles';
@@ -185,6 +186,7 @@ export function exportWindow(sessions: readonly Session[], overrides: Readonly<R
   for (const s of sessions) {
     const d = overrides[s.id]?.date ?? s.date;
     for (const x of [s.date, d]) {
+      if (!isLocalDate(x)) continue; // a malformed override is reported on its row, never breaks the read
       if (!from || compareDates(x, from) < 0) from = x;
       if (!to || compareDates(x, to) > 0) to = x;
     }
@@ -201,18 +203,30 @@ export interface DestinationRead {
   error: string | null;
 }
 
+export interface LoadEventsOptions {
+  overrides?: Readonly<Record<string, ExportOverride>>;
+  signal?: AbortSignal;
+  /**
+   * Import provenance of the sessions. Source events in this destination that
+   * lie outside the window are fetched individually, so an imported session is
+   * recognised against its source event instead of being re-created into it.
+   */
+  provenance?: readonly ProvenanceRecord[];
+}
+
 /**
  * Read the destination for duplicate checks: every event in the window (the
- * provider paginates/chunks completely), plus linked events of these sessions
- * that moved outside it (so they are not mistaken for stale links). Any read
- * failure → `events: null` (not checked), never a partial "checked" result.
+ * provider paginates/chunks completely), plus linked events (and import source
+ * events) of these sessions that lie outside it (so they are not mistaken for
+ * stale links / missing sources). Any read failure → `events: null` (not
+ * checked), never a partial "checked" result.
  */
 export async function loadDestinationEvents(
   provider: CalendarProvider,
   dest: Pick<ExportDestinationInput, 'ref' | 'calendar' | 'connection'>,
   sessions: readonly Session[],
   links: readonly ExportLinkRecord[],
-  opts: { overrides?: Readonly<Record<string, ExportOverride>>; signal?: AbortSignal } = {},
+  opts: LoadEventsOptions = {},
 ): Promise<DestinationRead> {
   if (!canCheckDestination(dest)) return { events: null, error: dest.connection.detail ?? null };
   const w = exportWindow(sessions, opts.overrides);
@@ -221,10 +235,12 @@ export async function loadDestinationEvents(
     const listed = await provider.listEvents({ calendarIds: [dest.ref.calendarId], from: w.from, to: w.to, signal: opts.signal });
     const events = listed.filter((e) => e.status !== 'cancelled' && e.calendarId === dest.ref.calendarId);
     const ids = new Set(sessions.map((s) => s.id));
-    for (const l of links) {
-      if (!sameDest(l, dest.ref) || !l.sessionId || !ids.has(l.sessionId)) continue;
-      if (events.some((e) => e.eventId === l.externalEventId && (e.occurrenceKey ?? null) === (l.occurrenceKey ?? null))) continue;
-      const ev = await provider.getEvent(dest.ref.calendarId, l.externalEventId, l.occurrenceKey);
+    const wanted: Array<{ eventId: string; occurrenceKey: string | null }> = [];
+    for (const l of links) if (sameDest(l, dest.ref) && l.sessionId && ids.has(l.sessionId)) wanted.push({ eventId: l.externalEventId, occurrenceKey: l.occurrenceKey ?? null });
+    for (const p of opts.provenance ?? []) if (sameDest(p, dest.ref) && p.sessionId && ids.has(p.sessionId)) wanted.push({ eventId: p.externalEventId, occurrenceKey: p.occurrenceKey ?? null });
+    for (const w of wanted) {
+      if (events.some((e) => e.eventId === w.eventId && (e.occurrenceKey ?? null) === w.occurrenceKey)) continue;
+      const ev = await provider.getEvent(dest.ref.calendarId, w.eventId, w.occurrenceKey);
       if (ev && ev.status !== 'cancelled') events.push(ev);
     }
     return { events, error: null };
@@ -245,7 +261,7 @@ export async function loadAllDestinationEvents(
   destinations: readonly ExportDestinationInput[],
   sessions: readonly Session[],
   links: readonly ExportLinkRecord[],
-  opts: { overrides?: Readonly<Record<string, ExportOverride>>; signal?: AbortSignal } = {},
+  opts: LoadEventsOptions = {},
 ): Promise<Record<string, DestinationRead>> {
   const out: Record<string, DestinationRead> = {};
   for (const d of destinations) {
@@ -289,6 +305,8 @@ function decide(rep: TimeRepresentation, hasDraft: boolean, dup: DuplicateCheck,
       case 'linked_changed':
         return mk('linked_changed', 'skip', hasDraft ? ['skip', 'update'] : ['skip']);
       case 'recognized': {
+        // Imported from this calendar, source event not found: nothing to link; re-adding is deliberate only.
+        if (!dup.event) return mk('recognized', 'skip', hasDraft ? ['skip', 'create'] : ['skip']);
         const sameOp = dup.recognizedBy === 'op_id';
         const allowed: ExportAction[] = sameOp || dup.recognizedBy === 'import_source' || !hasDraft ? ['link', 'skip'] : ['skip', 'link', 'create'];
         return mk('recognized', sameOp ? 'link' : 'skip', allowed, { selected: sameOp, linkTarget: dup.event });
@@ -322,6 +340,21 @@ function decide(rep: TimeRepresentation, hasDraft: boolean, dup: DuplicateCheck,
   };
 }
 
+/**
+ * Per-destination settings over the batch settings. Keys left `undefined` keep
+ * the batch value (a missing toggle never silently drops notes, location or the
+ * prefix); per-session overrides merge field by field.
+ */
+function mergeOptions(batch: ExportOptions, dest: Partial<ExportOptions> | undefined): ExportOptions {
+  const defined = Object.fromEntries(Object.entries(dest ?? {}).filter(([k, v]) => v !== undefined && k !== 'overrides')) as Partial<ExportOptions>;
+  const overrides: Record<string, ExportOverride> = { ...batch.overrides };
+  for (const [sid, o] of Object.entries(dest?.overrides ?? {})) {
+    const own = Object.fromEntries(Object.entries(o ?? {}).filter(([, v]) => v !== undefined)) as ExportOverride;
+    overrides[sid] = { ...(batch.overrides[sid] ?? {}), ...own };
+  }
+  return { ...batch, ...defined, overrides };
+}
+
 const sortSessions = (a: Session, b: Session) => compareDates(a.date, b.date) || a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id);
 
 /** Build the review plan. Pure; sessions, links and events are never mutated. */
@@ -334,17 +367,16 @@ export function buildExportPlan(input: BuildPlanInput): ExportPlan {
     if (seen.has(k)) throw new DomainError('duplicate_destination', `duplicate_destination: ${k}`);
     seen.add(k);
   }
-  const sessions = [...input.sessions].sort(sortSessions);
+  const sessions = [...new Map(input.sessions.map((s) => [s.id, s])).values()].sort(sortSessions);
   const sessionIds = new Set(sessions.map((s) => s.id));
   const priorLinks = input.links.filter((l) => l.sessionId != null && sessionIds.has(l.sessionId));
+  const originalTitles = (input.provenance ?? [])
+    .filter((p) => p.sessionId != null && sessionIds.has(p.sessionId))
+    .map((p) => ({ sessionId: p.sessionId as string, title: p.originalTitle }));
 
   const destinations = input.destinations.map((dest): PlanDestination => {
     const key = destinationKey(dest.ref);
-    const options: ExportOptions = {
-      ...input.options,
-      ...(dest.options ?? {}),
-      overrides: { ...input.options.overrides, ...(dest.options?.overrides ?? {}) },
-    };
+    const options = mergeOptions(input.options, dest.options);
     const labelsSupported = dest.labelsSupported ?? dest.ref.provider === 'google';
     const colorId = labelsSupported ? dest.labelId : null;
     const writable = canWriteDestination(dest);
@@ -388,6 +420,7 @@ export function buildExportPlan(input: BuildPlanInput): ExportPlan {
       links,
       priorLinks,
       importSources,
+      originalTitles,
       events,
     });
 
@@ -436,6 +469,8 @@ export function buildExportPlan(input: BuildPlanInput): ExportPlan {
 }
 
 // ─── review edits (immutable) ────────────────────────────────────────────────
+
+const isTarget = (e: ExternalEvent, eventId: string | null, occurrenceKey: string | null | undefined) => e.eventId === eventId && (e.occurrenceKey ?? null) === (occurrenceKey ?? null);
 
 function linkTargets(row: ExportPlanRow): ExternalEvent[] {
   const out: ExternalEvent[] = [];
@@ -497,14 +532,26 @@ export function setSelection(plan: ExportPlan, destKey: string | null, selected:
   });
 }
 
-/** Carry the user's choices from a previous plan into a rebuilt one (e.g. after a prefix change). */
+/**
+ * Carry the user's choices from a previous plan into a rebuilt one (e.g. after
+ * a prefix change). A choice is carried only while the row's status and
+ * duplicate class are unchanged and its link target still exists; otherwise
+ * the new row's safe default applies (an explicit deselection is still kept).
+ */
 export function mergeChoices(prev: ExportPlan, next: ExportPlan): ExportPlan {
   const old = new Map<string, ExportPlanRow>();
   for (const d of prev.destinations) for (const r of d.rows) if (r.touched) old.set(r.key, r);
   return mapRows(next, null, (r) => {
     const o = old.get(r.key);
-    if (!o || !r.allowedActions.includes(o.action)) return r;
-    const targetOk = o.linkTargetEventId == null || linkTargets(r).some((e) => e.eventId === o.linkTargetEventId);
+    if (!o) return r;
+    // The row's situation changed (e.g. 'ready' → 'possible_duplicate' after a title or read change):
+    // a choice made for the old situation must not override the new safe default. Only an
+    // explicit opt-out (deselection) is carried, since it can never write anything.
+    if (o.status !== r.status || o.duplicate.class !== r.duplicate.class) return !o.selected && r.selected ? { ...r, selected: false, touched: true } : r;
+    if (!r.allowedActions.includes(o.action)) return r;
+    const targetOk = o.linkTargetEventId == null || linkTargets(r).some((e) => isTarget(e, o.linkTargetEventId, o.linkTargetOccurrenceKey));
+    // The chosen event is no longer a candidate: never retarget a 'link' to another event silently.
+    if (o.action === 'link' && !targetOk) return r;
     return {
       ...r,
       action: o.action,
@@ -607,9 +654,15 @@ const errMessage = (e: unknown): string => (e instanceof Error ? e.message : Str
 /** A write whose outcome is unknown: the provider said so, or an unexpected error happened mid-request. */
 const isUncertain = (e: unknown) => !(e instanceof ProviderError) || e.code === 'uncertain';
 
-function draftWindow(draft: EventDraft, prev?: { from: LocalDate; to: LocalDate } | null): { from: LocalDate; to: LocalDate } {
-  let from = addDays(draft.start.date, -1);
-  let to = addDays(compareDates(draft.end.date, draft.start.date) > 0 ? draft.end.date : draft.start.date, 1);
+/**
+ * Window searched by `findByOpId`: the outgoing event's dates, the session date
+ * (an automatic attempt for the same operation writes on the session date) and
+ * the window of an earlier manual attempt, each padded by a day.
+ */
+function draftWindow(draft: EventDraft, sessionDate: LocalDate, prev?: { from: LocalDate; to: LocalDate } | null): { from: LocalDate; to: LocalDate } {
+  const dates = [draft.start.date, draft.end.date, sessionDate].filter((d) => isLocalDate(d)).sort(compareDates);
+  let from = addDays(dates[0], -1);
+  let to = addDays(dates[dates.length - 1], 1);
   if (prev) {
     if (compareDates(prev.from, from) < 0) from = prev.from;
     if (compareDates(prev.to, to) > 0) to = prev.to;
@@ -647,8 +700,10 @@ export async function executePlan(input: ExecuteInput): Promise<ExecuteResult> {
           const conn = await provider.getConnection();
           if (!(conn.status === 'connected' || conn.status === 'write_only') || !conn.canWrite) {
             gate = { code: 'connection_unavailable', message: conn.detail ?? EXPORT_STRINGS.connectionUnavailable };
-          } else if (conn.accountId && dest.connection.accountId && conn.accountId !== dest.connection.accountId) {
-            gate = { code: 'account_mismatch', message: EXPORT_STRINGS.accountMismatch };
+          } else {
+            // Google calendar ids (e.g. 'primary') are account-relative: the account in the ref must be the signed-in one.
+            const expected = [dest.connection.accountId, dest.ref.provider === 'google' ? dest.ref.accountId : null].filter((x): x is string => !!x);
+            if (conn.accountId && expected.some((a) => a.toLowerCase() !== conn.accountId!.toLowerCase())) gate = { code: 'account_mismatch', message: EXPORT_STRINGS.accountMismatch };
           }
         } catch (e) {
           gate = { code: 'connection_unavailable', message: errMessage(e) || EXPORT_STRINGS.connectionUnavailable };
@@ -658,8 +713,14 @@ export async function executePlan(input: ExecuteInput): Promise<ExecuteResult> {
 
     const opIds = new Set(dest.rows.map((r) => r.opId));
     const openJobs = new Map<string, ExportJobRecord>();
+    // When earlier attempts cannot be read, any of them may have been uncertain: reconcile before every create.
+    let jobsUnknown = false;
     if (dest.rows.some((r) => r.selected)) {
-      for (const j of await exportJobs.list(OPEN_JOB_STATUSES)) if (opIds.has(j.opId)) openJobs.set(j.opId, j);
+      try {
+        for (const j of await exportJobs.list(OPEN_JOB_STATUSES)) if (opIds.has(j.opId)) openJobs.set(j.opId, j);
+      } catch {
+        jobsUnknown = true;
+      }
     }
 
     const closeJob = async (opId: string, status: ExportJobStatus, patch: { lastError?: string | null; reviewReason?: string | null; nextAttemptAt?: string | null } = {}) => {
@@ -678,8 +739,10 @@ export async function executePlan(input: ExecuteInput): Promise<ExecuteResult> {
       const payload: ManualExportJobPayload = { v: 1, source: 'manual_export', categoryName, window, draft };
       const cur = openJobs.get(row.opId);
       if (cur) {
-        await exportJobs.update(cur.id, { status: 'running', attempts: cur.attempts + 1, payload });
-        openJobs.set(row.opId, { ...cur, status: 'running', attempts: cur.attempts + 1, payload });
+        // An open automatic job for the same operation keeps its own payload (the auto runner reads it).
+        const nextPayload = cur.kind === 'manual' ? payload : cur.payload;
+        await exportJobs.update(cur.id, { status: 'running', attempts: cur.attempts + 1, ...(cur.kind === 'manual' ? { payload } : {}) });
+        openJobs.set(row.opId, { ...cur, status: 'running', attempts: cur.attempts + 1, payload: nextPayload });
         return;
       }
       let j = await exportJobs.enqueue({
@@ -720,9 +783,7 @@ export async function executePlan(input: ExecuteInput): Promise<ExecuteResult> {
       if (row.action === 'skip') return { ...none, result: 'skipped', code: 'skipped', message: null };
 
       if (row.action === 'link') {
-        const target = linkTargets(row).find(
-          (e) => e.eventId === row.linkTargetEventId && (row.linkTargetOccurrenceKey == null || (e.occurrenceKey ?? null) === row.linkTargetOccurrenceKey),
-        );
+        const target = linkTargets(row).find((e) => isTarget(e, row.linkTargetEventId, row.linkTargetOccurrenceKey));
         if (!target) return { ...none, result: 'failed', code: 'no_target', message: EXPORT_STRINGS.noTarget };
         const existing = await exportLinks.byOp(row.opId);
         if (existing && existing.externalEventId === target.eventId && (existing.occurrenceKey ?? null) === (target.occurrenceKey ?? null)) {
@@ -731,6 +792,10 @@ export async function executePlan(input: ExecuteInput): Promise<ExecuteResult> {
         }
         const tm = row.session.timing;
         const known = tm.durationSec != null && tm.durationSec > 0 ? tm.durationSec : null;
+        // Serie's own event for this session carries the timing it was written with: record THAT,
+        // so a later difference with the session is reported instead of being masked.
+        const own = target.appMeta && target.appMeta.sessionId === row.session.id ? target.appMeta : null;
+        const meta = own ?? { timingState: tm.state, durationSec: known, durationSource: known != null ? tm.durationSource : null, schedulingPlaceholder: target.appMeta?.schedulingPlaceholder ?? false };
         const link = await exportLinks.upsert({
           sessionId: row.session.id,
           provider: dest.ref.provider,
@@ -740,11 +805,7 @@ export async function executePlan(input: ExecuteInput): Promise<ExecuteResult> {
           occurrenceKey: target.occurrenceKey,
           status: 'linked',
           opId: row.opId,
-          snapshot: snapshotFromEvent(
-            target,
-            { timingState: tm.state, durationSec: known, durationSource: known != null ? tm.durationSource : null, schedulingPlaceholder: target.appMeta?.schedulingPlaceholder ?? false },
-            categoryName,
-          ),
+          snapshot: snapshotFromEvent(target, meta, categoryName),
           exportedAt: now(),
         });
         await closeJob(row.opId, 'succeeded');
@@ -795,7 +856,7 @@ export async function executePlan(input: ExecuteInput): Promise<ExecuteResult> {
       }
 
       const prevJob = openJobs.get(row.opId);
-      const window = draftWindow(draft, payloadWindow(prevJob));
+      const window = draftWindow(draft, row.session.date, payloadWindow(prevJob));
       const reconcile = async (): Promise<ExternalEvent | null> => {
         const found = await p.findByOpId(calId, row.opId, window);
         return found && found.status !== 'cancelled' && found.appMeta?.opId === row.opId ? found : null;
@@ -807,7 +868,7 @@ export async function executePlan(input: ExecuteInput): Promise<ExecuteResult> {
         return { ...none, result: 'created' as const, code: 'reconciled' as const, message: null, event: found, link };
       };
 
-      if (prevJob?.status === 'uncertain' || prevJob?.status === 'running' || staleId) {
+      if (jobsUnknown || prevJob?.status === 'uncertain' || prevJob?.status === 'running' || staleId) {
         let found: ExternalEvent | null;
         try {
           found = await reconcile();

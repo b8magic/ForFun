@@ -86,8 +86,9 @@ async function backToLog() {
 }
 async function openSession(key, date, nth = 0) {
   if (!(await $(`mini-${date}`).isVisible().catch(() => false))) await tap(`month-${key}`, 600);
-  await tap(`mini-${date}`, 600);
-  await page.locator('[data-testid^="session-"]').filter({ hasNotText: '__' }).nth(nth).tap();
+  const rows = page.locator('[data-testid^="session-"]');
+  if (!(await rows.first().isVisible().catch(() => false))) await tap(`mini-${date}`, 600);
+  await rows.nth(nth).tap();
   await page.waitForTimeout(900);
   await $('session-editor').waitFor({ timeout: 8000 });
 }
@@ -228,6 +229,46 @@ await check('reduced motion: preference persists and saving still works', async 
   await tap('menu', 700);
   assert((await $('motion-pref-reduced').getAttribute('aria-checked')) === 'true', 'preference persisted');
   await tap('sheet-close', 700);
+});
+
+await check('place: an unrelated link is refused honestly; a Google Maps link with coordinates resolves and is saved', async () => {
+  await home();
+  await tap('day-2026-10-09', 150);
+  await tap('details-link', 900);
+  await $('details-sheet').waitFor({ timeout: 8000 });
+  await fill('details-place-name', 'Bagni Fiume');
+  await fill('details-place-link', 'https://example.com/spot');
+  await $('details-place-status-unsupported').waitFor({ timeout: 5000 });
+  await fill('details-place-link', 'https://www.google.com/maps/place/Livorno/@43.5485,10.3106,15z');
+  await $('details-place-status-resolved').waitFor({ timeout: 5000 });
+  await page.screenshot({ path: path.join(SHOTS, '03-details-place.png') });
+  await tap('details-apply', 700);
+  await save();
+  await tap('history-handle', 1200);
+  await openSession('2026-10', '2026-10-09');
+  assert((await $('session-place-name').inputValue()) === 'Bagni Fiume', 'place name saved');
+  await $('session-place-status-resolved').waitFor({ timeout: 5000 });
+  assert(/google\.com\/maps/.test(await $('session-place-link').inputValue()), 'link kept verbatim');
+});
+
+await check('closing the session editor with unsaved edits asks first; discarding keeps the stored session', async () => {
+  await home();
+  await tap('history-handle', 1200);
+  await openSession('2026-10', '2026-10-09');
+  await fill('session-notes', 'appunto da non salvare');
+  let asked = 0;
+  const dismiss = (d) => (asked++, d.dismiss());
+  page.on('dialog', dismiss);
+  await tap('sheet-close', 700);
+  page.off('dialog', dismiss);
+  assert(asked === 1 && (await $('session-editor').isVisible()), 'kept editing after "Continua a modificare"');
+  const accept = (d) => (asked++, d.accept());
+  page.on('dialog', accept);
+  await tap('sheet-close', 900);
+  page.off('dialog', accept);
+  assert(asked === 2 && !(await $('session-editor').isVisible().catch(() => false)), 'closed after "Chiudi senza salvare"');
+  await openSession('2026-10', '2026-10-09');
+  assert((await $('session-notes').inputValue()) === '', 'notes were not saved');
 });
 
 console.log(`\n${results.filter((r) => r.ok).length}/${results.length} checks passed`);

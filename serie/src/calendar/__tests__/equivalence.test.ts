@@ -7,6 +7,7 @@ import {
   gateBothDestinations,
   normalizeCalendarTitle,
   pairKey,
+  primaryCalendarEmail,
   sameUnderlyingCalendar,
 } from '../equivalence';
 
@@ -63,6 +64,14 @@ describe('normalisation helpers', () => {
     expect(canonicalEmail('iCloud')).toBeNull();
     expect(canonicalEmail('')).toBeNull();
   });
+  it('only primary calendar ids name an account (group/holiday/import ids do not)', () => {
+    expect(primaryCalendarEmail('Sur.fer@gmail.com')).toBe(EMAIL);
+    expect(primaryCalendarEmail('mario@azienda.it')).toBe('mario@azienda.it');
+    expect(primaryCalendarEmail('abc123@group.calendar.google.com')).toBeNull();
+    expect(primaryCalendarEmail('it.italian#holiday@group.v.calendar.google.com')).toBeNull();
+    expect(primaryCalendarEmail('xyz@import.calendar.google.com')).toBeNull();
+    expect(primaryCalendarEmail('primary')).toBeNull();
+  });
 });
 
 describe('classifyEquivalence — matrix', () => {
@@ -82,7 +91,13 @@ describe('classifyEquivalence — matrix', () => {
     ['Exchange account with the Google address (Google Sync)', gcal(), acal({ sourceType: 'exchange', sourceName: EMAIL }), 'unknown', 'exchange_same_email'],
     ['birthdays calendar', gcal(), acal({ sourceType: 'birthdays', sourceName: 'Altro' }), 'distinct', 'apple_birthdays'],
     ['subscribed feed', gcal(), acal({ sourceType: 'subscribed', sourceName: 'Calendari iscritti' }), 'distinct', 'apple_subscribed'],
-    ['CalDAV source of another Google account', gcal(), acal({ sourceName: 'other@gmail.com' }), 'distinct', 'apple_other_account'],
+    ['CalDAV source of another Google account, differently named calendar', gcal(), acal({ sourceName: 'other@gmail.com', title: 'Lavoro' }), 'distinct', 'apple_other_account'],
+    // Regression: a calendar shared between two Google accounts is ONE calendar; a matching name is not "clearly different".
+    ['another Google account with a calendar of the same name (maybe shared)', gcal(), acal({ sourceName: 'other@gmail.com' }), 'unknown', 'other_account_same_title'],
+    ['another account’s primary shared with the Google account, seen on iPhone in its own account', gcal({ calendarId: 'other@gmail.com', title: 'Luca' }), acal({ sourceName: 'other@gmail.com', title: 'other@gmail.com' }), 'equivalent', 'primary_email_title'],
+    ['a shared primary seen on iPhone through a third account', gcal({ calendarId: 'other@gmail.com', title: 'Luca' }), acal({ sourceName: 'third@gmail.com', title: 'other@gmail.com' }), 'unknown', 'other_account_same_title'],
+    ['a shared primary seen on iPhone through the same account', gcal({ calendarId: 'other@gmail.com', title: 'Luca' }), acal({ title: 'other@gmail.com' }), 'equivalent', 'primary_email_title'],
+    ['a group calendar id is not an account email', gcal({ calendarId: 'abc@group.calendar.google.com' }), acal({ sourceName: 'Gmail', accountLabel: 'Gmail', title: 'abc@group.calendar.google.com' }), 'unknown', 'apple_source_unidentified'],
     ['same account: iPhone shows the primary (email title), Google side is a secondary calendar', gcal(), acal({ title: EMAIL }), 'distinct', 'other_calendar_same_account'],
     ['same account, different title, no other information', gcal(), acal({ title: 'Allenamenti' }), 'unknown', 'same_account_title_mismatch'],
     ['source described as "Gmail" (no email), same title', gcal(), acal({ sourceName: 'Gmail', accountLabel: 'Gmail' }), 'unknown', 'apple_source_unidentified'],

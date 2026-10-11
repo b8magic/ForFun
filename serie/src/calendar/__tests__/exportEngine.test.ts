@@ -2,9 +2,9 @@ import { testRepos } from '@/test/sqljs';
 import { buildTiming, type TimingInput } from '@/domain/timing';
 import { summarize } from '@/domain/stats';
 import { zonedToEpoch } from '@/domain/zoned';
-import { compareDates } from '@/domain/dates';
+import { addDays, compareDates } from '@/domain/dates';
 import type { Category, LocalDate, Place, ProviderKind, Session } from '@/domain/types';
-import type { Repositories } from '@/data/repositories';
+import type { ProvenanceRecord, Repositories } from '@/data/repositories';
 import {
   ProviderError,
   type CalendarProvider,
@@ -18,6 +18,7 @@ import {
   buildExportPlan,
   eventsOf,
   executePlan,
+  exportWindow,
   loadAllDestinationEvents,
   mergeChoices,
   selectionCounts,
@@ -28,7 +29,7 @@ import {
   type ExportPlan,
   type ExportPlanRow,
 } from '../exportEngine';
-import { overrideToSessionPatch } from '../representation';
+import { buildEventDraft, overrideToSessionPatch } from '../representation';
 import { exportOpId } from '../opId';
 
 const TZ = 'Europe/Rome';
@@ -604,5 +605,202 @@ describe('executePlan', () => {
     });
     expect(res.destinations[0].counts).toMatchObject({ created: 1, pending: 1 });
     expect(res.destinations[0].rows[1].code).toBe('aborted');
+  });
+});
+
+// ─── regressions found in review ─────────────────────────────────────────────
+
+const iso = (date: string, time: string) => new Date(zonedToEpoch(date, time, TZ).epochMs).toISOString();
+function foreignEvent(eventId: string, title: string, date: string, times: { start: string; end: string } | null, over: Partial<ExternalEvent> = {}): ExternalEvent {
+  return {
+    ...gRef,
+    eventId,
+    recurringEventId: null,
+    occurrenceKey: null,
+    title,
+    notes: null,
+    location: null,
+    allDay: !times,
+    start: times ? { date, time: times.start, timeZone: TZ, instant: iso(date, times.start) } : { date, time: null, timeZone: null, instant: null },
+    end: times ? { date, time: times.end, timeZone: TZ, instant: iso(date, times.end) } : { date: addDays(date, 1), time: null, timeZone: null, instant: null },
+    status: 'confirmed',
+    colorId: null,
+    appMeta: null,
+    updated: null,
+    ...over,
+  };
+}
+
+describe('regressions', () => {
+  it('mergeChoices never carries a choice onto a row whose situation changed (safe default wins)', async () => {
+    const c = await setup();
+    const s = await c.save('2026-07-04', { state: 'interval', start: '07:00', end: '08:00', endDayOffset: 0, timeZone: TZ });
+    const first = setRowChoice(await c.plan([s], [gDest()]), G_KEY, s.id, { action: 'create', selected: true }); // explicit while 'ready'
+    expect(rowsOf(first)[0]).toMatchObject({ status: 'ready', touched: true });
+    // A similar event appears (re-read): the row now needs a decision.
+    c.google.events.push(foreignEvent('manual-1', 'Surf', '2026-07-04', { start: '07:05', end: '08:00' }));
+    const merged = mergeChoices(first, await c.plan([s], [gDest()]));
+    expect(rowsOf(merged)[0]).toMatchObject({ status: 'possible_duplicate', action: 'skip', selected: false });
+    expect((await c.run(merged)).destinations[0].counts).toMatchObject({ created: 0, skipped: 1 });
+    expect(c.google.calls).not.toContain('createEvent');
+
+    // A 'link' whose chosen event disappeared is not silently retargeted to another candidate.
+    const linked = setRowChoice(await c.plan([s], [gDest()]), G_KEY, s.id, { action: 'link' });
+    expect(rowsOf(linked)[0].linkTargetEventId).toBe('manual-1');
+    c.google.events = [foreignEvent('manual-2', 'Surf', '2026-07-04', { start: '07:10', end: '08:00' })];
+    const retarget = mergeChoices(linked, await c.plan([s], [gDest()]));
+    expect(rowsOf(retarget)[0]).toMatchObject({ status: 'possible_duplicate', action: 'skip', selected: false, linkTargetEventId: 'manual-2' });
+
+    // An explicit opt-out IS carried across a status change (it can never write anything).
+    const optOut = setRowChoice(retarget, G_KEY, s.id, { action: 'create', selected: false });
+    c.google.events = [];
+    const back = mergeChoices(optOut, await c.plan([s], [gDest()]));
+    expect(rowsOf(back)[0]).toMatchObject({ status: 'ready', selected: false });
+  });
+
+  it('an imported session is not re-created into its source calendar when the source event is outside the window', async () => {
+    const c = await setup();
+    const s = await c.save('2026-07-10', undefined, {});
+    const imported = { ...s, origin: 'import' as const };
+    // Imported from an event on 1 July; the session was later moved to 10 July.
+    c.google.events.push(foreignEvent('src-1', 'Lezione di surf', '2026-07-01', { start: '09:00', end: '11:00' }));
+    const prov: ProvenanceRecord = {
+      id: 'p1', sessionId: s.id, ...gRef, externalEventId: 'src-1', recurringEventId: null, occurrenceKey: null, originalTitle: 'Lezione di surf',
+      sourceAllDay: false, sourceStart: iso('2026-07-01', '09:00'), sourceEnd: iso('2026-07-01', '11:00'), importBatchId: 'b1', importedAt: '2026-07-02T00:00:00.000Z',
+    };
+    const links = await c.repos.exportLinks.all();
+    const mkPlan = async (loadProvenance: boolean) => {
+      const reads = await loadAllDestinationEvents({ google: c.google }, [gDest()], [imported], links, loadProvenance ? { provenance: [prov] } : {});
+      return buildExportPlan({ sessions: [imported], category: c.cat, destinations: [gDest()], options: baseOptions, links, destinationEvents: eventsOf(reads), provenance: [prov] });
+    };
+    // Caller passes provenance to the read: the source event is fetched and recognised (link/skip only).
+    const withSource = rowsOf(await mkPlan(true))[0];
+    expect(withSource).toMatchObject({ status: 'recognized', defaultAction: 'skip', selected: false, allowedActions: ['link', 'skip'], linkTargetEventId: 'src-1' });
+    // Caller did not: the source is unknown, so the row is still never a default 'create'.
+    const plan = await mkPlan(false);
+    expect(rowsOf(plan)[0]).toMatchObject({ status: 'recognized', defaultAction: 'skip', selected: false, allowedActions: ['skip', 'create'], linkTargetEventId: null });
+    expect(rowsOf(plan)[0].reason).toBe('Sessione importata da questo calendario');
+    expect(setSelection(plan, null, true).destinations[0].rows[0].selected).toBe(false);
+    await c.run(plan);
+    expect(c.google.calls).not.toContain('createEvent');
+  });
+
+  it('linking Serie’s own event records the timing it was written with, so later drift is reported', async () => {
+    const c = await setup();
+    const s = await c.save('2026-07-04', { state: 'start_only', start: '07:00', timeZone: TZ });
+    // An earlier export (start-only + 60 min placeholder) whose local link was lost.
+    const old = buildEventDraft(s, { categoryName: 'Surf', opId: exportOpId(s.id, gRef), prefix: '', suffix: '', includeNotes: true, includeLocation: true, startOnlySpanMin: 60 });
+    c.google.events.push(foreignEvent('own-1', 'Surf', '2026-07-04', { start: '07:00', end: '08:00' }, { appMeta: old.draft!.appMeta }));
+    // The session has since become a real interval.
+    const iv = buildTiming('2026-07-04', { state: 'interval', start: '07:00', end: '09:00', endDayOffset: 0, timeZone: TZ });
+    if (!iv.ok) throw new Error(iv.error);
+    const now = await c.repos.sessions.update(s.id, { timing: iv.timing });
+    const plan = await c.plan([now], [gDest()]);
+    expect(rowsOf(plan)[0]).toMatchObject({ status: 'recognized', defaultAction: 'link', selected: true });
+    const res = await c.run(plan);
+    expect(res.destinations[0].counts).toMatchObject({ linked: 1, created: 0 });
+    const link = await c.repos.exportLinks.byOp(exportOpId(s.id, gRef));
+    expect(link!.snapshot).toMatchObject({ timingState: 'start_only', durationSec: null, schedulingPlaceholder: true });
+    const next = await c.plan([now], [gDest()]);
+    expect(rowsOf(next)[0]).toMatchObject({ status: 'linked_changed', allowedActions: ['skip', 'update'] });
+    expect(rowsOf(next)[0].duplicate.changes?.session).toEqual(expect.arrayContaining(['timing']));
+  });
+
+  it('refuses a Google write when the signed-in account is not the destination account, even without a recorded connection account', async () => {
+    const c = await setup();
+    const s = await c.save('2026-07-04');
+    const dest = gDest({ connection: { ...gConn, accountId: null } });
+    const plan = await c.plan([s], [dest]);
+    c.google.conn = { ...gConn, accountId: 'someone-else@example.com' };
+    expect((await c.run(plan)).destinations[0].rows[0]).toMatchObject({ result: 'failed', code: 'account_mismatch' });
+    expect(c.google.calls).not.toContain('createEvent');
+    // Same account, different letter case: allowed.
+    c.google.conn = { ...gConn, accountId: G_ACCOUNT.toUpperCase() };
+    expect((await c.run(plan)).destinations[0].counts.created).toBe(1);
+  });
+
+  it('a manual run never overwrites the payload of an open automatic job for the same operation', async () => {
+    const c = await setup();
+    const s = await c.save('2026-07-04');
+    const opId = exportOpId(s.id, gRef);
+    const auto = await c.repos.exportJobs.enqueue({ opId, sessionId: s.id, ...gRef, kind: 'auto', payload: { v: 1, marker: 'auto-payload' } });
+    c.google.createSteps = [{ fail: 'rate_limited' }];
+    await c.run(await c.plan([s], [gDest()]));
+    const [job] = await c.repos.exportJobs.list();
+    expect(job).toMatchObject({ id: auto.id, kind: 'auto', status: 'failed', payload: { v: 1, marker: 'auto-payload' } });
+  });
+
+  it('reconciles with findByOpId around the session date as well as the outgoing date', async () => {
+    const c = await setup();
+    const s = await c.save('2026-07-04');
+    const opId = exportOpId(s.id, gRef);
+    // An automatic attempt (session date) left an uncertain write that landed.
+    const autoDraft = buildEventDraft(s, { categoryName: 'Surf', opId, prefix: '', suffix: '', includeNotes: true, includeLocation: true }).draft!;
+    c.google.events.push({ ...foreignEvent('auto-ev', 'Surf', '2026-07-04', null), appMeta: autoDraft.appMeta });
+    await c.repos.exportJobs.enqueue({ opId, sessionId: s.id, ...gRef, kind: 'auto', status: 'uncertain', payload: { v: 1 } });
+    // The manual export moves the outgoing event to 20 July; the read finds nothing there (write-only-like: not checked).
+    const plan = buildExportPlan({
+      sessions: [s], category: c.cat, destinations: [gDest()], options: { ...baseOptions, overrides: { [s.id]: { date: '2026-07-20' } } }, links: [], destinationEvents: {},
+    });
+    const res = await c.run(setRowChoice(plan, G_KEY, s.id, { action: 'create', selected: true }));
+    expect(res.destinations[0].rows[0]).toMatchObject({ result: 'created', code: 'reconciled' });
+    expect(c.google.calls).not.toContain('createEvent');
+  });
+
+  it('a malformed outgoing date never breaks the destination read', async () => {
+    const c = await setup();
+    const s = await c.save('2026-07-04');
+    expect(exportWindow([s], { [s.id]: { date: 'not-a-date' } })).toEqual({ from: '2026-07-03', to: '2026-07-05' });
+    const plan = await c.plan([s], [gDest()], { overrides: { [s.id]: { date: 'not-a-date' } } });
+    expect(plan.destinations[0].checked).toBe(true);
+    expect(rowsOf(plan)[0]).toMatchObject({ status: 'invalid', selected: false });
+  });
+
+  it('when earlier attempts cannot be read, creation reconciles by op id first (no blind second write)', async () => {
+    const c = await setup();
+    const s = await c.save('2026-07-04');
+    const plan = await c.plan([s], [gDest()]);
+    // An earlier write landed but its job record is unreadable right now.
+    const d = rowsOf(plan)[0].draft!;
+    c.google.events.push({ ...foreignEvent('landed', 'Surf', '2026-07-04', null), appMeta: d.appMeta });
+    const jobs = { ...c.repos.exportJobs, list: async () => { throw new Error('database is locked'); } };
+    const res = await executePlan({ plan, providers: { google: c.google }, repos: { exportLinks: c.repos.exportLinks, exportJobs: jobs } });
+    expect(res.destinations[0].rows[0]).toMatchObject({ result: 'created', code: 'reconciled' });
+    expect(c.google.calls).not.toContain('createEvent');
+  });
+
+  it('an imported session’s original title counts as a known title in another calendar', async () => {
+    const c = await setup();
+    const s = await c.save('2026-07-04', { state: 'interval', start: '09:00', end: '11:00', endDayOffset: 0, timeZone: TZ });
+    // Imported from Apple; Google holds a copy of the same lesson under its original title.
+    c.google.events.push(foreignEvent('copy-1', 'Lezione con Marco', '2026-07-04', { start: '09:00', end: '11:00' }));
+    const prov: ProvenanceRecord = {
+      id: 'p1', sessionId: s.id, ...aRef, externalEventId: 'a-src', recurringEventId: null, occurrenceKey: null, originalTitle: 'Lezione con Marco',
+      sourceAllDay: false, sourceStart: iso('2026-07-04', '09:00'), sourceEnd: iso('2026-07-04', '11:00'), importBatchId: 'b1', importedAt: '2026-07-05T00:00:00.000Z',
+    };
+    const links = await c.repos.exportLinks.all();
+    const reads = await loadAllDestinationEvents({ google: c.google }, [gDest()], [s], links);
+    const build = (provenance: ProvenanceRecord[]) => buildExportPlan({ sessions: [s], category: c.cat, destinations: [gDest()], options: baseOptions, links, destinationEvents: eventsOf(reads), provenance });
+    expect(rowsOf(build([]))[0].status).toBe('ready');
+    expect(rowsOf(build([prov]))[0]).toMatchObject({ status: 'possible_duplicate', defaultAction: 'skip', selected: false, linkTargetEventId: 'copy-1' });
+  });
+
+  it('per-destination settings: undefined keys keep the batch value; per-session overrides merge field by field', async () => {
+    const c = await setup();
+    const s = await c.save('2026-07-04', undefined, { notes: 'nota', place: { label: 'Lido', address: null, mapUrl: null, coords: null, resolution: 'none', resolutionNote: null } });
+    const plan = await c.plan(
+      [s],
+      [gDest({ options: { prefix: undefined, includeNotes: undefined, includeLocation: undefined, overrides: { [s.id]: { baseTitle: 'Surf G', notes: undefined } } } })],
+      { prefix: '🌊 ', overrides: { [s.id]: { notes: 'solo calendario' } } },
+    );
+    expect(plan.destinations[0].options).toMatchObject({ prefix: '🌊 ', includeNotes: true, includeLocation: true });
+    expect(rowsOf(plan)[0].draft).toMatchObject({ title: '🌊 Surf G', notes: 'solo calendario', location: 'Lido' });
+  });
+
+  it('duplicate session entries produce one row per destination', async () => {
+    const c = await setup();
+    const s = await c.save('2026-07-04');
+    const plan = await c.plan([s, s], [gDest()]);
+    expect(rowsOf(plan)).toHaveLength(1);
   });
 });

@@ -321,3 +321,62 @@ describe('not checked', () => {
     expect(linked.link?.externalEventId).toBe('e1');
   });
 });
+
+describe('regressions', () => {
+  it('symbol-only titles: identical emoji titles still match, different ones do not', () => {
+    expect(normalizeTitle('🏄️')).toBe('🏄');
+    expect(titleSimilarity('🏄', '🏄️')).toBe(1);
+    expect(titleSimilarity('🏄', '🌊')).toBeLessThan(0.7);
+    const s = session('a', '2026-07-04');
+    const res = buildEventDraft(s, { categoryName: '🏄', opId: exportOpId(s.id, REF), prefix: '', suffix: '', includeNotes: true, includeLocation: true });
+    const p: DuplicateProposal = { session: s, opId: exportOpId(s.id, REF), draft: res.draft, finalTitle: res.title.final, baseTitle: res.title.base, date: res.representation.outgoingDate };
+    const [same] = classifyDuplicates([p], ctx({ categoryName: '🏄', events: [foreign('f1', '🏄', '2026-07-04')] }));
+    expect(same.class).toBe('possible_duplicate');
+    const [other] = classifyDuplicates([p], ctx({ categoryName: '🏄', events: [foreign('f2', '🌊', '2026-07-04')] }));
+    expect(other.class).toBe('new');
+  });
+
+  it('an imported session whose source event was not read is never "new" for its source calendar', () => {
+    const s = session('a', '2026-07-04', undefined, { origin: 'import' });
+    const [r] = classifyDuplicates([proposal(s)], ctx({ events: [], importSources: [{ sessionId: 'a', externalEventId: 'src-1', occurrenceKey: null }] }));
+    expect(r).toMatchObject({ class: 'recognized', recognizedBy: 'import_source', event: null, checked: true, reason: DUPLICATE_REASONS.importedHere, detail: DUPLICATE_REASONS.importSourceMissing });
+    // A similar event that IS there is still offered as a possible duplicate (more useful than "missing").
+    const [near] = classifyDuplicates([proposal(s)], ctx({ events: [foreign('f1', 'Surf', '2026-07-04')], importSources: [{ sessionId: 'a', externalEventId: 'src-1', occurrenceKey: null }] }));
+    expect(near.class).toBe('possible_duplicate');
+  });
+
+  it('recurring occurrences: a link to one occurrence never resolves to another occurrence of the series', () => {
+    const a = session('a', '2026-07-04', { state: 'interval', start: '07:00', end: '08:00', endDayOffset: 0, timeZone: TZ });
+    const b = session('b', '2026-07-11', { state: 'interval', start: '07:00', end: '08:00', endDayOffset: 0, timeZone: TZ });
+    const occ = (date: string) => foreign('series-1', 'Surf club', date, { start: '07:00', end: '08:00' }, { recurringEventId: 'series-1', occurrenceKey: `${date}T05:00:00Z` });
+    const pa = proposal(a), pb = proposal(b);
+    const link = linkFor(pa, occ('2026-07-04'), { status: 'linked', snapshot: { ...snapshotFromDraft(pa.draft!, 'Surf'), title: 'Surf club', notes: null } });
+    // Only the 11 July occurrence is left (the 4 July one was cancelled/removed): the link is stale for A…
+    const [ra, rb] = classifyDuplicates([pa, pb], ctx({ links: [link], events: [occ('2026-07-11')] }));
+    expect(ra.class).not.toBe('already_exported');
+    expect(ra.staleLink?.occurrenceKey).toBe('2026-07-04T05:00:00Z');
+    // …and B is free to match its own occurrence (not claimed by A's link to another occurrence).
+    expect(rb.class).toBe('possible_duplicate');
+    expect(rb.candidates[0].event.occurrenceKey).toBe('2026-07-11T05:00:00Z');
+    // With both occurrences present, A's link resolves to exactly its occurrence.
+    const [both] = classifyDuplicates([pa], ctx({ links: [link], events: [occ('2026-07-11'), occ('2026-07-04')] }));
+    expect(both.event?.occurrenceKey).toBe('2026-07-04T05:00:00Z');
+  });
+
+  it('a re-linked event written by Serie is compared fully: later session drift is reported', () => {
+    const s0 = session('a', '2026-07-04', { state: 'start_only', start: '07:00', timeZone: TZ });
+    const p0 = proposal(s0, { startOnlySpanMin: 60 });
+    const ev = eventFromDraft(p0.draft!, 'e1');
+    // Linked (not created) record whose snapshot carries the event's own provenance.
+    const link = linkFor(p0, ev, { status: 'linked' });
+    expect(classifyDuplicates([p0], ctx({ links: [link], events: [ev] }))[0].class).toBe('already_exported');
+    // Same timing, new title rule: the outgoing content differs from what Serie wrote.
+    const [retitled] = classifyDuplicates([proposal(s0, { startOnlySpanMin: 60, prefix: '🌊 ' })], ctx({ prefix: '🌊 ', links: [link], events: [ev] }));
+    expect(retitled).toMatchObject({ class: 'linked_changed', changes: { session: ['title'], external: [] } });
+    // The session now has a real interval: the calendar event (placeholder span) no longer matches.
+    const s1 = session('a', '2026-07-04', { state: 'interval', start: '07:00', end: '09:00', endDayOffset: 0, timeZone: TZ });
+    const [r] = classifyDuplicates([proposal(s1)], ctx({ links: [link], events: [ev] }));
+    expect(r.class).toBe('linked_changed');
+    expect(r.changes?.session).toEqual(expect.arrayContaining(['time', 'timing']));
+  });
+});

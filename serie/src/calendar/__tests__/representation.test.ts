@@ -2,6 +2,7 @@ import { buildTiming, type TimingInput } from '@/domain/timing';
 import { summarize } from '@/domain/stats';
 import type { Session } from '@/domain/types';
 import { mkSession } from '@/test/factories';
+import { zonedToEpoch } from '@/domain/zoned';
 import {
   buildEventDraft,
   durationLabel,
@@ -9,6 +10,7 @@ import {
   placeToLocation,
   representTiming,
   snapshotFromDraft,
+  wallAt,
   type DraftOptions,
   type ExportOverride,
 } from '../representation';
@@ -279,5 +281,40 @@ describe('overrideToSessionPatch (explicit apply-back only)', () => {
     expect(r.ok && r.patch.place).toMatchObject({ label: 'Nuovo posto', mapUrl: 'https://maps.app.goo.gl/x' });
     const cleared = overrideToSessionPatch(withPlace, { location: '  ' }, ['location']);
     expect(cleared.ok && cleared.patch.place).toBeNull();
+  });
+});
+
+describe('DST: derived ends that fall in a repeated hour (regression)', () => {
+  // Rome falls back on 2026-10-25: 03:00 CEST → 02:00 CET, so 02:00–02:59 happens twice.
+  const instant = (p: { date: string; time: string | null; timeZone: string | null }) => zonedToEpoch(p.date, p.time!, p.timeZone!).epochMs;
+
+  it('start + declared 2 h from 01:30 on the fall-back night is a 2 h event, not 1 h', () => {
+    const s = session('2026-10-25', { state: 'start_duration', start: '01:30', timeZone: TZ, declaredSec: 7200 });
+    const d = buildEventDraft(s, opts());
+    if (d.status !== 'ready') throw new Error(d.status);
+    expect(d.representation.spanMin).toBe(120);
+    // Read back the way providers do (date + wall time + zone): exactly start + 2 h.
+    expect(instant(d.draft.end) - instant(d.draft.start)).toBe(7200 * 1000);
+    expect(d.draft.end).toEqual({ date: '2026-10-25', time: '02:30', timeZone: 'Etc/GMT-1' });
+    expect(d.draft.start.timeZone).toBe(TZ);
+    const snap = snapshotFromDraft(d.draft, 'Surf');
+    expect(Date.parse(snap.end) - Date.parse(snap.start)).toBe(7200 * 1000);
+  });
+
+  it('approved start-only span and outgoing spans are DST-safe too; ordinary ends keep the session zone', () => {
+    const so = session('2026-10-25', { state: 'start_only', start: '01:45', timeZone: TZ });
+    const d = buildEventDraft(so, opts({ startOnlySpanMin: 90 }));
+    if (d.status !== 'ready') throw new Error(d.status);
+    expect(instant(d.draft.end) - instant(d.draft.start)).toBe(90 * 60 * 1000);
+    expect(d.draft.appMeta).toMatchObject({ durationSec: null, schedulingPlaceholder: true });
+    const dur = session('2026-10-25', { state: 'duration_only', declaredSec: 5400 });
+    const o = buildEventDraft(dur, opts({ override: { time: { start: '01:30' } }, defaultTimeZone: TZ }));
+    if (o.status !== 'ready') throw new Error(o.status);
+    expect(instant(o.draft.end) - instant(o.draft.start)).toBe(5400 * 1000);
+    // First pass through the repeated hour, or any ordinary time, stays in the session zone.
+    expect(buildEventDraft(session('2026-10-25', { state: 'start_duration', start: '01:00', timeZone: TZ, declaredSec: 3600 }), opts()).draft?.end).toEqual({ date: '2026-10-25', time: '02:00', timeZone: TZ });
+    expect(wallAt(Date.parse('2026-07-04T06:00:00Z'), TZ)).toEqual({ date: '2026-07-04', time: '08:00', timeZone: TZ });
+    // Spring forward (02:00 → 03:00): 01:30 + 1 h is 03:30, an ordinary wall time.
+    expect(buildEventDraft(session('2026-03-29', { state: 'start_duration', start: '01:30', timeZone: TZ, declaredSec: 3600 }), opts()).draft?.end).toEqual({ date: '2026-03-29', time: '03:30', timeZone: TZ });
   });
 });

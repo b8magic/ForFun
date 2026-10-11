@@ -13,6 +13,7 @@ import {
   BACKOFF_SCHEDULE_MS,
   JOB_STATUS_LABELS,
   OFFLINE_RECHECK_MS,
+  RUNNING_STALE_MS,
   backoffDelayMs,
   defaultConfig,
   disableAutoExport,
@@ -70,6 +71,8 @@ class FakeProvider implements CalendarProvider {
   fail: Partial<Record<Method, Fail[]>> = {};
   calls: Record<Method, number> = { getConnection: 0, listCalendars: 0, listEvents: 0, findByOpId: 0, createEvent: 0 };
   connection: Connection;
+  /** Runs inside listEvents, i.e. while a job is being checked (simulates the user acting mid-run). */
+  beforeList: (() => Promise<void>) | null = null;
   private seq = 0;
 
   constructor(
@@ -108,6 +111,7 @@ class FakeProvider implements CalendarProvider {
     return [];
   }
   async listEvents(q: ListEventsQuery) {
+    if (this.beforeList) await this.beforeList();
     this.throwIf('listEvents');
     return this.events.filter(
       (e) => q.calendarIds.includes(e.calendarId) && e.start.date <= q.to && (e.allDay ? e.end.date > q.from : e.start.date >= q.from) && (q.includeCancelled || e.status !== 'cancelled'),
@@ -190,7 +194,7 @@ function enabled(p: Partial<AutoExportConfig> = {}): AutoExportConfig {
   return { ...defaultConfig(), enabled: true, destinations: { google: { calendarId: G_SPORT.calendarId, accountId: EMAIL, labelId: '7' } }, ...p };
 }
 
-async function importProvenance(repos: Repositories, sessionId: string, source: ExternalCalendar) {
+async function importProvenance(repos: Repositories, sessionId: string, source: ExternalCalendar, originalTitle = 'Surf con Marta') {
   await repos.provenance.insert(repos.db, {
     sessionId,
     provider: source.provider,
@@ -199,7 +203,7 @@ async function importProvenance(repos: Repositories, sessionId: string, source: 
     externalEventId: 'src-ev-1',
     recurringEventId: null,
     occurrenceKey: null,
-    originalTitle: 'Surf con Marta',
+    originalTitle,
     sourceAllDay: false,
     sourceStart: '2026-10-05T05:30:00.000Z',
     sourceEnd: '2026-10-05T07:00:00.000Z',
@@ -852,5 +856,133 @@ describe('summarizeJobs', () => {
     expect(s).toMatchObject({ open: 5, needsReview: 2, retrying: 1, waiting: 2 });
     expect(s.byProvider).toEqual({ google: { open: 4, needsReview: 1, succeeded: 0 }, apple: { open: 1, needsReview: 1, succeeded: 1 } });
     expect(s.badge).toEqual({ tone: 'review', count: 2, label: '2 da rivedere' });
+  });
+});
+
+// ─── adversarial review regressions ──────────────────────────────────────────
+
+describe('regressions — concurrent decisions, reconciliation, offline, provenance', () => {
+  it('a job cancelled while the run is checking the destination is never written and stays cancelled', async () => {
+    const { repos, categories, surf, providers, google } = await setup();
+    await saveConfig(repos, enabled());
+    const s = await save(repos, surf.id, INTERVAL);
+    const { jobs } = await enqueueForSessions(repos, [s], categories, enabled());
+    // "Annulla quelle in sospeso" while the provider is being read.
+    google.beforeList = async () => {
+      await disableAutoExport(repos, { cancelPending: true });
+    };
+    const out = await runJobs({ repos, providers, now: NOW });
+    expect(out.outcomes[0]).toMatchObject({ status: 'cancelled', message: AUTO_EXPORT_STRINGS.error.superseded });
+    expect(google.calls.createEvent).toBe(0);
+    expect(await jobOf(repos, jobs[0].opId)).toMatchObject({ status: 'cancelled', attempts: 0 });
+
+    // Same race ending in a failed read: the user's decision is not overwritten with 'failed'.
+    const s2 = await save(repos, surf.id, INTERVAL, { date: '2026-10-06' });
+    const q = await enqueueForSessions(repos, [s2], categories, enabled());
+    google.beforeList = async () => {
+      await resolveReviewJob(repos, q.jobs[0].id, { kind: 'skip' });
+    };
+    google.fail.listEvents = [new ProviderError('rate_limited', '429')];
+    await runJobs({ repos, providers, now: plus(NOW, MIN) });
+    expect(await jobOf(repos, q.jobs[0].opId)).toMatchObject({ status: 'cancelled', attempts: 0, reviewReason: AUTO_EXPORT_STRINGS.cancelled.userSkipped });
+    expect(google.calls.createEvent).toBe(0);
+  });
+
+  it('a fresh "running" job (being written by a manual export) is left alone; a stale one is reclaimed and reconciled', async () => {
+    let clock = NOW;
+    const repos = await testRepos({ now: () => clock.toISOString() });
+    const surf = await repos.categories.create({ name: 'Surf', color: '#2E7D9A', pattern: 'swell' });
+    const google = new FakeProvider('google', [...GOOGLE_CALS]);
+    const s = await save(repos, surf.id, INTERVAL);
+    const { jobs } = await enqueueForSessions(repos, [s], [surf], enabled());
+    await repos.exportJobs.update(jobs[0].id, { status: 'running' }); // exportEngine took the job over and is writing
+
+    await runJobs({ repos, providers: { google }, now: plus(NOW, MIN), config: enabled() });
+    expect(await jobOf(repos, jobs[0].opId)).toMatchObject({ status: 'running' });
+    expect(google.calls.findByOpId + google.calls.listEvents + google.calls.createEvent).toBe(0);
+
+    // Still 'running' long after (the app was killed mid-write): reclaimed as uncertain, looked up first.
+    clock = plus(NOW, RUNNING_STALE_MS + MIN);
+    await runJobs({ repos, providers: { google }, now: clock, config: enabled() });
+    expect(google.calls.findByOpId).toBe(1);
+    expect(google.written).toHaveLength(1);
+    expect(await jobOf(repos, jobs[0].opId)).toMatchObject({ status: 'succeeded' });
+  });
+
+  it('an uncertain write keeps its reconciliation duty through "Da rivedere" (no duplicate after a date change)', async () => {
+    const { repos, categories, surf, providers, google } = await setup();
+    const s = await save(repos, surf.id, INTERVAL);
+    const { jobs } = await enqueueForSessions(repos, [s], categories, enabled());
+    google.fail.createEvent = [{ afterWrite: new ProviderError('uncertain', 'timeout') }];
+    await runJobs({ repos, providers, now: NOW });
+    expect(google.events).toHaveLength(1);
+
+    // The next run cannot read the calendar → review; the duty must survive it.
+    google.connection = { ...google.connection, status: 'write_only', canRead: false, detail: t.writeOnly };
+    await runJobs({ repos, providers, now: plus(NOW, 2 * MIN) });
+    const reviewed = await jobOf(repos, jobs[0].opId);
+    expect(reviewed).toMatchObject({ status: 'needs_review', reviewReason: t.writeOnly });
+    expect(parsePayload(reviewed.payload)?.reconcile).toBe(true);
+
+    // The session is moved to another date before the user retries.
+    await repos.sessions.update(s.id, { date: '2026-10-20' });
+    google.connection = { ...google.connection, status: 'connected', canRead: true, detail: null };
+    expect(await resolveReviewJob(repos, jobs[0].id, { kind: 'retry' })).toMatchObject({ status: 'uncertain' });
+    await runJobs({ repos, providers, now: plus(NOW, 3 * MIN) });
+    expect(google.calls.findByOpId).toBe(1);
+    expect(google.calls.createEvent).toBe(1);
+    expect(google.events).toHaveLength(1);
+    expect(await jobOf(repos, jobs[0].opId)).toMatchObject({ status: 'succeeded' });
+    expect(await repos.exportLinks.byOp(jobs[0].opId)).toMatchObject({ externalEventId: google.events[0].eventId });
+  });
+
+  it('a forwarded imported session is also matched by its original title', async () => {
+    const { repos, categories, surf, providers, google } = await setup();
+    const imported = await save(repos, surf.id, INTERVAL, { origin: 'import' });
+    await importProvenance(repos, imported.id, A_ICLOUD, 'Lezione con Marta');
+    google.events.push(foreignEvent(G_SPORT, 'manual-l', 'Lezione con Marta', DATE, '07:30', '09:00'));
+    const cfg = enabled({ forwardImported: true });
+    const { jobs } = await enqueueForSessions(repos, [imported], categories, cfg);
+    await runJobs({ repos, providers, now: NOW, config: cfg });
+    const j = await jobOf(repos, jobs[0].opId);
+    expect(j).toMatchObject({ status: 'needs_review', reviewReason: t.exportStatusPossibleDuplicate });
+    expect(parsePayload(j.payload)?.review).toEqual({ code: 'possible_duplicate', eventIds: ['manual-l'] });
+    expect(google.calls.createEvent).toBe(0);
+  });
+
+  it('offline: on-device (Apple) jobs still run; Google jobs wait without any network call', async () => {
+    const { repos, categories, surf, providers, google, apple } = await setup();
+    const s = await save(repos, surf.id, INTERVAL);
+    const cfg = enabled({ destinations: { google: { calendarId: G_SPORT.calendarId, accountId: EMAIL, labelId: null }, apple: { calendarId: A_ICLOUD.calendarId, accountId: A_ICLOUD.accountId } } });
+    const { jobs } = await enqueueForSessions(repos, [s], categories, cfg);
+    const out = await runJobs({ repos, providers, now: NOW, isOnline: false, config: cfg });
+    expect(out.online).toBe(false);
+    expect(await jobOf(repos, jobs[0].opId)).toMatchObject({ provider: 'google', status: 'pending', lastError: AUTO_EXPORT_STRINGS.error.offline });
+    expect(await jobOf(repos, jobs[1].opId)).toMatchObject({ provider: 'apple', status: 'succeeded' });
+    expect(google.calls.getConnection + google.calls.listCalendars + google.calls.createEvent).toBe(0);
+    expect(apple.written).toHaveLength(1);
+  });
+
+  it('a forwarded import whose source side is momentarily unreachable waits instead of going to review', async () => {
+    const { repos, categories, surf, providers, apple } = await setup();
+    const imported = await save(repos, surf.id, INTERVAL, { origin: 'import' });
+    await importProvenance(repos, imported.id, G_SPORT);
+    const cfg = enabled({ forwardImported: true, destinations: { apple: { calendarId: A_GSPORT.calendarId, accountId: A_GSPORT.accountId } } });
+    const { jobs } = await enqueueForSessions(repos, [imported], categories, cfg);
+    await runJobs({ repos, providers, now: NOW, isOnline: false, config: cfg });
+    expect(await jobOf(repos, jobs[0].opId)).toMatchObject({ status: 'pending', lastError: AUTO_EXPORT_STRINGS.error.offline });
+    expect(apple.calls.createEvent).toBe(0);
+
+    // Online again: the Google side is listed, reveals the same calendar → never written there.
+    await runJobs({ repos, providers, now: NOW, config: cfg });
+    expect(await jobOf(repos, jobs[0].opId)).toMatchObject({ status: 'cancelled', reviewReason: AUTO_EXPORT_STRINGS.cancelled.sourceCalendar });
+    expect(apple.calls.createEvent).toBe(0);
+  });
+
+  it('validateConfig warns when a destination cannot be read (duplicates cannot be checked)', () => {
+    const writeOnly = { ...A_ICLOUD, canRead: false };
+    const v = validateConfig(enabled({ destinations: { apple: { calendarId: A_ICLOUD.calendarId, accountId: A_ICLOUD.accountId } } }), [...GOOGLE_CALS, writeOnly]);
+    expect(v.runnable).toBe(true);
+    expect(v.issues).toEqual([expect.objectContaining({ code: 'calendar_not_readable', severity: 'warning', provider: 'apple', message: AUTO_EXPORT_STRINGS.issues.calendar_not_readable })]);
   });
 });

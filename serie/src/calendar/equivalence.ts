@@ -12,12 +12,18 @@
  *               titles match after normalisation; or the Google calendar is the
  *               account's primary calendar (id = account email) and the iPhone
  *               calendar is titled with that email.
+ *               A Google calendar whose id is an email (a primary calendar, also
+ *               when shared from another account) and an iPhone calendar titled
+ *               with that email are the same calendar.
  *   distinct    clearly different storage: iPhone-only (local), iCloud,
- *               Exchange, birthdays, subscribed feeds, a CalDAV source of
- *               another account, or another calendar of the same account.
+ *               Exchange, birthdays, subscribed feeds, a differently named
+ *               calendar of another account, or another calendar of the same
+ *               account.
  *   unknown     cannot be established (e.g. the iOS account is described as
- *               "Gmail" or a custom name, or the same account shows a different
- *               title that may be a rename). The user must resolve it.
+ *               "Gmail" or a custom name, the same account shows a different
+ *               title that may be a rename, or ANOTHER account shows a calendar
+ *               with the same name — it may be shared between the accounts).
+ *               The user must resolve it.
  *
  * `gateBothDestinations` turns a verdict into the "Both" rule: equivalent →
  * blocked (choose one route); unknown → blocked until the user explicitly
@@ -47,6 +53,7 @@ export const EQUIVALENCE_STRINGS = {
     apple_birthdays: 'Il calendario di iPhone è quello dei compleanni.',
     apple_subscribed: 'Il calendario di iPhone è un calendario iscritto, di sola lettura.',
     apple_other_account: 'Il calendario di iPhone appartiene a un altro account.',
+    other_account_same_title: 'Il calendario di iPhone è di un altro account ma ha lo stesso nome: potrebbe essere un calendario condiviso.',
     other_calendar_same_account: 'Stesso account Google, ma un altro calendario.',
     same_account_title_mismatch: 'Stesso account Google, ma con un nome diverso: potrebbe essere stato rinominato.',
     same_account_title_ambiguous: 'Più calendari Google hanno questo nome.',
@@ -138,6 +145,18 @@ export function canonicalEmail(s: string | null | undefined): string | null {
   if (domain === 'googlemail.com') domain = 'gmail.com';
   if (domain === 'gmail.com') local = local.replace(/\./g, '');
   return `${local}@${domain}`;
+}
+
+/**
+ * The account email a Google calendar id names, when the calendar is a PRIMARY
+ * calendar (its id is the owner's email). Secondary, holiday and imported
+ * calendars have ids under calendar.google.com, which are not accounts.
+ */
+export function primaryCalendarEmail(calendarId: string | null | undefined): string | null {
+  const e = canonicalEmail(calendarId);
+  if (!e) return null;
+  const domain = e.slice(e.lastIndexOf('@') + 1);
+  return domain === 'calendar.google.com' || domain.endsWith('.calendar.google.com') ? null : e;
 }
 
 type AppleSourceKind = 'local' | 'icloud' | 'exchange' | 'birthdays' | 'subscribed' | 'caldav' | 'unknown';
@@ -244,14 +263,24 @@ export function classifyEquivalence(a: ExternalCalendar, b: ExternalCalendar, ct
   }
 
   if (!gEmail) return result('unknown', 'missing_details', google, apple);
-  if (aEmails.length > 0 && !sameAccount) return result('distinct', 'apple_other_account', google, apple);
 
   const gTitle = normalizeCalendarTitle(google.title);
   const aTitle = normalizeCalendarTitle(apple.title);
   const titlesMatch = gTitle !== '' && gTitle === aTitle;
   const appleTitleEmail = canonicalEmail(apple.title);
-  const googleIsPrimaryEmail = google.isPrimary && canonicalEmail(google.calendarId) === gEmail;
-  const primaryRule = googleIsPrimaryEmail && appleTitleEmail === gEmail;
+  // A Google calendar id that is an email is that account's primary calendar — the
+  // signed-in account's own, or another person's primary shared with it. On iPhone a
+  // Google primary calendar is titled with that email.
+  const googleCalEmail = primaryCalendarEmail(google.calendarId);
+  const primaryRule = googleCalEmail != null && appleTitleEmail === googleCalEmail;
+
+  if (aEmails.length > 0 && !sameAccount) {
+    // Another account on iOS. A calendar shared between two Google accounts is still ONE
+    // calendar, so a matching name is not "clearly different storage".
+    if (primaryRule && aEmails.includes(googleCalEmail)) return result('equivalent', 'primary_email_title', google, apple);
+    if (titlesMatch || primaryRule) return result('unknown', 'other_account_same_title', google, apple);
+    return result('distinct', 'apple_other_account', google, apple);
+  }
 
   if (sameAccount) {
     if (titlesMatch) {

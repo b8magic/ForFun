@@ -30,7 +30,7 @@ import type { AppEventMeta, EventDraft, ExternalEvent } from './types';
 import type { ExportSnapshot, LocalDate, Place, Session, Timing, TimingState, WallTime } from '@/domain/types';
 import type { SessionPatch } from '@/data/repositories';
 import { addDays, isLocalDate } from '@/domain/dates';
-import { deviceTimeZone, epochToZoned, isValidTimeZone, isWallTime, zonedToEpoch } from '@/domain/zoned';
+import { deviceTimeZone, epochToZoned, isValidTimeZone, isWallTime, zonedToEpoch, zoneOffsetMinutes } from '@/domain/zoned';
 import { buildTiming, describeSwitch, type TimingChange, type TimingError, type TimingInput } from '@/domain/timing';
 import { formatDuration } from '@/domain/duration';
 import { t } from '@/i18n/it';
@@ -195,11 +195,29 @@ function allDayMarker(kind: 'date_marker' | 'duration_marker', date: LocalDate, 
   };
 }
 
-/** Wall time `seconds` after a zoned start, rounded to the nearest minute. */
-function zonedPlus(date: LocalDate, start: WallTime, timeZone: string, seconds: number): { date: LocalDate; time: WallTime } {
+/**
+ * Wall time of an instant, expressed so that reading it back (date + time +
+ * zone, as providers do) gives the SAME instant. During the repeated hour of a
+ * DST fall-back the wall time is ambiguous and is read back as its first
+ * occurrence; an instant in the second pass is therefore expressed in the
+ * equivalent fixed-offset zone ('Etc/GMT-1' for CET), or UTC when the offset is
+ * not a whole hour. Otherwise a derived end could silently lose an hour.
+ */
+export function wallAt(epochMs: number, timeZone: string): { date: LocalDate; time: WallTime; timeZone: string } {
+  const z = epochToZoned(epochMs, timeZone);
+  if (zonedToEpoch(z.date, z.time, timeZone).epochMs === epochMs) return { ...z, timeZone };
+  const off = zoneOffsetMinutes(timeZone, epochMs);
+  const h = off / 60;
+  const fixed = off === 0 ? 'UTC' : Number.isInteger(h) && h >= -12 && h <= 14 ? `Etc/GMT${h > 0 ? '-' : '+'}${Math.abs(h)}` : 'UTC';
+  const zone = isValidTimeZone(fixed) ? fixed : 'UTC';
+  return { ...epochToZoned(epochMs, zone), timeZone: zone };
+}
+
+/** Wall time `seconds` after a zoned start, rounded to the nearest minute (DST-safe, see `wallAt`). */
+function zonedPlus(date: LocalDate, start: WallTime, timeZone: string, seconds: number): { date: LocalDate; time: WallTime; timeZone: string } {
   const s = zonedToEpoch(date, start, timeZone).epochMs;
   const e = Math.round((s + seconds * 1000) / 60000) * 60000;
-  return epochToZoned(e, timeZone);
+  return wallAt(e, timeZone);
 }
 
 const zoneNoteOf = (...kinds: Array<'exact' | 'ambiguous' | 'nonexistent'>): ReadyRepresentation['zoneNote'] =>
@@ -209,19 +227,21 @@ function timed(
   kind: RepresentationKind,
   date: LocalDate,
   start: WallTime,
-  end: { date: LocalDate; time: WallTime },
+  /** End wall time; `timeZone` only when it differs from the start zone (fixed offset in a repeated DST hour). */
+  end: { date: LocalDate; time: WallTime; timeZone?: string },
   timeZone: string,
   extra: { schedulingPlaceholder: boolean; descriptionLine: string | null; disclosure: string },
 ): ReadyRepresentation | InvalidRepresentation {
+  const endZone = end.timeZone ?? timeZone;
   const s = zonedToEpoch(date, start, timeZone);
-  const e = zonedToEpoch(end.date, end.time, timeZone);
+  const e = zonedToEpoch(end.date, end.time, endZone);
   if (!(e.epochMs > s.epochMs)) return invalid('end_not_after_start', date);
   return {
     status: 'ready',
     kind,
     allDay: false,
     start: { date, time: start, timeZone },
-    end: { date: end.date, time: end.time, timeZone },
+    end: { date: end.date, time: end.time, timeZone: endZone },
     schedulingPlaceholder: extra.schedulingPlaceholder,
     spanMin: Math.round((e.epochMs - s.epochMs) / 60000),
     descriptionLine: extra.descriptionLine,

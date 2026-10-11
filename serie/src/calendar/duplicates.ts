@@ -10,7 +10,9 @@
  *                       snapshot) or the external event (vs snapshot) changed.
  *  - recognized         no usable link, but the destination holds an event that
  *                       Serie wrote for this session (appMeta.opId/sessionId), or
- *                       the very event the session was imported from.
+ *                       the very event the session was imported from. A session
+ *                       imported from this calendar whose source event was not
+ *                       found is also 'recognized' (event = null), never 'new'.
  *  - possible_duplicate heuristic: same local date AND similar normalized title
  *                       (accounting for prefix/suffix, final/base/activity titles
  *                       and earlier snapshot titles) AND compatible times.
@@ -46,6 +48,8 @@ export const DUPLICATE_REASONS = {
   changedBoth: 'Sono cambiati sia la proposta sia l’evento nel calendario.',
   notCheckedLinked: 'Risulta già esportato, ma il calendario non è leggibile.',
   notCheckedImported: 'Sessione importata da questo calendario.',
+  importedHere: 'Sessione importata da questo calendario',
+  importSourceMissing: 'Evento d’origine non trovato: crea un evento solo se vuoi riaggiungerlo.',
 } as const;
 
 // ─── types ───────────────────────────────────────────────────────────────────
@@ -125,6 +129,8 @@ export interface DuplicateContext {
   priorLinks?: readonly ExportLinkRecord[];
   /** Import provenance of sessions imported from THIS destination calendar. */
   importSources?: readonly ImportSource[];
+  /** Original titles of imported sessions (import provenance, any calendar): known titles of the session. */
+  originalTitles?: readonly { sessionId: string; title: string }[];
   /** Events read from the destination for the window; null = could not read. */
   events: readonly ExternalEvent[] | null;
 }
@@ -142,13 +148,19 @@ function isSeparator(cp: number): boolean {
   return false;
 }
 
-/** Lowercase, strip accents, emoji and punctuation, collapse spaces. */
+/**
+ * Lowercase, strip accents, emoji and punctuation, collapse spaces. A title
+ * made only of emoji/symbols ("🏄") keeps its symbols (minus variation
+ * selectors), so two identical symbol-only titles still compare as equal.
+ */
 export function normalizeTitle(s: string | null | undefined): string {
   if (!s) return '';
-  const base = s.normalize('NFKD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  const base = s.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
   let out = '';
   for (const ch of base) out += isSeparator(ch.codePointAt(0)!) ? ' ' : ch;
-  return out.replace(/\s+/g, ' ').trim();
+  const words = out.replace(/\s+/g, ' ').trim();
+  if (words) return words;
+  return s.normalize('NFC').replace(/[\ufe0e\ufe0f]/g, '').replace(/\s+/g, ' ').trim();
 }
 
 function bigrams(s: string): Map<string, number> {
@@ -233,7 +245,9 @@ function linkChanges(link: ExportLinkRecord, ev: ExternalEvent, p: DuplicateProp
   const snap = link.snapshot;
   const external = diffSnapshots(snap, snapshotFromEvent(ev, snap, categoryName), { timing: false });
   let session: ChangeField[];
-  if (link.status === 'linked') {
+  // An event carrying this session's metadata was composed by Serie (even when re-linked): compare it fully.
+  const serieWritten = ev.appMeta?.sessionId === p.session.id;
+  if (link.status === 'linked' && !serieWritten) {
     // A linked event was never written by Serie: only the recorded timing can drift on the session side.
     session = provenanceDiffers(snap, sessionProvenance(p.session)) ? ['timing'] : [];
   } else if (p.draft) {
@@ -446,6 +460,7 @@ export function classifyDuplicates(proposals: readonly DuplicateProposal[], ctx:
     }
 
     // The event this session was imported from: never duplicate it back into its source.
+    let importSourceMissing = false;
     if (importSource) {
       const src = findEvent(live, importSource.externalEventId, importSource.occurrenceKey);
       if (src) {
@@ -460,12 +475,14 @@ export function classifyDuplicates(proposals: readonly DuplicateProposal[], ctx:
           differences: draftVsEvent(p, src, ctx.categoryName),
         };
       }
+      importSourceMissing = true;
     }
 
     // Heuristic possible duplicates.
     const intent = proposalIntent(p);
     const priorTitles = (ctx.priorLinks ?? []).filter((l) => l.sessionId === sid).map((l) => l.snapshot.title);
     if (staleLink) priorTitles.push(staleLink.snapshot.title);
+    for (const o of ctx.originalTitles ?? []) if (o.sessionId === sid && o.title) priorTitles.push(o.title);
     const candidates: DuplicateCandidate[] = [];
     for (const ev of live) {
       const owner = claimedBy.get(evKey(ev.eventId, ev.occurrenceKey));
@@ -496,6 +513,11 @@ export function classifyDuplicates(proposals: readonly DuplicateProposal[], ctx:
 
     if (candidates.length) {
       return { ...base(), class: 'possible_duplicate', reason: DUPLICATE_REASONS.possibleDuplicate, detail: staleLink ? DUPLICATE_REASONS.staleLink : null, staleLink, candidates };
+    }
+    if (importSourceMissing) {
+      // Imported from this very calendar, but its source event was not read (moved outside the
+      // window, or deleted). Never treated as "new": re-adding it must be a deliberate choice.
+      return { ...base(), class: 'recognized', reason: DUPLICATE_REASONS.importedHere, detail: DUPLICATE_REASONS.importSourceMissing, staleLink, recognizedBy: 'import_source' };
     }
     return { ...base(), class: 'new', reason: staleLink ? DUPLICATE_REASONS.staleLink : null, staleLink };
   });
