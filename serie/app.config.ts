@@ -14,7 +14,9 @@ export default ({ config }: ConfigContext): ExpoConfig => {
   const reversed = iosClient && /\.apps\.googleusercontent\.com$/.test(iosClient) ? `com.googleusercontent.apps.${iosClient.replace(/\.apps\.googleusercontent\.com$/, '')}` : null;
   const base = config as ExpoConfig;
   const dev = process.env.APP_VARIANT === 'development';
-  const schemes = ['serie', ...(reversed ? [reversed] : [])];
+  // exp+serie-dev: the dev client's own launch scheme. The release also carries exp+serie (added by
+  // expo-dev-client), and the CLI opens the longest exp+ scheme, so links and QR codes reach Serie Dev only.
+  const schemes = ['serie', ...(dev ? ['exp+serie-dev'] : []), ...(reversed ? [reversed] : [])];
   return {
     ...base,
     name: dev ? 'Serie Dev' : (base.name ?? 'Serie'),

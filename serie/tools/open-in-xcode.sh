@@ -8,7 +8,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 [ "$(uname)" = Darwin ] || { echo "Serve un Mac con Xcode."; exit 1; }
-V=$(xcodebuild -version 2>/dev/null | awk 'NR==1{print $2}')
+V=$(xcodebuild -version 2>/dev/null | awk 'NR==1{print $2}' || true)
 case "$V" in
   26.[4-9]* | 26.[1-9][0-9]* | 2[7-9].*) ;;
   *) echo "Serve Xcode 26.4 o successivo (trovato: ${V:-nessuno}). Se è installato: sudo xcode-select -s /Applications/Xcode.app"; exit 1 ;;

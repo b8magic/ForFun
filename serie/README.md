@@ -68,14 +68,36 @@ No local build at all: `.github/workflows/ios-simulator.yml` (**Actions → "iOS
 
 ### Live changes on a Mac (change → see it in seconds)
 
+Once, because the repository is private: install the GitHub CLI and log in through the browser. Git then uses that login, with no password prompts.
+
 ```bash
-cd serie && tools/live.sh            # iOS Simulator
-cd serie && tools/live.sh --device   # iPhone on the cable (Xcode → Settings → Accounts: your Apple ID)
+brew install gh cocoapods       # Homebrew: https://brew.sh
+gh auth login                   # GitHub.com → HTTPS → "Authenticate Git" yes → login with a web browser
+gh repo clone b8magic/ForFun
 ```
 
-`tools/live.sh` builds and installs the development app **Serie Dev** (`APP_VARIANT=development`, bundle id `app.serie.ios.dev`, so it sits next to an installed release). It then starts Metro and pulls new commits of the current branch every 5 seconds, **fast-forward only**: local edits are never touched. Each pushed code change reaches the app through Fast Refresh, with a macOS notification naming the commit.
+Then:
 
-When a pushed change touches native inputs (dependencies, `app.json`/`app.config.ts`, fonts, icon, splash), the script asks for a restart and rebuilds Serie Dev. The first build takes about 5–10 minutes.
+```bash
+cd ForFun/serie && tools/live.sh            # iOS Simulator
+cd ForFun/serie && tools/live.sh --device   # iPhone on the cable and on the same Wi-Fi as the Mac
+```
+
+`tools/live.sh` sets up the development app **Serie Dev** (`APP_VARIANT=development`: bundle id `app.serie.ios.dev` and its own `exp+serie-dev` launch scheme, so it sits next to an installed release). On every launch it:
+
+- generates the iOS project when native inputs changed (dependencies, `app.json`/`app.config.ts`, fonts, icon, splash). The first time this takes about 5–10 minutes.
+- builds incrementally and installs on the chosen Simulator or iPhone.
+- starts Metro.
+- pulls new commits of the current branch every 5 seconds, **fast-forward only**. Each pushed code change reaches the app through Fast Refresh, with a macOS notification naming the commit.
+
+Local edits, local commits and other branches are never touched. If one of them is in the way, updates pause and the script says why. A pushed native change asks for a restart of the script.
+
+First time on the iPhone:
+
+- Xcode → Settings → Accounts → your Apple ID → Manage Certificates → + Apple Development.
+- On the phone: Settings → Privacy & Security → Developer Mode on.
+- After the first install: General → VPN & Device Management → your Apple ID → Trust.
+- With a free Apple ID the dev app expires after 7 days. Run the script again to reinstall it.
 
 ### TestFlight / App Store
 
