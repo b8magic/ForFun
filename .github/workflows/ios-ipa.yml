@@ -1,80 +1,101 @@
-# Serie — unsigned iOS IPA for sideloading (SideStore / AltStore re-sign it with your Apple ID).
+# Serie — unsigned iOS IPA for sideloading (SideStore / AltStore Classic re-sign it with your Apple ID).
 #
-# Runs on a GitHub-hosted macOS runner (Xcode is macOS-only). Produces:
-#   - artifact  "Serie-ipa"  → Serie-unsigned.ipa (+ build log on failure)
-#   - a prerelease "ipa-<run>" with the .ipa attached (easier to download on the phone)
+# On demand only (Actions → "iOS IPA (unsigned, sideload)" → Run workflow): macOS minutes on a
+# private repo are limited, so nothing runs on push.
 #
-# Optional repository secret EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID enables Google Calendar;
-# without it the app works fully and Google Calendar shows "non configurato".
+# Produces:
+#   - prerelease "ipa-<run>" with Serie-unsigned.ipa + .sha256 (the easiest download on the phone)
+#   - artifact "Serie-ipa" (zip with the same files, 7 days) and, when supported, the raw .ipa
+#
+# Optional: repository variable (or secret) EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID enables Google Calendar.
+# Without it the app works fully and Google Calendar shows "non configurato"; iPhone calendars always work.
 name: iOS IPA (unsigned, sideload)
 
 on:
   workflow_dispatch:
     inputs:
       release:
-        description: Pubblica anche una prerelease con l'IPA allegata
+        description: Pubblica una prerelease con l'IPA allegata
         type: boolean
         default: true
-  push:
-    branches: [claude/corduroy-motion-trailer]
-    paths:
-      - 'serie/**'
-      - '.github/workflows/ios-ipa.yml'
 
 concurrency:
   group: ios-ipa-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   ipa:
+    name: Build unsigned IPA
     runs-on: macos-26
-    timeout-minutes: 80
+    timeout-minutes: 60
     defaults:
       run:
+        shell: bash # explicit → bash -eo pipefail, so `cmd | tee` fails when cmd fails
         working-directory: serie
     env:
       CI: '1'
       EXPO_NO_TELEMETRY: '1'
-      EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID: ${{ secrets.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
-      - name: Select the newest Xcode 26 (Expo SDK 57 needs Xcode 26.4+)
+      - name: Select Xcode 26.6 (Expo SDK 57 needs 26.4 or later)
         working-directory: .
         run: |
-          ls -d /Applications/Xcode*.app || true
-          XC=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1)
-          if [ -z "$XC" ]; then echo "::error::No Xcode 26 on this runner image"; exit 1; fi
+          XC=/Applications/Xcode_26.6.app
+          [ -d "$XC" ] || XC=/Applications/Xcode.app
           sudo xcode-select -s "$XC/Contents/Developer"
-          xcodebuild -version
-          xcrun --sdk iphoneos --show-sdk-version
+          V=$(xcodebuild -version | awk 'NR==1{print $2}')
+          echo "Xcode $V · iOS SDK $(xcrun --sdk iphoneos --show-sdk-version)"
+          case "$V" in
+            26.[4-9]*|26.[1-9][0-9]*) ;;
+            *) echo "::error::Expo SDK 57 needs Xcode >= 26.4 (found $V)"; exit 1 ;;
+          esac
+          df -h / | tail -1
+          echo "BUILD_START=$(date +%s)" >> "$GITHUB_ENV"
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
           cache-dependency-path: serie/package-lock.json
 
       - name: Install JS dependencies
-        run: npm ci
+        run: npm ci --no-audit --no-fund
 
       - name: Typecheck
         run: npx tsc --noEmit
 
-      - name: Generate the iOS project (Continuous Native Generation)
-        run: npx expo prebuild --platform ios --clean --no-install
+      - name: Google Calendar client id (optional)
+        env:
+          RAW_CLIENT_ID: ${{ vars.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID || secrets.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID }}
+        run: |
+          v="${RAW_CLIENT_ID//[[:space:]]/}"
+          if [ -n "$v" ]; then
+            echo "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID=$v" >> "$GITHUB_ENV"
+            echo "Google Calendar: configured"
+          else
+            echo "Google Calendar: not configured (iPhone calendars still work)"
+          fi
 
-      - name: Install CocoaPods
+      - name: Generate the iOS project (Continuous Native Generation)
+        run: |
+          npx expo prebuild --platform ios --clean --no-install
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${{ github.run_number }}" ios/Serie/Info.plist
+
+      - name: Install CocoaPods (prebuilt React Native core and Hermes)
         run: |
           cd ios
-          pod install
+          pod install 2>&1 | tee "$RUNNER_TEMP/pod-install.log"
+          grep -E "release tarball|Expo-precompiled|hermes-engine" "$RUNNER_TEMP/pod-install.log" | head -20 || true
+          df -h / | tail -1
 
       - name: Archive (Release, unsigned)
         run: |
-          set -o pipefail
           WS=$(ls -d ios/*.xcworkspace | head -1)
           SCHEME=$(basename "$WS" .xcworkspace)
           echo "workspace=$WS scheme=$SCHEME"
@@ -92,51 +113,97 @@ jobs:
             CODE_SIGN_ENTITLEMENTS="" \
             DEVELOPMENT_TEAM="" \
             2>&1 | tee "$RUNNER_TEMP/xcodebuild.log" | (command -v xcbeautify >/dev/null && xcbeautify --renderer github-actions || cat)
+          df -h / | tail -1
 
       - name: Package the IPA
         run: |
           APP=$(ls -d "$RUNNER_TEMP"/Serie.xcarchive/Products/Applications/*.app | head -1)
           test -d "$APP"
-          # the JS bundle must be embedded (Release build, no Metro needed on the phone)
+          # Release build: the Hermes JS bundle is embedded, no Metro needed on the phone
           test -f "$APP/main.jsbundle"
           /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' -c 'Print :CFBundleShortVersionString' -c 'Print :CFBundleVersion' -c 'Print :MinimumOSVersion' "$APP/Info.plist"
           rm -rf "$RUNNER_TEMP/ipa" && mkdir -p "$RUNNER_TEMP/ipa/Payload"
           cp -R "$APP" "$RUNNER_TEMP/ipa/Payload/"
+          find "$RUNNER_TEMP/ipa/Payload" -name '._*' -delete
+          ls "$RUNNER_TEMP/ipa/Payload/$(basename "$APP")/Frameworks" 2>/dev/null || true
           (cd "$RUNNER_TEMP/ipa" && zip -qry "$GITHUB_WORKSPACE/Serie-unsigned.ipa" Payload)
-          ls -lh "$GITHUB_WORKSPACE/Serie-unsigned.ipa"
-          shasum -a 256 "$GITHUB_WORKSPACE/Serie-unsigned.ipa" | tee "$GITHUB_WORKSPACE/Serie-unsigned.ipa.sha256"
+          cd "$GITHUB_WORKSPACE"
+          shasum -a 256 Serie-unsigned.ipa | tee Serie-unsigned.ipa.sha256
+          SIZE=$(du -h Serie-unsigned.ipa | cut -f1)
+          MINS=$(( ( $(date +%s) - BUILD_START ) / 60 ))
+          {
+            echo "### Serie-unsigned.ipa"
+            echo "- size: $SIZE · build: ~${MINS} min · build number ${{ github.run_number }}"
+            echo "- Xcode: $(xcodebuild -version | head -1) · commit ${{ github.sha }}"
+          } >> "$GITHUB_STEP_SUMMARY"
 
-      - uses: actions/upload-artifact@v4
+      - name: Upload IPA (zip, for the release job and desktop download)
+        uses: actions/upload-artifact@v7
         with:
           name: Serie-ipa
           path: |
             Serie-unsigned.ipa
             Serie-unsigned.ipa.sha256
-          retention-days: 30
+          retention-days: 7
           if-no-files-found: error
 
-      - name: Publish a prerelease with the IPA
-        if: github.event_name == 'push' || inputs.release
-        uses: softprops/action-gh-release@v2
+      - name: Upload IPA (raw file, no zip)
+        continue-on-error: true
+        uses: actions/upload-artifact@v7
+        with:
+          path: Serie-unsigned.ipa
+          archive: false
+          retention-days: 7
+
+      - name: Keep the logs (failure, timeout or cancel)
+        if: failure() || cancelled()
+        uses: actions/upload-artifact@v7
+        with:
+          name: build-logs
+          path: |
+            ${{ runner.temp }}/pod-install.log
+            ${{ runner.temp }}/xcodebuild.log
+          retention-days: 7
+          overwrite: true
+          if-no-files-found: ignore
+
+  release:
+    name: Publish prerelease
+    needs: ipa
+    if: inputs.release
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          name: Serie-ipa
+
+      - uses: softprops/action-gh-release@v3
         with:
           tag_name: ipa-${{ github.run_number }}
           target_commitish: ${{ github.sha }}
           name: Serie — IPA ${{ github.run_number }} (non firmata)
           prerelease: true
+          fail_on_unmatched_files: true
           files: |
             Serie-unsigned.ipa
             Serie-unsigned.ipa.sha256
           body: |
-            IPA **non firmata** di Serie, da installare con SideStore o AltStore (la firmano con il tuo Apple ID).
-            Commit ${{ github.sha }}.
+            IPA **non firmata** di Serie (build ${{ github.run_number }}, commit ${{ github.sha }}).
+            Si installa con **SideStore** o **AltStore Classic** (non AltStore PAL), che la firmano con il tuo Apple ID.
 
-            - Con un Apple ID gratuito l'app va rinnovata ogni 7 giorni (SideStore/AltStore lo fanno da soli).
-            - Google Calendar funziona solo se il segreto `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID` era impostato al momento della build; i calendari di iPhone funzionano sempre.
+            **Installazione**
+            1. Su iPhone apri questa pagina in Safari con il login a GitHub (il repo è privato) e scarica `Serie-unsigned.ipa`.
+            2. Condividi il file con SideStore/AltStore (oppure *My Apps → +* e scegli il file da File).
+            3. Serve iOS 16.4 o successivo e la Modalità sviluppatore attiva (Impostazioni → Privacy e sicurezza).
 
-      - name: Keep the build log on failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: xcodebuild-log
-          path: ${{ runner.temp }}/xcodebuild.log
-          if-no-files-found: ignore
+            **Con un Apple ID gratuito**
+            - L'app scade dopo 7 giorni: SideStore/AltStore la rinnovano (anche in automatico).
+            - Massimo 3 app attive (SideStore incluso) e 10 App ID a settimana; Serie ne usa 1.
+            - Il bundle id diventa `app.serie.ios.<TEAMID>`.
+
+            **Note**
+            - I calendari di iPhone funzionano sempre. Google Calendar è attivo solo se `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID` era impostato al momento della build, e su un'app ri-firmata il login Google non è garantito.
+            - La mappa del luogo richiede iOS 17; su iOS 16 compaiono nome e coordinate in testo.
