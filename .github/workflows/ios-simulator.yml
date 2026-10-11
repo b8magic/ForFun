@@ -146,7 +146,7 @@ jobs:
             ${{ env.OUT }}/maestro/
             ${{ env.OUT }}/crashes/
             ${{ env.OUT }}/recordVideo.log
-          retention-days: 7
+          retention-days: 3
           if-no-files-found: ignore
 
       - name: Keep the build logs (failure, timeout or cancel)

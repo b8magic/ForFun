@@ -94,6 +94,20 @@ for d in "$OUT"/maestro/*/; do
   find "$d" -name '*.png' -print0 2>/dev/null | while IFS= read -r -d '' f; do cp "$f" "$OUT/screens/$(basename "$d")--$(basename "$f")"; done
 done
 
+# the raw recording is ~1 MB/s at full resolution: stop it and keep a small copy (about 540 px wide)
+stop_capture
+trap - EXIT
+V=$OUT/serie-simulator.mp4
+if [ -s "$V" ]; then
+  if command -v ffmpeg >/dev/null; then
+    ffmpeg -v error -y -i "$V" -vf "scale=540:-2,fps=30" -c:v libx264 -preset veryfast -crf 28 -an "$OUT/small.mp4"
+  else
+    avconvert --preset Preset1920x1080 --source "$V" --output "$OUT/small.mp4" >/dev/null 2>&1
+  fi
+  if [ -s "$OUT/small.mp4" ]; then mv "$OUT/small.mp4" "$V"; fi
+  say "- Video: $(du -h "$V" | cut -f1)"
+fi
+
 # crash reports written since the first launch (simulator apps report to the host)
 find "$HOME/Library/Logs/DiagnosticReports" -name 'Serie*' -newer "$OUT/.start" -exec cp {} "$OUT/crashes/" \; 2>/dev/null
 N=$(find "$OUT/crashes" -type f | wc -l | tr -d ' ')
