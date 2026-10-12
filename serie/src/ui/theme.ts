@@ -1,9 +1,8 @@
 /**
  * Serie visual identity — tokens taken from the trailer.
  *
- * Two surfaces share one world:
- *  - night  (Ink)  the logging surface: anticipation, touch, the break
- *  - calm   (Bone) history and progress: the calm after the wave
+ * Cream is the default surface; the dark surface is a saved preference.
+ * Legacy night/calm exports remain available for fixed-tone artwork.
  * Flare is reserved for sessions (selected days, saved dots, the energy line).
  */
 export const palette = {
@@ -13,6 +12,8 @@ export const palette = {
   foam: '#EEE8DA',
   bone: '#ECE5D6',
   bone2: '#E2DACA',
+  cream: '#F6F2E9',
+  cream2: '#EEE8DC',
   flare: '#FF4D1F',
   flareHot: '#FF6B3D',
   flareDeep: '#E2401A',
@@ -20,6 +21,7 @@ export const palette = {
 } as const;
 
 export type SurfaceName = 'night' | 'calm';
+export type ThemePref = 'cream' | 'dark';
 
 export interface Surface {
   name: SurfaceName;
@@ -31,6 +33,9 @@ export interface Surface {
   line: string;
   accent: string;
   onAccent: string;
+  danger: string;
+  warning: string;
+  success: string;
 }
 
 export const surfaces: Record<SurfaceName, Surface> = {
@@ -44,19 +49,42 @@ export const surfaces: Record<SurfaceName, Surface> = {
     line: palette.foam,
     accent: palette.flare,
     onAccent: palette.ink,
+    danger: palette.danger,
+    warning: '#F3C46E',
+    success: '#9FD9A0',
   },
   calm: {
     name: 'calm',
-    bg: palette.bone,
-    raised: palette.bone2,
+    bg: palette.cream,
+    raised: palette.cream2,
     fg: palette.ink2,
     mute: 'rgba(20,18,15,0.62)',
     faint: 'rgba(20,18,15,0.14)',
     line: palette.ink2,
-    accent: palette.flareDeep,
-    onAccent: palette.ink2,
+    accent: '#C93D1C',
+    onAccent: palette.cream,
+    danger: '#AD3029',
+    warning: '#876018',
+    success: '#316C3D',
   },
 };
+
+/** Stable, immutable-by-convention tokens; components subscribe through useSurface. */
+export function surfaceFor(theme: ThemePref): Surface {
+  return theme === 'dark' ? surfaces.night : surfaces.calm;
+}
+
+/** Activity colours stay unchanged; choose a readable label over their fill. */
+export function foregroundOn(color: string): string {
+  const hex = /^#([0-9a-f]{6})$/i.exec(color)?.[1];
+  if (!hex) return palette.ink;
+  const channels = [0, 2, 4].map((i) => {
+    const n = parseInt(hex.slice(i, i + 2), 16) / 255;
+    return n <= 0.04045 ? n / 12.92 : ((n + 0.055) / 1.055) ** 2.4;
+  });
+  const luminance = channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
+  return luminance > 0.18 ? palette.ink : palette.cream;
+}
 
 /** Curated activity colours. Each reads on both Ink and Bone. */
 export const activityColors = [

@@ -1,9 +1,9 @@
 /**
- * STORIA — history at three scales (Mese, Anno, Tutto) on the calm surface.
+ * STORIA / PROGRESSI — one consultation filter across the three time scales.
  * Entering is the white-water transformation: bone floods up from the
  * history handle, the lines of the lineup give way to the month ridgelines.
  */
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BackHandler, Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -11,12 +11,14 @@ import Animated, { Easing, runOnJS, useAnimatedStyle, useDerivedValue, useShared
 import { Canvas, Circle } from '@shopify/react-native-skia';
 import { router } from 'expo-router';
 import { useApp, type TimeScale } from '@/state/store';
-import { useActive, useMotionReduced } from '@/state/selectors';
+import { useMotionReduced } from '@/state/selectors';
 import { setPlace, setTimeScale } from '@/state/actions';
-import { historyStart, monthGroups, yearGroups } from '@/domain/history';
+import { monthGroups, yearGroups } from '@/domain/history';
+import { buildDaySummaries } from '@/domain/daySummaries';
 import { summarize } from '@/domain/stats';
-import { compareMonths, monthOf, parseDate } from '@/domain/dates';
-import { palette, surfaces, space, HIT } from '@/ui/theme';
+import { parseDate } from '@/domain/dates';
+import { space, HIT, type Surface } from '@/ui/theme';
+import { useSurface } from '@/ui/useTheme';
 import { T } from '@/ui/T';
 import { Segmented } from '@/ui/controls';
 import { Chevron } from '@/ui/glyphs';
@@ -28,9 +30,8 @@ import { YearMode } from './YearMode';
 import { AllMode } from './AllMode';
 import { durationLine } from './format';
 
-const C = surfaces.calm;
-
 export function TimePlace({ visible }: { visible: boolean }) {
+  const C = useSurface();
   const [mounted, setMounted] = useState(visible);
   const { width: W, height: H } = useWindowDimensions();
   const insets = useSafeAreaInsets();
@@ -83,7 +84,7 @@ export function TimePlace({ visible }: { visible: boolean }) {
     <GestureDetector gesture={edge}>
     <View style={StyleSheet.absoluteFill} pointerEvents={visible ? 'auto' : 'none'} testID="time-place">
       <Canvas style={StyleSheet.absoluteFill} pointerEvents="none">
-        <Circle cx={cx} cy={cy} r={radius} color={palette.bone} />
+        <Circle cx={cx} cy={cy} r={radius} color={C.bg} />
       </Canvas>
       <Animated.View style={[StyleSheet.absoluteFill, { paddingTop: insets.top }, content]}>
         <TimeBody />
@@ -94,7 +95,8 @@ export function TimePlace({ visible }: { visible: boolean }) {
 }
 
 function TimeBody() {
-  const active = useActive();
+  const C = useSurface();
+  const styles = useMemo(() => makeStyles(C), [C]);
   const categories = useApp((s) => s.categories);
   const sessions = useApp((s) => s.sessions);
   const scale = useApp((s) => s.timeScale);
@@ -102,26 +104,19 @@ function TimeBody() {
   const focus = useApp((s) => s.historyFocus);
   const lastSave = useApp((s) => s.lastSave);
   const highlightSaveId = useApp((s) => s.highlightSaveId);
-  const [filterId, setFilterId] = useState<string | null>(active?.id ?? null);
-  // the filter follows the active activity when it changes (adjusted during render)
-  const [filterFor, setFilterFor] = useState(active?.id ?? null);
-  if ((active?.id ?? null) !== filterFor) {
-    setFilterFor(active?.id ?? null);
-    if (active?.id) setFilterId(active.id);
-  }
+  const [chosenFilterId, setFilterId] = useState<string | null>(null);
+  const filterId = categories.some((c) => c.id === chosenFilterId) ? chosenFilterId : null;
+  const [openMonths, setOpenMonths] = useState<Record<string, boolean>>({});
+  const handledFocusRef = useRef<{ key: string; nonce: number } | null>(null);
+  const toggleMonth = useCallback((key: string) => setOpenMonths((o) => ({ ...o, [key]: o[key] === false })), []);
+  const expandMonth = useCallback((key: string) => setOpenMonths((o) => o[key] === false ? { ...o, [key]: true } : o), []);
 
   const filtered = useMemo(() => (filterId ? sessions.filter((s) => s.categoryId === filterId) : sessions), [sessions, filterId]);
   const cat = categories.find((c) => c.id === filterId) ?? null;
-  const accent = cat?.color ?? palette.flareDeep;
+  const accent = cat?.color ?? C.fg;
   const total = useMemo(() => summarize(filtered), [filtered]);
-  // a jump to a month before the first session still lands on that (empty) month
-  const start = useMemo(() => {
-    const first = historyStart(filtered, today);
-    if (!focus) return first;
-    const f = { y: +focus.key.slice(0, 4), m: +focus.key.slice(5, 7) };
-    return compareMonths(f, first) < 0 && compareMonths(f, monthOf(today)) <= 0 ? f : first;
-  }, [filtered, today, focus]);
-  const months = useMemo(() => (scale === 'month' ? monthGroups(filtered, today, start) : []), [filtered, today, scale, start]);
+  const days = useMemo(() => buildDaySummaries(filtered, categories), [filtered, categories]);
+  const months = useMemo(() => (scale === 'month' ? monthGroups(filtered, today) : []), [filtered, today, scale]);
   const years = useMemo(() => (scale === 'year' ? yearGroups(filtered, today) : []), [filtered, today, scale]);
 
   // dates saved moments ago rise again in history, in the activity colour
@@ -131,8 +126,8 @@ function TimeBody() {
     const saved = sessions.filter((s) => lastSave.ids.includes(s.id));
     if (!saved.length) return null;
     const key = saved[0].date.slice(0, 7);
-    return { key, days: saved.filter((s) => s.date.startsWith(key)).map((s) => parseDate(s.date).d) };
-  }, [lastSave, highlightSaveId, sessions, filterId]);
+    return { key, days: saved.filter((s) => s.date.startsWith(key)).map((s) => parseDate(s.date).d), color: categories.find((c) => c.id === lastSave.categoryId)?.color ?? C.fg };
+  }, [lastSave, highlightSaveId, sessions, filterId, categories, C.fg]);
 
   const header = (
     <View style={styles.header}>
@@ -143,15 +138,18 @@ function TimeBody() {
             {t.placeLog}
           </T>
         </Pressable>
-        <Pressable onPress={() => router.push(`/jump?target=history&cat=${filterId ?? 'all'}`)} accessibilityRole="button" style={styles.back} hitSlop={8} testID="jump-history">
-          <T variant="labelStrong" color={C.fg}>
-            {t.jumpTo}
-          </T>
-        </Pressable>
+        <View style={styles.actions}>
+          <Pressable onPress={() => router.push('/periods')} accessibilityRole="button" accessibilityLabel="Periodi con nome" style={styles.back} hitSlop={4} testID="named-periods">
+            <T variant="labelStrong" color={C.fg}>Periodi</T>
+          </Pressable>
+          <Pressable onPress={() => router.push(`/jump?target=history&cat=${filterId ?? 'all'}`)} accessibilityRole="button" style={styles.back} hitSlop={4} testID="jump-history">
+            <T variant="labelStrong" color={C.fg}>{t.jumpTo}</T>
+          </Pressable>
+        </View>
       </View>
 
       <T variant="monthTitle" color={C.fg} accessibilityRole="header">
-        {t.history}
+        {scale === 'all' ? t.progress : t.history}
       </T>
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filters} accessibilityRole="tablist">
@@ -169,7 +167,7 @@ function TimeBody() {
         options={[
           { key: 'month', label: t.modeMonth },
           { key: 'year', label: t.modeYear },
-          { key: 'all', label: t.modeAll },
+          { key: 'all', label: t.progress },
         ]}
         testID="scale"
       />
@@ -190,6 +188,8 @@ function TimeBody() {
     </View>
   );
 
+  if (scale === 'year') return <YearMode groups={years} days={days} today={today} header={header} />;
+  if (scale === 'all') return <AllMode sessions={filtered} allSessions={sessions} categories={categories} filterId={filterId} today={today} accent={accent} header={header} />;
   if (!total.sessions) {
     return (
       <ScrollView contentContainerStyle={{ paddingBottom: 60 }}>
@@ -198,12 +198,12 @@ function TimeBody() {
       </ScrollView>
     );
   }
-  if (scale === 'year') return <YearMode groups={years} header={header} accent={accent} />;
-  if (scale === 'all') return <AllMode sessions={filtered} allSessions={sessions} categories={categories} filterId={filterId} today={today} accent={accent} header={header} />;
-  return <MonthMode groups={months} categories={categories} accent={accent} focus={focus} highlight={highlight} header={header} showActivity={!filterId} />;
+  return <MonthMode groups={months} days={days} today={today} filterId={filterId} accent={accent} focus={focus} handledFocusRef={handledFocusRef} highlight={highlight} header={header} openMonths={openMonths} onToggle={toggleMonth} onExpand={expandMonth} />;
 }
 
 function FilterChip({ label, on, onPress, disc }: { label: string; on: boolean; onPress: () => void; disc?: React.ReactNode }) {
+  const C = useSurface();
+  const styles = useMemo(() => makeStyles(C), [C]);
   return (
     <Pressable onPress={onPress} accessibilityRole="tab" aria-selected={on} style={[styles.chip, on && styles.chipOn]} testID={`filter-${label}`}>
       {disc}
@@ -215,6 +215,8 @@ function FilterChip({ label, on, onPress, disc }: { label: string; on: boolean; 
 }
 
 function EmptyHistory() {
+  const C = useSurface();
+  const styles = useMemo(() => makeStyles(C), [C]);
   const { width } = useWindowDimensions();
   return (
     <View style={{ paddingHorizontal: space.gutter, paddingTop: 40, gap: 14 }}>
@@ -235,9 +237,10 @@ function EmptyHistory() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (C: Surface) => StyleSheet.create({
   header: { paddingHorizontal: space.gutter, paddingTop: 8, paddingBottom: 6, gap: 14 },
-  topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  topRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', columnGap: 8 },
+  actions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   back: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: HIT, paddingRight: 8 },
   filters: { gap: 8, paddingRight: 20 },
   chip: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: HIT, paddingHorizontal: 12, borderRadius: 22, borderWidth: 1, borderColor: C.faint },

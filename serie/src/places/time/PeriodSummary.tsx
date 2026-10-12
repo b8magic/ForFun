@@ -10,11 +10,11 @@ import { addDays, compareDates, isLocalDate, startOfWeek } from '@/domain/dates'
 import { summarize } from '@/domain/stats';
 import { Segmented } from '@/ui/controls';
 import { T } from '@/ui/T';
-import { fonts, HIT, surfaces } from '@/ui/theme';
+import { fonts, HIT, type Surface } from '@/ui/theme';
+import { useSurface } from '@/ui/useTheme';
 import { t } from '@/i18n/it';
 import { countsLine, durationLine, shortDate } from './format';
 
-const C = surfaces.calm;
 type Preset = 'today' | 'week' | 'lastWeek' | 'days30' | 'year' | 'custom';
 
 export function presetPeriod(p: Exclude<Preset, 'custom'>, today: LocalDate): { from: LocalDate; to: LocalDate } {
@@ -34,6 +34,7 @@ export function presetPeriod(p: Exclude<Preset, 'custom'>, today: LocalDate): { 
 }
 
 export function PeriodSummary({ sessions, today, accent }: { sessions: readonly Session[]; today: LocalDate; accent: string }) {
+  const C = useSurface();
   const [preset, setPreset] = useState<Preset>('week');
   const [from, setFrom] = useState<string>(presetPeriod('days30', today).from);
   const [to, setTo] = useState<string>(today);
@@ -100,6 +101,8 @@ export function PeriodSummary({ sessions, today, accent }: { sessions: readonly 
 }
 
 function DateField({ label, value, onChange, testID }: { label: string; value: string; onChange: (v: string) => void; testID: string }) {
+  const C = useSurface();
+  const styles = useMemo(() => makeStyles(C), [C]);
   return (
     <View style={{ flex: 1, gap: 4 }}>
       <T variant="label" color={C.mute}>
@@ -123,6 +126,6 @@ function DateField({ label, value, onChange, testID }: { label: string; value: s
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (C: Surface) => StyleSheet.create({
   input: { fontFamily: fonts.mono, fontSize: 16, color: C.fg, paddingVertical: 10, borderBottomWidth: 1.2, borderBottomColor: C.line, minHeight: HIT },
 });

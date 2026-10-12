@@ -1,3 +1,4 @@
+import { useSurface, useThemedStyles } from '@/ui/useTheme';
 /**
  * One export review row: the outgoing event for one session in one
  * destination. Edits here change the outgoing event only; "Applica anche alla
@@ -13,13 +14,11 @@ import { isLocalDate } from '@/domain/dates';
 import { updateSession } from '@/state/actions';
 import { Button, Field, Note, Segmented } from '@/ui/controls';
 import { T } from '@/ui/T';
-import { HIT, palette, surfaces } from '@/ui/theme';
+import { HIT, type Surface } from '@/ui/theme';
 import { t } from '@/i18n/it';
 import { errorText } from '@/sheets/manage/helpers';
 import { Check, longDateIt, Pill } from './parts';
 import { ACTION_LABEL, clearOverride, setOverride, tapIntent, type DestSettings } from './exportModel';
-
-const S = surfaces.night;
 
 const STATUS_TONE: Record<ExportPlanRow['status'], 'good' | 'warn' | 'neutral' | 'bad' | 'accent'> = {
   ready: 'good',
@@ -73,6 +72,8 @@ export function ExportRow({
   onEdit: (fn: (s: DestSettings) => DestSettings) => void;
   linked: boolean;
 }) {
+  const S = useSurface();
+  const styles = useThemedStyles(createStyles);
   const rep = r.representation;
   const ov = settings.overrides[r.session.id] ?? {};
   const existing: ExternalEvent | null = r.duplicate.event ?? r.duplicate.candidates.find((c) => c.event.eventId === r.linkTargetEventId)?.event ?? r.duplicate.candidates[0]?.event ?? null;
@@ -107,7 +108,7 @@ export function ExportRow({
             {`Durata attività: ${r.durationLabel}`}
           </T>
           {rep.status === 'ready' && rep.schedulingPlaceholder && rep.spanMin ? (
-            <T variant="small" color="#F3C46E">
+            <T variant="small" color={S.warning}>
               {`Nel calendario: ${rep.spanMin} min solo di pianificazione`}
             </T>
           ) : null}
@@ -128,7 +129,7 @@ export function ExportRow({
             {`${categoryName.toUpperCase()}  →  ${dest.calendar.title.toUpperCase()}`}
           </T>
           {r.reason && r.status !== 'ready' ? (
-            <T variant="small" color={STATUS_TONE[r.status] === 'warn' ? '#F3C46E' : S.mute}>
+            <T variant="small" color={STATUS_TONE[r.status] === 'warn' ? S.warning : S.mute}>
               {r.reason}
             </T>
           ) : null}
@@ -140,7 +141,7 @@ export function ExportRow({
         </View>
       </Pressable>
       <Pressable onPress={onExpand} accessibilityRole="button" accessibilityLabel={open ? 'Chiudi modifica' : 'Modifica e dettagli'} style={styles.expand} testID={`export-expand-${r.session.id}`}>
-        <T variant="label" color={palette.flare}>
+        <T variant="label" color={S.accent}>
           {open ? 'CHIUDI' : intent.kind === 'decide' ? 'DECIDI' : 'MODIFICA'}
         </T>
       </Pressable>
@@ -168,6 +169,8 @@ function RowEditor({
   onEdit: (fn: (s: DestSettings) => DestSettings) => void;
   linked: boolean;
 }) {
+  const S = useSurface();
+  const styles = useThemedStyles(createStyles);
   const id = r.session.id;
   const [base, setBase] = useState(ov.baseTitle ?? '');
   const [notes, setNotes] = useState(ov.notes !== undefined ? (ov.notes ?? '') : (r.session.notes ?? ''));
@@ -238,7 +241,7 @@ function RowEditor({
               {r.draft ? eventWhen(r.draft) : r.representation.disclosure}
             </T>
             {r.duplicate.differences.length ? (
-              <T variant="small" color="#F3C46E">
+              <T variant="small" color={S.warning}>
                 {`Differenze: ${r.duplicate.differences.map((f) => ({ title: 'titolo', notes: 'note', location: 'luogo', time: 'orario', timing: 'tipo di orario' })[f]).join(', ')}`}
               </T>
             ) : null}
@@ -252,7 +255,7 @@ function RowEditor({
           </T>
           {r.duplicate.candidates.map((c) => (
             <Pressable key={c.event.eventId + (c.event.occurrenceKey ?? '')} onPress={() => onChoice({ linkTargetEventId: c.event.eventId })} accessibilityRole="radio" aria-checked={r.linkTargetEventId === c.event.eventId} style={styles.candidate}>
-              <View style={[styles.dot, r.linkTargetEventId === c.event.eventId && { backgroundColor: palette.flare }]} />
+              <View style={[styles.dot, r.linkTargetEventId === c.event.eventId && { backgroundColor: S.accent }]} />
               <T variant="small" color={S.fg} style={{ flex: 1 }}>
                 {`${c.event.title} · ${eventWhen(c.event)}`}
               </T>
@@ -347,13 +350,13 @@ function RowEditor({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (S: Surface) => StyleSheet.create({
   item: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: S.faint, paddingVertical: 12, gap: 6 },
   main: { flexDirection: 'row', gap: 14, alignItems: 'flex-start' },
   expand: { alignSelf: 'flex-start', marginLeft: 36, minHeight: HIT, justifyContent: 'center' },
   editor: { marginLeft: 36, gap: 12, paddingTop: 4, paddingBottom: 6 },
   compare: { flexDirection: 'row', gap: 12 },
-  compareCol: { flex: 1, gap: 3, padding: 10, borderRadius: 10, backgroundColor: 'rgba(238,232,218,0.05)' },
+  compareCol: { flex: 1, gap: 3, padding: 10, borderRadius: 10, backgroundColor: S.raised },
   candidate: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 44 },
   dot: { width: 12, height: 12, borderRadius: 6, borderWidth: 1.2, borderColor: S.mute },
 });

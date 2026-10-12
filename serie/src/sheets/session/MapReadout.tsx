@@ -1,3 +1,4 @@
+import { useSurface, useThemedStyles } from '@/ui/useTheme';
 /**
  * Position readout — the map fallback for web, Android (no Google Maps key in
  * this build) and iOS 16 (expo-maps' Apple Maps view needs iOS 17). It does not
@@ -5,15 +6,16 @@
  * "preview not available" line.
  */
 import { StyleSheet, View } from 'react-native';
-import { palette, surfaces } from '@/ui/theme';
+import { type Surface } from '@/ui/theme';
 import { T } from '@/ui/T';
 import { t } from '@/i18n/it';
 import { coordsA11y, formatCoords } from './placeForm';
 import type { MapPreviewProps } from './mapPreview.types';
 
-const S = surfaces.night;
-
-export function MapReadout({ coords, label, accent = palette.flare, testID }: MapPreviewProps) {
+export function MapReadout({ coords, label, accent: accentProp, testID }: MapPreviewProps) {
+  const S = useSurface();
+  const accent = accentProp ?? S.accent;
+  const styles = useThemedStyles(createStyles);
   const a11y = `${label}, ${coords ? coordsA11y(coords) : t.sessionSheets.mapNoCoords}. ${t.mapUnavailable}`;
   return (
     <View style={{ gap: 10 }} testID={testID}>
@@ -42,21 +44,21 @@ export function MapReadout({ coords, label, accent = palette.flare, testID }: Ma
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (S: Surface) => StyleSheet.create({
   panel: {
     minHeight: 104,
     paddingHorizontal: 26,
     paddingVertical: 20,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(238,232,218,0.28)',
+    borderColor: S.faint,
     borderRadius: 4,
     justifyContent: 'center',
-    backgroundColor: palette.ink,
+    backgroundColor: S.bg,
     overflow: 'hidden',
   },
-  tickH: { position: 'absolute', top: '50%', width: 12, height: 1, backgroundColor: 'rgba(238,232,218,0.4)' },
-  tickV: { position: 'absolute', left: '50%', width: 1, height: 12, backgroundColor: 'rgba(238,232,218,0.4)' },
+  tickH: { position: 'absolute', top: '50%', width: 12, height: 1, backgroundColor: S.faint },
+  tickV: { position: 'absolute', left: '50%', width: 1, height: 12, backgroundColor: S.faint },
   readout: { flexDirection: 'row', alignItems: 'center', gap: 16 },
   dot: { width: 10, height: 10, borderRadius: 5 },
-  dotEmpty: { borderWidth: 1.2, borderColor: 'rgba(238,232,218,0.5)' },
+  dotEmpty: { borderWidth: 1.2, borderColor: S.mute },
 });

@@ -1,22 +1,18 @@
 /** Product-voice confirmations (e.g. "4 sessioni salvate · Surf" with Annulla). */
 import { useEffect } from 'react';
 import { AccessibilityInfo, Pressable, StyleSheet } from 'react-native';
-import Animated, { FadeIn, FadeInDown, FadeOutDown, ReduceMotion } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeInDown, FadeOut, FadeOutDown, ReduceMotion } from 'react-native-reanimated';
 import { useMotionReduced } from '@/state/selectors';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp } from '@/state/store';
 import { dismissToast, setScreenReaderActive } from '@/state/actions';
-import { palette } from './theme';
+import { useSurface } from './useTheme';
 import { T } from './T';
 
-/**
- * Sits over the details row and the top of the Save pill (empty right after a save), never over the
- * week-lines where the next tap goes, nor over the header that names the active activity.
- */
+/** One announcement host; Home reserves real layout space for its visual toast. */
 export function Toast() {
   const toast = useApp((s) => s.toast);
-  const insets = useSafeAreaInsets();
-  const reduced = useMotionReduced();
+  const place = useApp((s) => s.place);
 
   // VoiceOver: announce every new toast (live regions are Android-only) and keep undo toasts up longer
   useEffect(() => {
@@ -30,12 +26,21 @@ export function Toast() {
     if (toast) AccessibilityInfo.announceForAccessibility(toast.action ? `${toast.text}. ${toast.action.label} disponibile.` : toast.text);
   }, [toast]);
 
+  return place === 'time' ? <ToastContent /> : null;
+}
+
+export function ToastContent({ inline = false }: { inline?: boolean }) {
+  const S = useSurface();
+  const toast = useApp((s) => s.toast);
+  const insets = useSafeAreaInsets();
+  const reduced = useMotionReduced();
+
   if (!toast) return null;
   return (
-    <Animated.View key={toast.id} entering={reduced ? FadeIn.duration(120).reduceMotion(ReduceMotion.Never) : FadeInDown.duration(260).reduceMotion(ReduceMotion.Never)} exiting={reduced ? undefined : FadeOutDown.duration(200).reduceMotion(ReduceMotion.Never)} style={[styles.wrap, { bottom: Math.max(insets.bottom, 10) + 72 }]} accessibilityLiveRegion="polite" testID="toast">
-      <Animated.View style={styles.body}>
+    <Animated.View key={toast.id} entering={inline || reduced ? FadeIn.duration(120).reduceMotion(ReduceMotion.Never) : FadeInDown.duration(260).reduceMotion(ReduceMotion.Never)} exiting={reduced ? undefined : inline ? FadeOut.duration(160).reduceMotion(ReduceMotion.Never) : FadeOutDown.duration(200).reduceMotion(ReduceMotion.Never)} style={[styles.wrap, inline ? styles.inline : { bottom: Math.max(insets.bottom, 10) + 72 }]} accessibilityLiveRegion="polite" testID="toast">
+      <Animated.View style={[styles.body, { backgroundColor: S.raised, borderColor: S.faint }]}>
         <Pressable onPress={dismissToast} style={{ flex: 1 }} accessibilityRole="text" accessibilityHint="Tocca per chiudere">
-          <T variant="small" color={toast.tone === 'error' ? palette.danger : palette.foam} numberOfLines={2}>
+          <T variant="small" color={toast.tone === 'error' ? S.danger : S.fg} numberOfLines={2}>
             {toast.text}
           </T>
         </Pressable>
@@ -51,7 +56,7 @@ export function Toast() {
             style={styles.action}
             testID="toast-action"
           >
-            <T variant="labelStrong" color={palette.flare}>
+            <T variant="labelStrong" color={S.accent}>
               {toast.action.label}
             </T>
           </Pressable>
@@ -63,6 +68,7 @@ export function Toast() {
 
 const styles = StyleSheet.create({
   wrap: { position: 'absolute', left: 12, right: 12, zIndex: 50 },
-  body: { minHeight: 48, borderRadius: 14, backgroundColor: palette.ink3, paddingHorizontal: 16, paddingVertical: 4, flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: StyleSheet.hairlineWidth, borderColor: 'rgba(238,232,218,0.16)' },
+  inline: { position: 'relative', left: 0, right: 0, marginBottom: 2 },
+  body: { minHeight: 48, borderRadius: 14, paddingHorizontal: 16, paddingVertical: 4, flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: StyleSheet.hairlineWidth },
   action: { minHeight: 44, minWidth: 44, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 6 },
 });

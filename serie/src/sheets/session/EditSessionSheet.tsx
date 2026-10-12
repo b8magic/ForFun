@@ -1,3 +1,4 @@
+import { useSurface, useThemedStyles } from '@/ui/useTheme';
 /**
  * "Modifica sessione" — one saved session. Date, activity, notes, place and
  * timing are each independently optional and can be cleared. Writes go
@@ -15,7 +16,7 @@ import { useApp } from '@/state/store';
 import { useMotionReduced } from '@/state/selectors';
 import { deleteSession, showToast, updateSession } from '@/state/actions';
 import { Button, Field, Note, Section, Sheet } from '@/ui/controls';
-import { HIT, palette, surfaces } from '@/ui/theme';
+import { HIT, type Surface } from '@/ui/theme';
 import { T } from '@/ui/T';
 import { t } from '@/i18n/it';
 import { ActivityPicker } from './ActivityPicker';
@@ -27,7 +28,6 @@ import { useConfirmDiscard } from './useConfirmDiscard';
 import { buildSessionPatch, checkSessionDate, instantDate, isEmptyPatch, provenanceSpanText, shortDate } from './drafts';
 import { evaluateTiming, formFromTiming, type TimingForm } from './timingForm';
 
-const S = surfaces.night;
 const s = t.sessionSheets;
 
 const close = () => (router.canGoBack() ? router.back() : router.replace('/'));
@@ -43,6 +43,7 @@ function saveErrorText(e: unknown): string {
 }
 
 export function EditSessionSheet({ id }: { id: string }) {
+  const S = useSurface();
   const session = useApp((st) => st.sessions.find((x) => x.id === id) ?? null);
   const categories = useApp((st) => st.categories);
   const today = useApp((st) => st.today);
@@ -50,7 +51,7 @@ export function EditSessionSheet({ id }: { id: string }) {
 
   if (!session) {
     // Just deleted: the sheet is closing, don't flash "not found".
-    if (deleting) return <View style={{ flex: 1, backgroundColor: palette.ink2 }} />;
+    if (deleting) return <View style={{ flex: 1, backgroundColor: S.bg }} />;
     return (
       <Sheet title={s.sessionNotFound} eyebrow={t.session} testID="session-missing">
         <T variant="body" color={S.mute}>
@@ -64,6 +65,8 @@ export function EditSessionSheet({ id }: { id: string }) {
 }
 
 function Editor({ session, categories, today, onDeleting }: { session: Session; categories: Category[]; today: string; onDeleting: (v: boolean) => void }) {
+  const S = useSurface();
+  const styles = useThemedStyles(createStyles);
   const deviceZone = useMemo(() => deviceTimeZone(), []);
   const [dateText, setDateText] = useState(session.date);
   const [categoryId, setCategoryId] = useState(session.categoryId);
@@ -103,7 +106,7 @@ function Editor({ session, categories, today, onDeleting }: { session: Session; 
   const date = dateCheck.ok ? dateCheck.date : session.date;
   const ev = useMemo(() => evaluateTiming(date, timing, deviceZone), [date, timing, deviceZone]);
   const category = categories.find((c) => c.id === categoryId) ?? null;
-  const accent = category?.color ?? palette.flare;
+  const accent = category?.color ?? S.accent;
   const patch = ev.ok && ev.timing ? buildSessionPatch(session, { date, categoryId, notes, place, timing: ev.timing }) : null;
   const dirty = !dateCheck.ok || !ev.ok || (patch != null && !isEmptyPatch(patch));
   const valid = dateCheck.ok && ev.ok;
@@ -221,7 +224,7 @@ function Editor({ session, categories, today, onDeleting }: { session: Session; 
             </View>
           ) : (
             <Pressable onPress={askDelete} accessibilityRole="button" style={styles.quiet} testID="session-delete">
-              <T variant="labelStrong" color={palette.danger}>
+              <T variant="labelStrong" color={S.danger}>
                 {t.deleteSession}
               </T>
             </Pressable>
@@ -238,6 +241,7 @@ function providerLabel(provider: string, accountId: string): string {
 }
 
 function Provenance({ records, zone }: { records: ProvenanceRecord[]; zone: string }) {
+  const S = useSurface();
   return (
     <Section label={s.provenance}>
       {records.map((r) => {
@@ -259,6 +263,8 @@ function Provenance({ records, zone }: { records: ProvenanceRecord[]; zone: stri
 }
 
 function ExportLinks({ links, zone }: { links: ExportLinkRecord[]; zone: string }) {
+  const S = useSurface();
+  const styles = useThemedStyles(createStyles);
   return (
     <Section label={s.exportLinks} hint={s.exportLinksNote}>
       {links.map((l, i) => {
@@ -283,7 +289,7 @@ function ExportLinks({ links, zone }: { links: ExportLinkRecord[]; zone: string 
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (S: Surface) => StyleSheet.create({
   danger: { marginTop: 8, paddingTop: 10, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: S.faint },
   dangerRow: { flexDirection: 'row', gap: 12 },
   quiet: { minHeight: HIT, justifyContent: 'center', alignSelf: 'flex-start' },

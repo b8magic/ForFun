@@ -1,3 +1,4 @@
+import { useSurface, useThemedStyles } from '@/ui/useTheme';
 /**
  * Optional details for the CURRENT SELECTION, before saving. Nothing here is
  * required. "Applica" stores them as pendingDetails; the actual write happens
@@ -13,7 +14,7 @@ import { useApp } from '@/state/store';
 import { useActive, useMotionReduced } from '@/state/selectors';
 import { setPendingDetails } from '@/state/actions';
 import { Button, Field, Note, Section, Sheet } from '@/ui/controls';
-import { HIT, palette, surfaces } from '@/ui/theme';
+import { HIT, type Surface } from '@/ui/theme';
 import { T } from '@/ui/T';
 import { t } from '@/i18n/it';
 import { PlaceEditor } from './PlaceEditor';
@@ -23,12 +24,13 @@ import { buildDetailsDraft, datesSummary } from './drafts';
 import { compactPlace } from './placeForm';
 import { emptyTimingForm, evaluateTiming, formFromTiming, isTimingFormEmpty, type TimingForm } from './timingForm';
 
-const S = surfaces.night;
 const s = t.sessionSheets;
 
 const close = () => (router.canGoBack() ? router.back() : router.replace('/'));
 
 export function DetailsSheet() {
+  const S = useSurface();
+  const styles = useThemedStyles(createStyles);
   const selection = useApp((st) => st.selection);
   const pending = useApp((st) => st.pendingDetails);
   const today = useApp((st) => st.today);
@@ -58,7 +60,7 @@ export function DetailsSheet() {
       return !e.ok || !e.timing || e.timing.state !== want;
     });
   }, [ev, selection, timing, deviceZone]);
-  const accent = active?.color ?? palette.flare;
+  const accent = active?.color ?? S.accent;
   const empty = !notes.trim() && !compactPlace(place) && isTimingFormEmpty(timing);
 
   const apply = () => {
@@ -144,7 +146,7 @@ export function DetailsSheet() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (S: Surface) => StyleSheet.create({
   notes: { gap: 6, paddingTop: 14, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: S.faint },
   clear: { minHeight: HIT, alignItems: 'center', justifyContent: 'center' },
 });

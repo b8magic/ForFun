@@ -1,3 +1,4 @@
+import { useSurface, useThemedStyles } from '@/ui/useTheme';
 /**
  * Timing editor — the five representations of a session's time:
  *   Solo data · Ora di inizio · Inizio e fine · Solo durata · Inizio + durata
@@ -18,7 +19,7 @@ import type { LocalDate, TimingState } from '@/domain/types';
 import { parseDurationInput, formatDuration } from '@/domain/duration';
 import { isWallTime } from '@/domain/zoned';
 import { Button, Note, Segmented, Toggle } from '@/ui/controls';
-import { fonts, HIT, palette, surfaces } from '@/ui/theme';
+import { fonts, HIT, type Surface } from '@/ui/theme';
 import { T } from '@/ui/T';
 import { t } from '@/i18n/it';
 import { useMotionReduced } from '@/state/selectors';
@@ -39,7 +40,6 @@ import {
   type TimingForm,
 } from './timingForm';
 
-const S = surfaces.night;
 const s = t.sessionSheets;
 
 interface Props {
@@ -55,7 +55,10 @@ interface Props {
   testID?: string;
 }
 
-export function TimingEditor({ date, value: form, onChange, deviceZone, showErrors = false, accent = palette.flare, testID = 'timing' }: Props) {
+export function TimingEditor({ date, value: form, onChange, deviceZone, showErrors = false, accent: accentProp, testID = 'timing' }: Props) {
+  const S = useSurface();
+  const accent = accentProp ?? S.accent;
+  const styles = useThemedStyles(createStyles);
   const reduced = useMotionReduced();
   const [pending, setPending] = useState<SwitchPreview | null>(null);
   const [prefill, setPrefill] = useState<SwitchPreview['prefill']>(null);
@@ -193,7 +196,7 @@ export function TimingEditor({ date, value: form, onChange, deviceZone, showErro
           </View>
 
           {fieldErrors.map(({ f, msg }) => (
-            <T key={f} variant="small" color={palette.danger} accessibilityLiveRegion="polite" testID={`${testID}-error-${f}`}>
+            <T key={f} variant="small" color={S.danger} accessibilityLiveRegion="polite" testID={`${testID}-error-${f}`}>
               {msg}
             </T>
           ))}
@@ -263,16 +266,17 @@ export function TimingEditor({ date, value: form, onChange, deviceZone, showErro
               onChangeText={(v) => set({ zone: v })}
               onBlur={() => touch('zone')}
               placeholder={deviceZone}
-              placeholderTextColor="rgba(238,232,218,0.55)"
-              selectionColor={palette.flare}
+              placeholderTextColor={S.mute}
+          keyboardAppearance={S.name === 'night' ? 'dark' : 'light'}
+              selectionColor={S.accent}
               autoCapitalize="none"
               autoCorrect={false}
               accessibilityLabel={t.timeZone}
-              style={[styles.zoneInput, { borderBottomColor: ev.errors.zone ? palette.danger : S.faint }]}
+              style={[styles.zoneInput, { borderBottomColor: ev.errors.zone ? S.danger : S.faint }]}
               testID={`${testID}-zone`}
             />
             {ev.errors.zone ? (
-              <T variant="small" color={palette.danger} accessibilityLiveRegion="polite">
+              <T variant="small" color={S.danger} accessibilityLiveRegion="polite">
                 {fieldErrorCopy('zone')}
               </T>
             ) : (
@@ -315,17 +319,20 @@ function TimeInput({
   wide,
   ...props
 }: TextInputProps & { label: string; invalid?: boolean; suffix?: string | null; suffixColor?: string; suffixPlain?: boolean; wide?: boolean }) {
+  const S = useSurface();
+  const styles = useThemedStyles(createStyles);
   const [focused, setFocused] = useState(false);
   return (
     <View style={[{ gap: 6 }, wide ? { flex: 1 } : styles.timeCol]}>
       <T variant="label" color={S.mute}>
         {label}
       </T>
-      <View style={[styles.timeBox, { borderBottomColor: invalid ? palette.danger : focused ? palette.foam : S.faint }]}>
+      <View style={[styles.timeBox, { borderBottomColor: invalid ? S.danger : focused ? S.fg : S.faint }]}>
         <TextInput
           placeholder={s.timePlaceholder}
-          placeholderTextColor="rgba(238,232,218,0.55)"
-          selectionColor={palette.flare}
+          placeholderTextColor={S.mute}
+          keyboardAppearance={S.name === 'night' ? 'dark' : 'light'}
+          selectionColor={S.accent}
           keyboardType="numbers-and-punctuation"
           maxLength={5}
           autoCorrect={false}
@@ -352,8 +359,8 @@ function TimeInput({
   );
 }
 
-const styles = StyleSheet.create({
-  preview: { gap: 12, paddingLeft: 14, borderLeftWidth: 2, borderLeftColor: 'rgba(238,232,218,0.4)' },
+const createStyles = (S: Surface) => StyleSheet.create({
+  preview: { gap: 12, paddingLeft: 14, borderLeftWidth: 2, borderLeftColor: S.faint },
   bulletRow: { flexDirection: 'row', gap: 10, alignItems: 'flex-start' },
   bullet: { width: 4, height: 4, borderRadius: 2, marginTop: 8 },
   previewActions: { flexDirection: 'row', alignItems: 'center', gap: 18 },
@@ -361,11 +368,11 @@ const styles = StyleSheet.create({
   fieldRow: { flexDirection: 'row', gap: 20, alignItems: 'flex-end' },
   timeCol: { flex: 1, minWidth: 0 },
   timeBox: { flexDirection: 'row', alignItems: 'center', gap: 8, borderBottomWidth: 1.2, minHeight: 52 },
-  timeInput: { flex: 1, minWidth: 0, fontFamily: fonts.mono, fontSize: 24, letterSpacing: 0.5, color: palette.foam, paddingVertical: 8 },
+  timeInput: { flex: 1, minWidth: 0, fontFamily: fonts.mono, fontSize: 24, letterSpacing: 0.5, color: S.fg, paddingVertical: 8 },
   derived: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   ring: { width: 8, height: 8, borderRadius: 4, borderWidth: 1.2 },
   source: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 36 },
   sourceDot: { width: 8, height: 8, borderRadius: 4 },
   zoneRow: { flexDirection: 'row', alignItems: 'center', gap: 14, minHeight: HIT },
-  zoneInput: { fontFamily: fonts.mono, fontSize: 16, color: palette.foam, paddingVertical: 10, borderBottomWidth: 1.2, minHeight: HIT },
+  zoneInput: { fontFamily: fonts.mono, fontSize: 16, color: S.fg, paddingVertical: 10, borderBottomWidth: 1.2, minHeight: HIT },
 });

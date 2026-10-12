@@ -1,48 +1,60 @@
-/**
- * Anno — one group per year: exact annual sessions, recorded hours with
- * completeness, and a compact monthly breakdown drawn as a year-long swell.
- * Tapping a month drills into Mese at that month (same activity, same place).
- */
-import { memo, useEffect } from 'react';
+/** Anno — each recorded year is a grid of twelve miniature calendars. */
+import { memo, useMemo } from 'react';
 import { FlatList, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
-import { Canvas, Path, usePathValue, DashPathEffect } from '@shopify/react-native-skia';
-import { useSharedValue, withTiming, Easing } from 'react-native-reanimated';
 import type { YearGroup } from '@/domain/history';
-import { surfaces, space } from '@/ui/theme';
+import type { DaySummary } from '@/domain/daySummaries';
+import type { LocalDate } from '@/domain/types';
+import { monthWeeks, parseDate } from '@/domain/dates';
+import { space, type Surface } from '@/ui/theme';
+import { useSurface } from '@/ui/useTheme';
 import { T } from '@/ui/T';
 import { MONTHS_SHORT, MONTHS_TITLE, t } from '@/i18n/it';
 import { focusHistoryMonth } from '@/state/actions';
-import { useMotionReduced } from '@/state/selectors';
 import { durationLine } from './format';
 
-const C = surfaces.calm;
+interface Props {
+  groups: YearGroup[];
+  days: Map<string, DaySummary>;
+  header: React.ReactElement;
+  today: LocalDate;
+}
 
-export function YearMode({ groups, header, accent }: { groups: YearGroup[]; header: React.ReactElement; accent: string }) {
+export function YearMode({ groups, days, header, today }: Props) {
   return (
     <FlatList
       data={groups}
       keyExtractor={(g) => String(g.year)}
       ListHeaderComponent={header}
-      renderItem={({ item }) => <YearRow g={item} accent={accent} />}
-      contentContainerStyle={{ paddingBottom: 80 }}
+      renderItem={({ item }) => <YearRow g={item} days={days} today={today} />}
+      initialNumToRender={3}
+      windowSize={5}
+      contentContainerStyle={{ paddingBottom: 90 }}
       testID="year-list"
     />
   );
 }
 
-const YearRow = memo(function YearRow({ g, accent }: { g: YearGroup; accent: string }) {
+const YearRow = memo(function YearRow({ g, days, today }: {
+  g: YearGroup;
+  days: Map<string, DaySummary>;
+  today: LocalDate;
+}) {
+  const C = useSurface();
+  const styles = useMemo(() => makeStyles(C), [C]);
   const { width } = useWindowDimensions();
-  const W = width - 2 * space.gutter;
-  const max = Math.max(1, ...g.months.map((m) => m.summary.sessions));
+  const columns = width >= 680 ? 4 : 3;
+  const tileWidth = (width - 2 * space.gutter - (columns - 1) * 10) / columns;
   const dur = durationLine(g.summary.duration);
+  const populated = g.summary.sessions > 0;
+
   return (
-    <View style={styles.year} accessibilityLabel={`${g.year}: ${t.sessions(g.summary.sessions)}${dur ? `. ${dur}` : ''}`}>
-      <View style={styles.head}>
-        <T variant="hero" color={g.summary.sessions ? C.fg : C.mute}>
+    <View style={styles.year} testID={`year-${g.year}`}>
+      <View style={styles.head} accessible accessibilityLabel={`${g.year}: ${t.sessions(g.summary.sessions)}${dur ? `. ${dur}` : ''}`}>
+        <T variant="hero" color={populated ? C.fg : C.mute}>
           {g.year}
         </T>
         <View style={{ alignItems: 'flex-end', paddingBottom: 10 }}>
-          <T variant="heading" color={C.fg} style={{ fontVariant: ['tabular-nums'] }}>
+          <T variant="heading" color={populated ? C.fg : C.mute} style={{ fontVariant: ['tabular-nums'] }}>
             {g.summary.sessions}
           </T>
           <T variant="label" color={C.mute}>
@@ -50,88 +62,96 @@ const YearRow = memo(function YearRow({ g, accent }: { g: YearGroup; accent: str
           </T>
         </View>
       </View>
-      {g.summary.sessions ? (
-        <T variant="data" color={C.mute} style={{ marginBottom: 6 }}>
-          {t.activeDays(g.summary.activeDays)} · {dur}
-        </T>
-      ) : (
-        <T variant="data" color={C.mute} style={{ marginBottom: 6 }}>
-          {t.emptyMonth}
-        </T>
-      )}
-      <YearSwell width={W} counts={g.months.map((m) => (m.future ? -1 : m.summary.sessions))} max={max} accent={accent} />
-      <View style={styles.cols}>
-        {g.months.map((m) => (
-          <Pressable
-            key={m.key}
-            style={styles.col}
-            disabled={m.future}
-            onPress={() => focusHistoryMonth(m.key)}
-            accessibilityRole="button"
-            accessibilityLabel={`${MONTHS_TITLE[m.month.m - 1]} ${g.year}: ${m.future ? 'futuro' : t.sessions(m.summary.sessions)}`}
-            aria-disabled={m.future}
-            testID={`year-month-${m.key}`}
-          >
-            <T variant="label" color={C.mute} style={{ letterSpacing: 0.6 }}>
-              {MONTHS_SHORT[m.month.m - 1]}
-            </T>
-            <T variant={m.summary.sessions ? 'dataStrong' : 'data'} color={m.future ? C.faint : m.summary.sessions ? C.fg : C.mute} style={{ fontSize: 12 }}>
-              {m.future ? '—' : m.summary.sessions}
-            </T>
-          </Pressable>
-        ))}
-      </View>
+      {populated ? (
+        <>
+          <T variant="data" color={C.mute} style={{ marginBottom: 18 }}>
+            {[t.activeDays(g.summary.activeDays), dur].filter(Boolean).join(' · ')}
+          </T>
+          <View style={styles.grid}>
+            {g.months.map((m) => <YearMonth key={m.key} month={m} days={days} today={today} width={tileWidth} />)}
+          </View>
+        </>
+      ) : null}
     </View>
   );
 });
 
-function YearSwell({ width, counts, max, accent }: { width: number; counts: number[]; max: number; accent: string }) {
-  const reduced = useMotionReduced();
-  const grow = useSharedValue(reduced ? 1 : 0);
-  useEffect(() => {
-    grow.value = reduced ? 1 : withTiming(1, { duration: 800, easing: Easing.bezier(0.22, 1, 0.36, 1) });
-  }, [counts.join(','), reduced]); // eslint-disable-line react-hooks/exhaustive-deps
-  const H = 56;
-  const base = H - 4;
-  const colW = width / 12;
-  const pastEnd = counts.findIndex((c) => c < 0);
-  const lastX = pastEnd < 0 ? width : pastEnd * colW;
-  const line = usePathValue((b) => {
-    'worklet';
-    const n = 120;
-    for (let i = 0; i <= n; i++) {
-      const x = (i / n) * lastX;
-      let y = base;
-      for (let k = 0; k < 12; k++) {
-        const c = counts[k];
-        if (c <= 0) continue;
-        const dx = x - (k + 0.5) * colW;
-        y -= (c / max) * (H - 12) * grow.value * Math.exp(-(dx * dx) / (2 * (colW * 0.32) * (colW * 0.32)));
-      }
-      if (i === 0) b.moveTo(x, y);
-      else b.lineTo(x, y);
-    }
-  });
-  const future = usePathValue((b) => {
-    'worklet';
-    if (lastX >= width) return;
-    b.moveTo(lastX, base);
-    b.lineTo(width, base);
-  });
-  return (
-    <Canvas style={{ width, height: H }} pointerEvents="none">
-      <Path path={line} style="stroke" strokeWidth={1.8} strokeJoin="round" strokeCap="round" color={C.line} />
-      <Path path={future} style="stroke" strokeWidth={1.2} color={C.faint}>
-        <DashPathEffect intervals={[3, 5]} />
-      </Path>
-      <Path path={line} style="stroke" strokeWidth={0} color={accent} />
-    </Canvas>
-  );
-}
+const YearMonth = memo(function YearMonth({ month, days, today, width }: {
+  month: YearGroup['months'][number];
+  days: Map<string, DaySummary>;
+  today: LocalDate;
+  width: number;
+}) {
+  const C = useSurface();
+  const styles = useMemo(() => makeStyles(C), [C]);
+  const weeks = useMemo(() => monthWeeks(month.month), [month.month]);
+  const populated = !month.future && month.summary.sessions > 0;
+  const dur = durationLine(month.summary.duration);
+  const label = `${MONTHS_TITLE[month.month.m - 1]} ${month.month.y}: ${month.future ? 'mese futuro' : t.sessions(month.summary.sessions)}${populated ? `, ${t.activeDays(month.summary.activeDays)}${dur ? `. ${dur}` : ''}` : ''}`;
+  const dotSize = Math.min(10, Math.max(6, (width - 20) / 7 - 3));
 
-const styles = StyleSheet.create({
-  year: { paddingHorizontal: space.gutter, paddingTop: 18, paddingBottom: 18, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: C.faint },
+  return (
+    <Pressable
+      onPress={() => focusHistoryMonth(month.key)}
+      disabled={!populated}
+      accessible
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityHint={populated ? 'Apri il mese in Storia' : undefined}
+      accessibilityState={{ disabled: !populated }}
+      style={[styles.tile, { width }]}
+      testID={`year-month-${month.key}`}
+    >
+      <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" aria-hidden>
+        <View style={styles.tileHead}>
+          <T variant="labelStrong" color={populated ? C.fg : C.mute} style={{ fontSize: 10, letterSpacing: 0.6 }}>
+            {MONTHS_SHORT[month.month.m - 1]}
+          </T>
+          <T variant="small" color={populated ? C.fg : C.mute} style={{ fontSize: 12, lineHeight: 15 }}>
+            {month.future ? '—' : month.summary.sessions}
+          </T>
+        </View>
+        <View style={styles.monthDays}>
+          {weeks.map((week, row) => (
+            <View key={row} style={styles.week}>
+              {week.map((date) => {
+                const p = parseDate(date);
+                const inMonth = p.y === month.month.y && p.m === month.month.m;
+                const day = inMonth && !month.future && date <= today ? days.get(date) : undefined;
+                return (
+                  <View key={date} style={styles.cell}>
+                    {!inMonth ? null : day?.count ? (
+                      <MiniDay day={day} size={dotSize} border={C.faint} />
+                    ) : (
+                      <View style={{ width: dotSize, height: dotSize, borderRadius: dotSize / 2, backgroundColor: C.faint, opacity: month.future || date > today ? 0.45 : 1 }} />
+                    )}
+                  </View>
+                );
+              })}
+            </View>
+          ))}
+        </View>
+      </View>
+    </Pressable>
+  );
+});
+
+/** Tiny native bands retain every activity hue without a canvas per day. */
+const MiniDay = memo(function MiniDay({ day, size, border }: { day: DaySummary; size: number; border: string }) {
+  return (
+    <View style={{ width: size, height: size, borderRadius: Math.max(2, size * 0.18), borderWidth: StyleSheet.hairlineWidth, borderColor: border, flexDirection: 'row', overflow: 'hidden' }} testID={`year-day-${day.date}`}>
+      {day.categories.map((activity) => <View key={activity.categoryId} style={{ flex: 1, backgroundColor: activity.color }} testID={`year-day-${day.date}-${activity.categoryId}`} />)}
+    </View>
+  );
+});
+
+const makeStyles = (C: Surface) => StyleSheet.create({
+  year: { paddingHorizontal: space.gutter, paddingTop: 18, paddingBottom: 24, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: C.faint },
   head: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' },
-  cols: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 2 },
-  col: { width: '16.66%', alignItems: 'center', minHeight: 48, justifyContent: 'center', gap: 1 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, alignItems: 'flex-start' },
+  tile: { borderWidth: StyleSheet.hairlineWidth, borderColor: C.faint, borderRadius: 12, paddingHorizontal: 10, paddingTop: 9, paddingBottom: 10, minHeight: 118 },
+  tileHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 9 },
+  monthDays: { gap: 3 },
+  week: { flexDirection: 'row' },
+  cell: { flex: 1, alignItems: 'center', justifyContent: 'center', height: 10 },
 });

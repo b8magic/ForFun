@@ -59,7 +59,7 @@ export const t = {
   history: 'Storia',
   modeMonth: 'Mese',
   modeYear: 'Anno',
-  modeAll: 'Tutto',
+  modeAll: 'Progressi',
   jumpTo: 'Vai a…',
   backToLog: 'Torna a Registra',
   menu: 'Menu',
@@ -333,7 +333,7 @@ export const t = {
     errMissing: 'Questa attività non esiste più.',
     // menu
     historyDetail: 'Mese · Anno',
-    progressDetail: 'Tutto',
+    progressDetail: 'Progressi',
     pendingExports: (n: number) => `${n} ${plural(n, 'esportazione', 'esportazioni')} in sospeso`,
     motion: 'Movimento',
     motionSystem: 'Segui il sistema',

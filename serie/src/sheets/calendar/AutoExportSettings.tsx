@@ -1,3 +1,4 @@
+import { useSurface } from '@/ui/useTheme';
 /**
  * Esportazione automatica — off by default. When on, every eligible session
  * committed locally is queued for the chosen calendars. Saving is never
@@ -27,7 +28,6 @@ import { useApp } from '@/state/store';
 import { refreshAll } from '@/state/actions';
 import { Sheet, Section, Button, Field, Note, Segmented, Toggle } from '@/ui/controls';
 import { T } from '@/ui/T';
-import { palette, surfaces } from '@/ui/theme';
 import { t } from '@/i18n/it';
 import { IdentityDisc } from '@/graphics/IdentityDisc';
 import { useConnections } from './useConnections';
@@ -35,9 +35,8 @@ import { useCalendars } from './useCalendars';
 import { CalendarList, ChoiceRow, ConnectionList, LabelChips, PROVIDER_NAMES, usable } from './parts';
 import { SPAN_CHOICES } from './exportModel';
 
-const S = surfaces.night;
-
 export function AutoExportSettings() {
+  const S = useSurface();
   const categories = useApp((s) => s.categories);
   const conn = useConnections();
   const cals = useCalendars(conn.providers, conn.connections, 'write');
@@ -188,7 +187,7 @@ export function AutoExportSettings() {
                 on={inScope}
                 disabled={!scopeSome}
                 color={c.color}
-                left={<IdentityDisc size={28} pattern={c.pattern} color={c.color} stripe={palette.foam} animated={false} />}
+                left={<IdentityDisc size={28} pattern={c.pattern} color={c.color} stripe={S.fg} animated={false} />}
                 onPress={() =>
                   update((cfg) => {
                     const ids = cfg.scope === 'all' ? categories.map((x) => x.id) : cfg.scope.categoryIds;
@@ -281,6 +280,7 @@ export function AutoExportSettings() {
 }
 
 function RuleRow<K extends string>({ label, hint, value, options, onChange, testID }: { label: string; hint: string; value: K; options: { key: K; label: string }[]; onChange: (k: K) => void; testID?: string }) {
+  const S = useSurface();
   return (
     <View style={{ gap: 6, paddingVertical: 4 }}>
       <T variant="bodyStrong" color={S.fg}>
@@ -309,6 +309,7 @@ function DestinationEditor({
   connections: ReturnType<typeof useConnections>['connections'];
   testPrefix: string;
 }) {
+  const S = useSurface();
   return (
     <View style={{ gap: 16 }}>
       {(['google', 'apple'] as ProviderKind[]).map((k) => {

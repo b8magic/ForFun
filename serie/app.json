@@ -2,22 +2,21 @@
   "expo": {
     "name": "Serie",
     "slug": "serie",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "dark",
+    "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "app.serie.ios",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
-        "UIStatusBarStyle": "UIStatusBarStyleLightContent",
         "CFBundleDevelopmentRegion": "it"
       }
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#0C0B09",
+        "backgroundColor": "#F6F2E9",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
@@ -37,7 +36,11 @@
           "image": "./assets/splash-icon.png",
           "imageWidth": 200,
           "resizeMode": "contain",
-          "backgroundColor": "#0C0B09"
+          "backgroundColor": "#F6F2E9",
+          "dark": {
+            "backgroundColor": "#0C0B09",
+            "image": "./assets/splash-icon.png"
+          }
         }
       ],
       "expo-sqlite",
@@ -84,10 +87,17 @@
           "calendarPermission": "Serie legge i calendari che scegli per importare le sessioni e controllare i doppioni prima di esportare. Scrive solo gli eventi che confermi.",
           "remindersPermission": false
         }
+      ],
+      "expo-system-ui",
+      [
+        "expo-status-bar",
+        {
+          "style": "dark"
+        }
       ]
     ],
     "scheme": "serie",
-    "backgroundColor": "#0C0B09",
+    "backgroundColor": "#F6F2E9",
     "experiments": {
       "typedRoutes": false
     }

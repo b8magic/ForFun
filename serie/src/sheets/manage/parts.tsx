@@ -1,3 +1,4 @@
+import { useSurface } from '@/ui/useTheme';
 /**
  * Small building blocks shared by the activities, menu and jump sheets.
  * Everything follows the identity: hairlines, mono labels, foam on ink,
@@ -7,11 +8,9 @@ import { type ReactNode, useEffect, useState } from 'react';
 import { Keyboard, LayoutAnimation, Platform, Pressable, StyleSheet, View, type KeyboardEvent } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import { palette, surfaces, HIT } from '@/ui/theme';
+import { HIT } from '@/ui/theme';
 import { T } from '@/ui/T';
 import { useMotionReduced } from '@/state/selectors';
-
-const S = surfaces.night;
 
 /** Dismiss the current sheet (falls back to the composition when opened directly by URL). */
 export function closeSheet() {
@@ -81,9 +80,11 @@ export function FooterPair({ secondary, primary, stacked }: { secondary?: ReactN
 }
 
 /** The ring used by every one-of-many choice: hollow, or holding a dot in the accent colour. */
-export function ChoiceRing({ on, accent = palette.flare }: { on: boolean; accent?: string }) {
+export function ChoiceRing({ on, accent: accentProp }: { on: boolean; accent?: string }) {
+  const S = useSurface();
+  const accent = accentProp ?? S.accent;
   return (
-    <View style={[styles.ring, { borderColor: on ? palette.foam : 'rgba(238,232,218,0.42)' }]}>
+    <View style={[styles.ring, { borderColor: on ? S.fg : S.faint }]}>
       {on ? <View style={[styles.ringDot, { backgroundColor: accent }]} /> : null}
     </View>
   );
@@ -111,6 +112,7 @@ export function RadioRow({
   testID?: string;
   accessibilityLabel?: string;
 }) {
+  const S = useSurface();
   return (
     <Pressable
       onPress={onPress}
@@ -124,7 +126,7 @@ export function RadioRow({
       <ChoiceRing on={on} accent={accent} />
       {left}
       <View style={{ flex: 1, gap: 2, minWidth: 0 }}>
-        <T variant="body" color={on ? S.fg : 'rgba(238,232,218,0.86)'}>
+        <T variant="body" color={S.fg}>
           {title}
         </T>
         {detail ? (

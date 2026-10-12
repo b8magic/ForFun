@@ -1,18 +1,19 @@
+import { useSurface, useThemedStyles } from '@/ui/useTheme';
 /**
  * "Vai a…" parts: a strip of years on a line (the chosen one carries a crest
  * dot, like Segmented) and a 12-month grid with truthful session counts.
  */
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { fonts, palette, surfaces, HIT } from '@/ui/theme';
+import { fonts, HIT, type Surface } from '@/ui/theme';
 import { T } from '@/ui/T';
 import { MONTHS_TITLE, t } from '@/i18n/it';
 import { useMotionReduced } from '@/state/selectors';
 import { Caret } from './parts';
 
-const S = surfaces.night;
-
 export function YearStrip({ years, value, counts, accent, onChange, onEarlier }: { years: number[]; value: number; counts: Map<number, number>; accent: string; onChange: (y: number) => void; onEarlier: () => void }) {
+  const S = useSurface();
+  const styles = useThemedStyles(createStyles);
   const ref = useRef<ScrollView>(null);
   const reduced = useMotionReduced();
   const settled = useRef(false);
@@ -80,9 +81,13 @@ export interface MonthCell {
   future: boolean;
   current: boolean;
   viewing: boolean;
+  /** Empty months are navigable at home, but have no history detail to open. */
+  disabled?: boolean;
 }
 
 export function MonthGrid({ year, cells, accent, onPick }: { year: number; cells: MonthCell[]; accent: string; onPick: (m: number) => void }) {
+  const S = useSurface();
+  const styles = useThemedStyles(createStyles);
   return (
     <View style={styles.grid} testID="jump-months">
       {cells.map((c) => {
@@ -91,27 +96,25 @@ export function MonthGrid({ year, cells, accent, onPick }: { year: number; cells
           <View key={c.m} style={styles.cellWrap}>
             <Pressable
               onPress={() => onPick(c.m)}
-              disabled={c.future}
+              disabled={c.future || c.disabled}
               accessibilityRole="button"
-              aria-disabled={c.future} aria-selected={c.viewing}
+              aria-disabled={c.future || !!c.disabled} aria-selected={c.viewing}
               accessibilityLabel={t.manage.monthA11y(label, c.count, c)}
               testID={`jump-month-${c.m}`}
-              style={({ pressed }) => [styles.cell, { opacity: c.future ? 0.26 : pressed ? 0.66 : 1 }]}
+              style={({ pressed }) => [styles.cell, { opacity: c.future || c.disabled ? 0.3 : pressed ? 0.66 : 1 }, c.viewing && { backgroundColor: S.raised }]}
             >
-              <View style={[styles.cellLine, c.viewing ? { backgroundColor: accent, height: 2 } : c.current ? { backgroundColor: palette.foam } : null]} />
               {c.viewing ? <View style={[styles.crest, { backgroundColor: accent }]} /> : null}
-              <T variant="heading" color={c.viewing || c.current ? S.fg : 'rgba(238,232,218,0.82)'} style={c.viewing ? null : styles.light} numberOfLines={1} adjustsFontSizeToFit>
+              <T variant="heading" color={S.fg} style={[styles.monthTitle, c.viewing ? null : styles.light]} numberOfLines={1} adjustsFontSizeToFit>
                 {MONTHS_TITLE[c.m - 1]}
               </T>
-              {/* One fact per line: a count and the OGGI marker never squeeze each other into broken wraps. */}
               <View style={styles.cellMeta}>
                 {c.count > 0 ? (
-                  <T variant="label" color={c.viewing ? accent : S.mute} numberOfLines={1}>
-                    {t.sessions(c.count)}
+                  <T variant="label" color={S.mute} numberOfLines={1} style={styles.monthMeta}>
+                    {String(c.count)}
                   </T>
                 ) : null}
                 {c.current ? (
-                  <T variant="labelStrong" color={S.fg} numberOfLines={1}>
+                  <T variant="labelStrong" color={S.fg} numberOfLines={1} style={styles.monthMeta}>
                     {t.today}
                   </T>
                 ) : null}
@@ -124,17 +127,18 @@ export function MonthGrid({ year, cells, accent, onPick }: { year: number; cells
   );
 }
 
-const styles = StyleSheet.create({
-  strip: { alignItems: 'flex-end', borderBottomWidth: 1.2, borderBottomColor: 'rgba(238,232,218,0.3)', minWidth: '100%' },
-  earlier: { minWidth: HIT, minHeight: HIT, flexDirection: 'row', alignItems: 'center', gap: 2, paddingLeft: 2, paddingRight: 12, marginBottom: 24 },
+const createStyles = (S: Surface) => StyleSheet.create({
+  strip: { alignItems: 'flex-end', minWidth: '100%' },
+  earlier: { minWidth: HIT, minHeight: HIT, flexDirection: 'row', alignItems: 'center', gap: 2, paddingLeft: 2, paddingRight: 12, marginBottom: 10 },
   years: { flexDirection: 'row' },
-  year: { minWidth: 72, minHeight: 70, alignItems: 'center', justifyContent: 'flex-end', paddingHorizontal: 8, paddingBottom: 8, gap: 2 },
+  year: { minWidth: 72, minHeight: 60, alignItems: 'center', justifyContent: 'flex-end', paddingHorizontal: 8, paddingBottom: 4, gap: 2 },
   dot: { width: 6, height: 6, borderRadius: 3, marginBottom: 4 },
   light: { fontFamily: fonts.displayCondensed },
   grid: { flexDirection: 'row', flexWrap: 'wrap', marginRight: -12 },
   cellWrap: { width: '33.333%', paddingRight: 12, paddingBottom: 8 },
-  cell: { minHeight: 66, paddingTop: 10, gap: 0 },
-  cellLine: { position: 'absolute', top: 0, left: 0, right: 0, height: StyleSheet.hairlineWidth * 2, backgroundColor: 'rgba(238,232,218,0.22)' },
-  crest: { position: 'absolute', top: -3, left: 0, width: 8, height: 8, borderRadius: 4 },
-  cellMeta: { alignItems: 'flex-start', gap: 2, minHeight: 15 },
+  cell: { minHeight: 60, paddingVertical: 8, paddingHorizontal: 8, borderRadius: 10, justifyContent: 'center' },
+  crest: { position: 'absolute', top: 8, right: 8, width: 5, height: 5, borderRadius: 2.5 },
+  monthTitle: { fontSize: 25, lineHeight: 28 },
+  monthMeta: { fontSize: 10, lineHeight: 15, letterSpacing: 0.6 },
+  cellMeta: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 15 },
 });

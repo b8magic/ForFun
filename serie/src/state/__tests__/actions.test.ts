@@ -15,10 +15,18 @@ jest.mock('@/data/database', () => ({ getRepositories: () => Promise.resolve(moc
 jest.mock('@/platform/haptics', () => ({ haptics: new Proxy({}, { get: () => () => undefined }) }));
 
 beforeEach(async () => {
+  jest.useFakeTimers();
   mockRepos = await testRepos();
   useApp.setState({ status: 'booting', selection: [], sessions: [], categories: [], activeId: null, lastSave: null, saving: false, saveError: null, pendingDetails: null });
   await A.boot();
   useApp.setState({ today: '2026-10-11', viewMonth: { y: 2026, m: 10 } });
+});
+
+afterEach(async () => {
+  await A.flushDrafts();
+  jest.restoreAllMocks();
+  jest.clearAllTimers();
+  jest.useRealTimers();
 });
 
 describe('save', () => {
@@ -88,14 +96,20 @@ describe('save', () => {
   });
 
   it('a failing post-commit hook (auto-export) never undoes or fails the save', async () => {
+    let attempted!: () => void;
+    const attempt = new Promise<void>((resolve) => { attempted = resolve; });
     const off = onCommit(async () => {
+      attempted();
       throw new Error('calendar offline');
     });
-    A.toggleDate('2026-10-04');
-    expect(await A.save()).toBe(true);
-    await new Promise((r) => setTimeout(r, 10));
-    expect(await mockRepos.sessions.listAll()).toHaveLength(1);
-    off();
+    try {
+      A.toggleDate('2026-10-04');
+      expect(await A.save()).toBe(true);
+      await attempt;
+      expect(await mockRepos.sessions.listAll()).toHaveLength(1);
+    } finally {
+      off();
+    }
   });
 });
 
