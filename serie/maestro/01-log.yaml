@@ -45,9 +45,10 @@ name: 01 registra, bozze persistenti, giorno, storia
 - tapOn:
     id: details-notes
 - inputText: Bozza Surf nativa
-- hideKeyboard
+# The visible footer applies the exact multiline note and closes the keyboard.
 - tapOn:
     id: details-apply
+    waitToSettleTimeoutMs: 1500
 - tapOn:
     id: activity-Corsa
 - assertVisible:
@@ -60,9 +61,9 @@ name: 01 registra, bozze persistenti, giorno, storia
 - tapOn:
     id: details-notes
 - inputText: Bozza Corsa nativa
-- hideKeyboard
 - tapOn:
     id: details-apply
+    waitToSettleTimeoutMs: 1500
 - tapOn:
     id: activity-Surf
 - stopApp

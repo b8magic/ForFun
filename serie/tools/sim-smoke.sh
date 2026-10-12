@@ -68,7 +68,7 @@ else
 fi
 xcrun simctl terminate "$UDID" "$BUNDLE" 2>/dev/null || true
 
-# 2. Maestro flows (each one in its own run, so a failure does not hide the next ones)
+# 2. Maestro flows (separate runs; dependent fixtures must pass before use)
 PREV=$(python3 -c 'import datetime as d; print((d.date.today().replace(day=1) - d.timedelta(days=1)).strftime("%Y-%m"))')
 PREV_YEAR=${PREV:0:4}
 PREV_MONTH=$((10#${PREV:5:2}))
@@ -99,8 +99,31 @@ native_upgrade() {
 
 if command -v maestro >/dev/null; then
   say "- Maestro $(maestro --version 2>/dev/null | tail -1) · PREV=$PREV"
+  LOG_FIXTURE_READY=0
+  MAP_FIXTURE_READY=0
   for flow in "$FLOWS"/[0-9]*.yaml; do
     name=$(basename "$flow" .yaml)
+    case "$name" in
+      02-details-map)
+        if [ "$LOG_FIXTURE_READY" != 1 ]; then
+          say "- $name: **NOT_RUN** (required 01-log fixture and native upgrade did not pass)"
+          FAIL=1
+          continue
+        fi
+        ;;
+      04-settings-periods)
+        if [ "$LOG_FIXTURE_READY" != 1 ]; then
+          say "- $name: **NOT_RUN** (required 01-log fixture and native upgrade did not pass)"
+          FAIL=1
+          continue
+        fi
+        if [ "$MAP_FIXTURE_READY" != 1 ]; then
+          say "- $name: **NOT_RUN** (required 02-details-map fixture did not pass)"
+          FAIL=1
+          continue
+        fi
+        ;;
+    esac
     t0=$(date +%s)
     if maestro --device "$UDID" test "$flow" -e PREV="$PREV" -e PREV_YEAR="$PREV_YEAR" -e PREV_MONTH="$PREV_MONTH" --format junit --output "$OUT/maestro-$name.xml" \
       --test-output-dir "$OUT/maestro/$name" --debug-output "$OUT/maestro/$name/debug" --flatten-debug-output; then
@@ -108,11 +131,14 @@ if command -v maestro >/dev/null; then
       if [ "$name" = "01-log" ]; then
         if native_upgrade; then
           say "- Native upgrade v1 → v2: passed (all six original tables unchanged; SQLite integrity + foreign keys valid)"
+          LOG_FIXTURE_READY=1
         else
           say "- Native upgrade v1 → v2: **failed** (see native-upgrade.log and snapshots)"
           FAIL=1
           xcrun simctl io "$UDID" screenshot "$OUT/screens/fail-native-upgrade.png" >/dev/null 2>&1 || true
         fi
+      elif [ "$name" = "02-details-map" ]; then
+        MAP_FIXTURE_READY=1
       fi
     else
       say "- $name: **failed** ($(( $(date +%s) - t0 )) s)"
@@ -130,6 +156,10 @@ fi
 for d in "$OUT"/maestro/*/; do
   find "$d" -name '*.png' -print0 2>/dev/null | while IFS= read -r -d '' f; do cp "$f" "$OUT/screens/$(basename "$d")--$(basename "$f")"; done
 done
+
+# A bounded set of small previews is also available through the text logs API;
+# full PNGs and video remain in the artifact. Diagnostics cannot alter the gate.
+python3 tools/print-native-screens.py "$OUT/screens" || say "- Native previews unavailable"
 
 # the raw recording is ~1 MB/s at full resolution: stop it and keep a small copy (about 540 px wide)
 stop_capture

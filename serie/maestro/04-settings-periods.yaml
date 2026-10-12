@@ -44,15 +44,17 @@ name: 04 impostazioni, periodi, modifica dal giorno
 - tapOn:
     id: period-name
 - inputText: Periodo Maestro
+- pressKey: Enter
 - tapOn:
     id: period-start
 - eraseText
 - inputText: ${PREV}-10
+- pressKey: Enter
 - tapOn:
     id: period-end
 - eraseText
 - inputText: ${PREV}-15
-- hideKeyboard
+- pressKey: Enter
 - scrollUntilVisible:
     element:
       id: period-preview-summary
@@ -94,7 +96,7 @@ name: 04 impostazioni, periodi, modifica dal giorno
     id: period-name
 - eraseText
 - inputText: Periodo Maestro aggiornato
-- hideKeyboard
+- pressKey: Enter
 - tapOn:
     id: period-save
 - extendedWaitUntil:
@@ -156,9 +158,10 @@ name: 04 impostazioni, periodi, modifica dal giorno
 - tapOn:
     id: session-notes
 - inputText: Nota dopo il periodo
-- hideKeyboard
+# Saving through the visible footer closes this multiline editor and keyboard.
 - tapOn:
     id: session-save
+    waitToSettleTimeoutMs: 1500
 - extendedWaitUntil:
     visible:
       id: day-sheet

@@ -34,6 +34,8 @@ Final local browser evidence: `/tmp/serie-final-e2e/core/`, `/tmp/serie-final-e2
 
 **Native simulator, actual native upgrade execution, IPA packaging and prerelease publication remain pending** until the candidate workflow succeeds. Do not infer those passes from local browser/SQL tests or reuse the original branch’s historical totals.
 
+The first candidate run (`38320706064`, source `6d60f7c`) passed all Linux gates and the native Release build. Startup remained running, no crash reports were found, and native EventKit export passed. The notes journey stopped because Maestro's generic `hideKeyboard` could not dismiss a multiline input; dependent map/period journeys then lacked their fixtures. The automation now submits those notes through the existing keyboard-safe Apply/Save footer and uses Enter for single-line period fields. Assertions and inputs are preserved. Dependent native journeys explicitly report `NOT_RUN` and fail the gate if their fixtures are unavailable. Small native PNG previews are included in logs as well as full artifact originals because workspace access to the connector's File Service ZIP URL returned HTTP 403. This is diagnostic output only and cannot change test outcomes.
+
 Completed static checks:
 
 - `node --check tools/e2e-harness.mjs`, `tools/e2e.mjs`, `tools/e2e-flows.mjs` and `tools/e2e-calendar.mjs`: passed.
