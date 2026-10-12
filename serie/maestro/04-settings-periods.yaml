@@ -1,0 +1,179 @@
+# Native regression: reactive settings, named-period CRUD, preserved sessions,
+# and long-press day editing with return to the original calendar.
+# Fixtures: Surf (10,12), Corsa (10,15; Livorno map on15).
+appId: app.serie.ios
+name: 04 impostazioni, periodi, modifica dal giorno
+---
+- launchApp
+- extendedWaitUntil:
+    visible:
+      id: activity-switcher
+      text: "Attività attiva: Corsa.*"
+    timeout: 60000
+- tapOn:
+    id: menu
+- tapOn:
+    id: theme-pref-dark
+- tapOn:
+    id: motion-pref-reduced
+- takeScreenshot: 30-dark-settings
+- tapOn:
+    id: sheet-close
+- stopApp
+- launchApp
+- extendedWaitUntil:
+    visible:
+      id: lineup
+    timeout: 60000
+- takeScreenshot: 31-dark-after-restart
+- runFlow: subflows/jump-prev.yaml
+- tapOn:
+    id: history-handle
+- tapOn:
+    id: named-periods
+- extendedWaitUntil:
+    visible:
+      id: periods-sheet
+    timeout: 10000
+- tapOn:
+    id: periods-create
+- extendedWaitUntil:
+    visible:
+      id: period-form
+    timeout: 10000
+- tapOn:
+    id: period-name
+- inputText: Periodo Maestro
+- tapOn:
+    id: period-start
+- eraseText
+- inputText: ${PREV}-10
+- tapOn:
+    id: period-end
+- eraseText
+- inputText: ${PREV}-15
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      id: period-preview-summary
+    direction: DOWN
+    timeout: 15000
+- assertVisible:
+    id: period-preview-summary
+- assertVisible: "4 sessioni · 3 giorni attivi"
+- takeScreenshot: 32-period-preview
+- tapOn:
+    id: period-save
+- extendedWaitUntil:
+    visible:
+      id: period-detail
+    timeout: 10000
+- assertVisible:
+    id: period-detail-summary
+- assertVisible: "4 sessioni · 3 giorni attivi"
+- stopApp
+- launchApp
+- extendedWaitUntil:
+    visible:
+      id: lineup
+    timeout: 60000
+- tapOn:
+    id: history-handle
+- tapOn:
+    id: named-periods
+- tapOn:
+    id: "period-.+"
+    text: "Periodo Maestro.*"
+- extendedWaitUntil:
+    visible:
+      id: period-detail
+    timeout: 10000
+- tapOn:
+    id: period-edit
+- tapOn:
+    id: period-name
+- eraseText
+- inputText: Periodo Maestro aggiornato
+- hideKeyboard
+- tapOn:
+    id: period-save
+- extendedWaitUntil:
+    visible: Periodo Maestro aggiornato
+    timeout: 10000
+- scrollUntilVisible:
+    element:
+      id: period-delete
+    direction: DOWN
+    timeout: 15000
+- tapOn:
+    id: period-delete
+- tapOn:
+    id: period-delete-cancel
+- assertVisible:
+    id: period-detail
+- tapOn:
+    id: period-delete
+- tapOn:
+    id: period-delete-confirm
+- extendedWaitUntil:
+    visible:
+      id: periods-empty
+    timeout: 10000
+- takeScreenshot: 33-period-deleted
+- tapOn:
+    id: sheet-close
+- tapOn:
+    id: back-to-log
+- runFlow: subflows/jump-prev.yaml
+- assertVisible:
+    id: day-${PREV}-10
+    text: ".*Surf.*Corsa.*2 sessioni registrate.*"
+- assertVisible:
+    id: day-${PREV}-15
+    text: ".*Corsa.*1 sessione registrata.*"
+
+# Opening a recorded day never selects another date accidentally.
+- longPressOn:
+    id: day-${PREV}-15
+- extendedWaitUntil:
+    visible:
+      id: day-sheet
+    timeout: 10000
+- assertVisible:
+    id: day-total
+    text: ".*1 sessione.*"
+- tapOn:
+    id: "session-.+"
+- extendedWaitUntil:
+    visible:
+      id: session-editor
+    timeout: 10000
+- scrollUntilVisible:
+    element:
+      id: session-notes
+    direction: DOWN
+    timeout: 15000
+- tapOn:
+    id: session-notes
+- inputText: Nota dopo il periodo
+- hideKeyboard
+- tapOn:
+    id: session-save
+- extendedWaitUntil:
+    visible:
+      id: day-sheet
+    timeout: 10000
+- assertVisible: ".*Nota dopo il periodo.*"
+- takeScreenshot: 34-day-after-edit
+- tapOn:
+    id: sheet-close
+- assertVisible:
+    id: save
+    text: "Salva.*Nessuna data selezionata"
+- tapOn:
+    id: menu
+- tapOn:
+    id: theme-pref-cream
+- tapOn:
+    id: sheet-close
+- takeScreenshot: 35-return-to-cream

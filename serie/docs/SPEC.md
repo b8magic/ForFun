@@ -1,6 +1,19 @@
-# Serie — product specification (verbatim)
+# Serie — product specification
 
-This is the brief Serie was built from, kept verbatim for reviewers. The visual direction comes from the corduroy trailer (../trailer, ../deliverables).
+The original brief below is preserved verbatim. This addendum records the approved calendar evolution on `codex/serie-calendar`, starting from `0f39ebd14b1f1157eb9d4cf89ba2cb0f57e2c655`. See [Codex handoff](CODEX_HANDOFF.md) for contribution provenance and actual validation.
+
+## Calendar evolution addendum
+
+- Home is a usable cream calendar at launch, with a persistent dark appearance option, visible activity chips, a separate management affordance, continuous month scrolling and a sticky month/year jump.
+- Day glyphs show up to four actual activity colors plus a +N overflow indicator; accessible labels and day sheets include every contribution. A saved home preference can restrict markers to the active activity. Accessible labels identify actual activity contributions, session counts, selection and future dates.
+- Each activity owns a durable draft of selected dates and applied optional details. Switching and restarting restore it; saving clears only the successfully saved draft. Explicit clear removes it. Previously saved selections must never be logged automatically again.
+- A main-calendar date tap toggles the draft, including recorded days. Long press and a visible selected-day details action open a full day sheet without changing the draft. Edit a session and return to its day/original calendar; adding a new session from the day only selects its date for an explicit later save.
+- Month history opens populated calendars immediately. Year history provides twelve miniature calendars for populated years, real activity color marks and enabled drill-down only for populated nonfuture months. Empty filters remain honest; month history contains only populated months, while year mosaics keep empty month placeholders. The all-time view is visibly named **Progressi**.
+- Named periods store a name, inclusive dates, optional note and all/selected activity scope. Live previews and totals derive from real sessions. Overlap and duplicate names are allowed. Future endpoints are allowed without enabling future session logging. Editing/deleting period metadata must preserve sessions and external calendar events.
+- Cream/dark, home marker scope and motion settings persist and apply reactively across all sheets. Activity, period and session forms protect unsaved changes on every exit path.
+- Existing map, calendar-import/export, offline-storage, unknown-duration and destructive-confirmation guarantees continue to apply. Browser runtime errors fail verification. A final immutable candidate must pass unit/type/lint/web checks and native simulator smoke before its IPA is built and published.
+
+## Original brief (verbatim)
 
 ```text
 Treat this trailer as the primary creative reference for the application’s visual identity, motion language, typography, colors, geometry, rhythm, and overall aesthetic.

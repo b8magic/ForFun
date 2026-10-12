@@ -3,62 +3,11 @@
 //   tools/build-web.sh --e2e && node tools/e2e-calendar.mjs
 // This proves the UI + engines + local database together. It does NOT prove
 // Google OAuth or EventKit on a device (see README status matrix).
-import http from 'node:http';
-import fs from 'node:fs';
-import path from 'node:path';
-import { chromium } from 'playwright';
+import { assert, createHarness } from './e2e-harness.mjs';
 
-const ROOT = path.resolve('dist-web-e2e');
-const SHOTS = process.env.E2E_SHOTS || path.resolve('/tmp/claude-0/-home-user-ForFun/95d9cc13-7e3c-5b9b-9777-89259157d415/scratchpad/e2e-cal');
-fs.mkdirSync(SHOTS, { recursive: true });
-const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.wasm': 'application/wasm', '.ttf': 'font/ttf', '.png': 'image/png', '.json': 'application/json', '.ico': 'image/x-icon' };
-const server = http.createServer((req, res) => {
-  const p = decodeURIComponent(req.url.split('?')[0]);
-  let f = path.join(ROOT, p);
-  if (!f.startsWith(ROOT) || !fs.existsSync(f) || fs.statSync(f).isDirectory()) f = path.join(ROOT, 'index.html');
-  res.writeHead(200, { 'Content-Type': MIME[path.extname(f)] || 'application/octet-stream' });
-  fs.createReadStream(f).pipe(res);
-});
-await new Promise((r) => server.listen(0, '127.0.0.1', r));
-const URL = `http://127.0.0.1:${server.address().port}/`;
-const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
-const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, hasTouch: true, isMobile: true });
-const page = await ctx.newPage();
-const errors = [];
-page.on('pageerror', (e) => errors.push(e.message));
+const h = await createHarness('calendar', 'dist-web-e2e');
+const { page, $, tap, text, visible, fill, body, check, go, jumpMonth } = h;
 
-const results = [];
-const $ = (id) => page.locator(`[data-testid="${id}"]`).first();
-const tap = async (id, wait = 250) => {
-  await $(id).scrollIntoViewIfNeeded().catch(() => {});
-  await $(id).tap();
-  await page.waitForTimeout(wait);
-};
-const text = async (id) => (await $(id).innerText()).trim();
-const visible = async (id, timeout = 15000) => $(id).waitFor({ state: 'visible', timeout });
-const fill = async (id, v) => {
-  await $(id).fill(v);
-  await page.waitForTimeout(120);
-};
-const body = async () => page.locator('body').innerText();
-function assert(c, msg) {
-  if (!c) throw new Error(msg);
-}
-async function check(name, fn) {
-  try {
-    await fn();
-    results.push({ name, ok: true });
-    console.log(`✓ ${name}`);
-  } catch (e) {
-    results.push({ name, ok: false, err: String(e?.message ?? e).slice(0, 500) });
-    console.log(`✗ ${name}\n   ${String(e?.message ?? e).slice(0, 500)}`);
-    await page.screenshot({ path: path.join(SHOTS, `fail-${name.replace(/\W+/g, '_')}.png`) }).catch(() => {});
-  }
-}
-async function go(route) {
-  await page.goto(URL + route);
-  await page.waitForTimeout(1500);
-}
 async function importSearch({ calendars, from, to, title = '', labels = [] }) {
   await go('calendar/import');
   await visible('import-activity');
@@ -76,12 +25,11 @@ async function importSearch({ calendars, from, to, title = '', labels = [] }) {
   await visible('import-review');
 }
 
-await page.goto(URL);
-await $('lineup').waitFor({ timeout: 30000 });
-await page.waitForTimeout(1200);
+try {
+await h.home();
 
 await check('two manual Surf sessions are saved in September', async () => {
-  await tap('prev-month', 500);
+  await jumpMonth(2026, 9);
   await tap('day-2026-09-06', 150);
   await tap('day-2026-09-13', 150);
   await tap('save', 2400);
@@ -95,12 +43,12 @@ await check('calendar hub opens from the menu and asks nothing until Collega', a
   assert(/build E2E|Non collegato/.test(await text('conn-google')), `google status: ${await text('conn-google')}`);
   await tap('connect-google', 700);
   assert(/prova@e2e\.local/.test(await text('conn-google')), `after connect: ${await text('conn-google')}`);
-  await page.screenshot({ path: path.join(SHOTS, '01-hub.png') });
+  await h.screenshot('01-hub');
 });
 
 await check('import: title-only filter, durations, multi-day mapping, scoped selection, confirm', async () => {
   await importSearch({ calendars: ['sport-e2e'], from: '2026-08-01', to: '2026-08-31', title: 'surf' });
-  await page.screenshot({ path: path.join(SHOTS, '02-import-review.png') });
+  await h.screenshot('02-import-review');
   assert((await text('import-count')) === '4 di 4 selezionati', `count: ${await text('import-count')}`);
   const b = await body();
   assert(!/Corsa lungo mare/.test(b), 'non-matching title must not appear');
@@ -122,7 +70,7 @@ await check('import: title-only filter, durations, multi-day mapping, scoped sel
   await tap('import-confirm', 1500);
   await visible('import-done');
   assert(/3 sessioni importate in Surf/.test(await body()), 'result line');
-  await page.screenshot({ path: path.join(SHOTS, '03-import-done.png') });
+  await h.screenshot('03-import-done');
 });
 
 await check('import again: already imported events are recognised and not selectable', async () => {
@@ -163,7 +111,7 @@ await check('export: equivalent Google/iPhone destinations are blocked, then exp
   await tap('dest-apple-ek-sport-e2e', 300);
   assert(/stesso calendario/.test(await body()), 'equivalence warning');
   assert((await $('export-next-2').getAttribute('aria-disabled')) === 'true', 'continue blocked');
-  await page.screenshot({ path: path.join(SHOTS, '04-export-equivalent.png') });
+  await h.screenshot('04-export-equivalent');
   await tap('export-only-google', 400);
   await tap('dest-google-sport-e2e', 200);
   await tap('export-next-2', 500);
@@ -172,14 +120,14 @@ await check('export: equivalent Google/iPhone destinations are blocked, then exp
   assert((await text('export-title-preview')).replace(/ /g, ' ') === '🏄 Surf', `preview: ${await text('export-title-preview')}`);
   await tap('export-next-3', 2000);
   await visible('export-review');
-  await page.screenshot({ path: path.join(SHOTS, '05-export-review.png') });
+  await h.screenshot('05-export-review');
   // 2 manual sessions are new; 3 imported from this calendar are recognised as their own source
   assert((await text('export-count')) === '2 di 5 selezionati', `count: ${await text('export-count')}`);
   await tap('export-confirm', 2500);
   await visible('export-done');
   const r = await text('export-result-google');
   assert(/2\s*CREATI/.test(r), `results: ${r}`);
-  await page.screenshot({ path: path.join(SHOTS, '06-export-done.png') });
+  await h.screenshot('06-export-done');
 });
 
 await check('export again: already exported sessions are not recreated', async () => {
@@ -212,7 +160,7 @@ await check('automatic export: off by default, enabled with a destination, runs 
   await go('');
   await $('lineup').waitFor({ timeout: 30000 });
   await page.waitForTimeout(800);
-  await tap('prev-month', 500);
+  await jumpMonth(2026, 9);
   await tap('day-2026-09-20', 150);
   await tap('save', 2400);
   await page.waitForTimeout(15000); // jobs run after the longest undo window (14 s)
@@ -221,12 +169,9 @@ await check('automatic export: off by default, enabled with a destination, runs 
   await tap('jobs-filter-done', 400);
   assert(/accettato dal calendario/i.test(await body()) && /AUTOMATICA/.test(await body()), 'auto job accepted');
   assert(/sincronizzazione con il cloud dipende/.test(await body()), 'not-cloud disclosure');
-  await page.screenshot({ path: path.join(SHOTS, '07-jobs.png') });
+  await h.screenshot('07-jobs');
 });
 
-console.log(`\n${results.filter((r) => r.ok).length}/${results.length} checks passed`);
-if (errors.length) console.log('page errors:\n' + [...new Set(errors)].slice(0, 10).join('\n'));
-fs.writeFileSync(path.join(SHOTS, 'results.json'), JSON.stringify({ results, errors: [...new Set(errors)] }, null, 2));
-await browser.close();
-server.close();
-process.exit(results.every((r) => r.ok) ? 0 : 1);
+} finally {
+  await h.finish();
+}

@@ -1,10 +1,11 @@
 # Serie — unsigned iOS IPA for sideloading (SideStore / AltStore Classic re-sign it with your Apple ID).
 #
-# On demand only (Actions → "iOS IPA (unsigned, sideload)" → Run workflow): macOS minutes on a
-# private repo are limited, so nothing runs on push.
+# Manual Run workflow builds artifacts only. Publication is available when
+# called by serie-candidate.yml after web and native gates pass.
 #
 # Produces:
-#   - prerelease "ipa-<run>" with Serie-unsigned.ipa + .sha256 (the easiest download on the phone)
+#   - prerelease "ipa-<run-id>" with IPA + checksum + source manifest
+#     (run-id is globally unique, including calls from the candidate workflow)
 #   - artifact "Serie-ipa" (zip with the same files, 7 days) and, when supported, the raw .ipa
 #
 # Optional: repository variable (or secret) EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID enables Google Calendar.
@@ -14,10 +15,18 @@ name: iOS IPA (unsigned, sideload)
 on:
   workflow_dispatch:
     inputs:
+      candidate_sha:
+        description: Commit completo da compilare (vuoto = commit selezionato)
+        type: string
+        default: ''
+  workflow_call:
+    inputs:
       release:
-        description: Pubblica una prerelease con l'IPA allegata
         type: boolean
         default: true
+      candidate_sha:
+        type: string
+        required: true
 
 concurrency:
   group: ios-ipa-${{ github.ref }}
@@ -29,6 +38,8 @@ permissions:
 jobs:
   ipa:
     name: Build unsigned IPA
+    outputs:
+      version: ${{ steps.package.outputs.version }}
     runs-on: macos-26
     timeout-minutes: 60
     defaults:
@@ -41,7 +52,16 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
+          ref: ${{ inputs.candidate_sha || github.sha }}
           persist-credentials: false
+
+      - name: Verify the immutable candidate commit
+        env:
+          CANDIDATE_SHA: ${{ inputs.candidate_sha || github.sha }}
+        run: |
+          [[ "$CANDIDATE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$(git rev-parse HEAD)" = "$CANDIDATE_SHA"
+          echo "IPA source: $CANDIDATE_SHA" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Select Xcode 26.6 (Expo SDK 57 needs 26.4 or later)
         working-directory: .
@@ -116,12 +136,15 @@ jobs:
           df -h / | tail -1
 
       - name: Package the IPA
+        id: package
         run: |
           APP=$(ls -d "$RUNNER_TEMP"/Serie.xcarchive/Products/Applications/*.app | head -1)
           test -d "$APP"
           # Release build: the Hermes JS bundle is embedded, no Metro needed on the phone
           test -f "$APP/main.jsbundle"
           /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' -c 'Print :CFBundleShortVersionString' -c 'Print :CFBundleVersion' -c 'Print :MinimumOSVersion' "$APP/Info.plist"
+          APP_VERSION=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Info.plist")
+          echo "version=$APP_VERSION" >> "$GITHUB_OUTPUT"
           rm -rf "$RUNNER_TEMP/ipa" && mkdir -p "$RUNNER_TEMP/ipa/Payload"
           cp -R "$APP" "$RUNNER_TEMP/ipa/Payload/"
           find "$RUNNER_TEMP/ipa/Payload" -name '._*' -delete
@@ -129,13 +152,25 @@ jobs:
           (cd "$RUNNER_TEMP/ipa" && zip -qry "$GITHUB_WORKSPACE/Serie-unsigned.ipa" Payload)
           cd "$GITHUB_WORKSPACE"
           shasum -a 256 Serie-unsigned.ipa | tee Serie-unsigned.ipa.sha256
+          APP_VERSION="$APP_VERSION" node - <<'NODE'
+          const fs = require('node:fs');
+          fs.writeFileSync('Serie-build.json', JSON.stringify({
+            repository: process.env.GITHUB_REPOSITORY,
+            sourceCommit: process.env.CANDIDATE_SHA,
+            appVersion: process.env.APP_VERSION,
+            buildRun: `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`,
+            buildNumber: process.env.GITHUB_RUN_NUMBER,
+          }, null, 2) + '\n');
+          NODE
           SIZE=$(du -h Serie-unsigned.ipa | cut -f1)
           MINS=$(( ( $(date +%s) - BUILD_START ) / 60 ))
           {
-            echo "### Serie-unsigned.ipa"
+            echo "### Serie $APP_VERSION — Serie-unsigned.ipa"
             echo "- size: $SIZE · build: ~${MINS} min · build number ${{ github.run_number }}"
-            echo "- Xcode: $(xcodebuild -version | head -1) · commit ${{ github.sha }}"
+            echo "- Xcode: $(xcodebuild -version | head -1) · commit $CANDIDATE_SHA"
           } >> "$GITHUB_STEP_SUMMARY"
+        env:
+          CANDIDATE_SHA: ${{ inputs.candidate_sha || github.sha }}
 
       - name: Upload IPA (zip, for the release job and desktop download)
         uses: actions/upload-artifact@v7
@@ -144,6 +179,7 @@ jobs:
           path: |
             Serie-unsigned.ipa
             Serie-unsigned.ipa.sha256
+            Serie-build.json
           retention-days: 7
           if-no-files-found: error
 
@@ -182,16 +218,18 @@ jobs:
 
       - uses: softprops/action-gh-release@v3
         with:
-          tag_name: ipa-${{ github.run_number }}
-          target_commitish: ${{ github.sha }}
-          name: Serie — IPA ${{ github.run_number }} (non firmata)
+          tag_name: ipa-${{ github.run_id }}
+          target_commitish: ${{ inputs.candidate_sha || github.sha }}
+          name: Serie ${{ needs.ipa.outputs.version }} — IPA ${{ github.run_number }} (non firmata)
           prerelease: true
           fail_on_unmatched_files: true
           files: |
             Serie-unsigned.ipa
             Serie-unsigned.ipa.sha256
+            Serie-build.json
           body: |
-            IPA **non firmata** di Serie (build ${{ github.run_number }}, commit ${{ github.sha }}).
+            IPA **non firmata** di Serie **${{ needs.ipa.outputs.version }}** (build ${{ github.run_number }}, commit ${{ inputs.candidate_sha || github.sha }}).
+            [Build e controlli](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}).
             Si installa con **SideStore** o **AltStore Classic** (non AltStore PAL), che la firmano con il tuo Apple ID.
 
             **Installazione**

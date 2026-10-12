@@ -1,0 +1,130 @@
+# Final-candidate release only. Normal development pushes do not spend macOS
+# minutes. Add/update serie/tools/release-candidate.json in the final commit to
+# request this pipeline, or select a full commit SHA with Run workflow.
+name: Serie candidate (checks → simulator → IPA)
+
+on:
+  push:
+    branches: [codex/serie-calendar]
+    paths: [serie/tools/release-candidate.json]
+  workflow_dispatch:
+    inputs:
+      candidate_sha:
+        description: Commit completo (40 caratteri; vuoto = commit selezionato)
+        type: string
+        default: ''
+      release:
+        description: Pubblica la prerelease dopo tutti i controlli
+        type: boolean
+        default: true
+
+concurrency:
+  group: serie-candidate-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Unit, type, lint and browser gates
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      sha: ${{ steps.candidate.outputs.sha }}
+    defaults:
+      run:
+        shell: bash
+        working-directory: serie
+    env:
+      CI: '1'
+      EXPO_NO_TELEMETRY: '1'
+    steps:
+      - name: Resolve immutable candidate SHA
+        id: candidate
+        working-directory: .
+        env:
+          REQUESTED_SHA: ${{ inputs.candidate_sha || github.sha }}
+        run: |
+          [[ "$REQUESTED_SHA" =~ ^[0-9a-f]{40}$ ]]
+          echo "sha=$REQUESTED_SHA" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ steps.candidate.outputs.sha }}
+          persist-credentials: false
+
+      - name: Verify checked-out candidate
+        env:
+          CANDIDATE_SHA: ${{ steps.candidate.outputs.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$CANDIDATE_SHA"
+          echo "E2E_SHOTS=$RUNNER_TEMP/serie-web-e2e" >> "$GITHUB_ENV"
+          echo "### Candidate $CANDIDATE_SHA" >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: serie/package-lock.json
+
+      - name: Install JS dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Unit tests
+        run: npm test -- --ci --runInBand
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Install Chromium for the existing Playwright suites
+        run: npx playwright install --with-deps chromium
+
+      - name: Web UI and calendar integration checks
+        run: npm run e2e
+
+      - name: Record successful candidate gates
+        env:
+          CANDIDATE_SHA: ${{ steps.candidate.outputs.sha }}
+        run: |
+          mkdir -p "$E2E_SHOTS"
+          node - <<'NODE'
+          const fs = require('node:fs');
+          fs.writeFileSync(`${process.env.E2E_SHOTS}/candidate.json`, JSON.stringify({
+            sourceCommit: process.env.CANDIDATE_SHA,
+            passed: ['unit', 'typecheck', 'lint', 'web-ui', 'calendar-integration'],
+            run: `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`,
+          }, null, 2) + '\n');
+          NODE
+          echo 'Unit, type, lint and browser gates passed. Simulator smoke testing uses this commit.' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Keep browser evidence, including failures
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: candidate-web-verification
+          path: ${{ runner.temp }}/serie-web-e2e
+          retention-days: 7
+          if-no-files-found: ignore
+
+  simulator:
+    name: Native simulator gate
+    needs: verify
+    uses: ./.github/workflows/ios-simulator.yml
+    with:
+      smoke: true
+      candidate_sha: ${{ needs.verify.outputs.sha }}
+
+  ipa:
+    name: Build and publish the verified IPA
+    needs: [verify, simulator]
+    permissions:
+      contents: write
+    uses: ./.github/workflows/ios-ipa.yml
+    secrets: inherit
+    with:
+      candidate_sha: ${{ needs.verify.outputs.sha }}
+      release: ${{ github.event_name == 'push' || inputs.release }}

@@ -1,80 +1,79 @@
 # Serie — architecture
 
-Serie is a surf log built from swell lines. Each week is a line, each session is a crest on it, and saving makes the lines break like a wave. The visual identity, motion grammar, typography and palette come from the *corduroy* trailer (`../trailer`, `../trailer/DESIGN_LANGUAGE.md`). App UI language: **Italian**.
+Serie is a native iPhone activity log whose identity comes from the *corduroy* trailer. The calendar evolution uses a cream surface by default, visible activity chips, persistent logging drafts and a shared calendar vocabulary across Home, Storia and Periodi. UI language is Italian.
 
-Stack: Expo SDK 57 · React Native 0.86 (New Architecture) · TypeScript · Expo Router · React Native Skia 2.6 · Reanimated 4.5 + Worklets 0.10 · Gesture Handler 2.32 · expo-sqlite · expo-calendar · Google Calendar REST v3 · expo-maps (Apple Maps on iOS) · zustand.
+Stack: Expo SDK 57, React Native 0.86 New Architecture, TypeScript, Expo Router, React Native Skia 2.6, Reanimated 4.5, Worklets 0.10, Gesture Handler 2.32, expo-sqlite, expo-calendar, Google Calendar REST v3, expo-maps and zustand. Native projects are generated through Continuous Native Generation.
 
-## 1. The composition
+## Composition and navigation
 
-The app is one living composition with two **surfaces**, not a stack of screens.
+| Surface | Purpose |
+|---|---|
+| Home / Lineup | Select historical dates in the remembered activity and save. The month title stays reachable for direct month/year jumps. Visible activity chips switch the active context. |
+| Storia | Mese lists populated months with exact summaries and immediately visible populated calendars; Anno provides twelve miniature calendars for populated years; Progressi provides derived totals and trends. Filters preserve honest empty states. |
+| Day sheet (`/day?date=…`) | Shows every actual saved session on the date, across activities. Rows open the existing session editor; closing returns to the original Home/history context. |
+| Periodi (`/periods`) | Named inclusive ranges with all/selected activity scope, live preview, detail, edit and guarded metadata deletion. |
+| Functional sheets | Optional draft details, session editing, activity management, settings, jumps and calendar exchange use the same themed controls. |
 
-| Surface | Ground | Purpose |
-|---|---|---|
-| **Lineup** (`REGISTRA`) | Ink (night) | Log: active activity, living calendar, Save. Opens here, in the last-used activity, every launch. |
-| **Time** (`STORIA`) | Bone (calm) | History at three scales: **Mese** (month mode), **Anno** (year mode), **Tutto** (all time + progress). |
+Main-calendar tap always toggles the active draft's date, even when sessions already exist. Long press opens day details without changing the draft. A visible details control is available when one date is selected. History date taps open the full day sheet. The day sheet's **Nuova sessione** only adds the date to the active draft and returns; saving is still explicit.
 
-Moving Lineup → Time is the "white water" transformation: the week-lines compress, ink floods to bone and the lines reorganise into month ridgelines. Changing scale (Mese → Anno → Tutto) zooms the same ridgelines in and out. Functional tools (session editor, activity management, calendar exchange) open as iOS form sheets dressed in the same identity.
+Routes live under `src/app/`; domain/state/components stay outside the route directory. Every navigational transition uses Expo Router. Form dismissal guards cover explicit Close, local back/cancel and native route removal, including sheet gestures. Motion follows the system accessibility setting by default, with a saved user override available. Full/reduced motion share the compact layout; local waves preserve stationary date targets. A persistent activity dock and the Storia header provide the primary navigation.
 
-### Lineup layout (portrait iPhone, points)
-- Header row: **identity disc + activity name + chevron** (Moment A trigger, always visible, `accessibilityRole="button"`, label "Attività attiva: Surf. Tocca per cambiare attività."). Right: menu glyph (three swell lines).
-- Month title (display condensed) + year, previous/next chevrons, tap title → month/year jump dial. "Torna a oggi" chip when away from the current month.
-- Weekday initials `L M M G V S D` (Monday first).
-- 5–6 **week-lines**. Days sit on their line: numeral above, tick on the line. Recorded sessions = foam rings on a small permanent bump; several sessions on a date = stacked rings + count. Selected = the line lifts into a **crest** carrying a flare dot; the numeral rides the crest.
-- `+ NOTA · LUOGO · ORARIO  (FACOLTATIVO)` link → optional details for the current selection (never required).
-- **Save** control: pill whose flare liquid rises with each selection; label "Salva N sessioni"; disabled with "Seleziona le date" when empty.
-- Bottom: history handle (ridgeline of the last 8 weeks + `STORIA`), tap → Time.
+## State, persistence and commit boundaries
 
-## 2. Signature interactions
+The UI reads `useApp`. Writes go through `state/actions.ts`, repositories and the database. Stored sessions are the only source of session statistics; exported events, periods and drafts never count as sessions.
 
-**A · Switch activity.** Tap the disc: week-lines draw back and rise into an arc; the activity discs ride the arc with their names (RN text); the current one is marked selected. Selecting another disc flows it into the header and its stripes pour back into the week-lines recoloured with its pattern. Remembered id is persisted immediately. Selection of dates is cleared on switch (never carried across activities). Fully interruptible; reduced motion = cross-fade.
+An activity draft contains selected dates, applied optional details and a stable save request identifier. Drafts are keyed by stable activity id and persisted independently in `category_drafts`; the active draft is projected into the existing selection/details UI. Switching activities saves/restores the appropriate projection. A successful save commits sessions before clearing only its captured draft. Failures keep it retryable with the same request identifier; deliberate draft changes create a new request. Explicit clear removes dates and details. Deleting an activity removes its draft and cannot expose it through a newly created activity with the same name.
 
-**B · Select dates.** Tap toggles a date. Press = the line dips (resistance), release = crest rises on the `crest` spring and sends a ripple along its line and into neighbours; global tension (line undulation, liquid level) grows with the number of selected dates. Future dates are disabled. Month swipe = a swell passing (lines slide with a wave). Selection persists across month navigation within the activity; a counter shows how many are selected overall.
+Native persistence uses expo-sqlite; web/test persistence uses sql.js and IndexedDB. `SqlDriver` abstracts both. Migrations use `PRAGMA user_version`, retain existing sessions/settings/calendar links and add the draft and named-period tables. Repository checks remain authoritative even when a form already validates the same input.
 
-**C · Save.** `await repository.saveSessions(...)` (single transaction, idempotent request id) **then** the break: drawback → the lines rise into a curling wave (turtle-curve generator ported from the trailer) → dots ride the lip → dots fly into the history handle, whose ridgeline gains the new peaks. A confirmation toast ("4 sessioni salvate · Surf", with **Annulla** for a few seconds). A tap on a date during the break fast-forwards it and selects that date. Undo ends the break. On failure there is no wave: crests stay selected, an inline error appears, VoiceOver announces it, and Save becomes **Riprova** (same request id, so it can't duplicate). With reduced motion the calendar just settles with the new rings. Haptics: light impact per crest, success notification on save.
+The last active activity id is persisted and validated at boot. A missing id falls back to a valid remaining activity with a notice; if no activities remain, the app provides the creation path. Saving never accepts a missing activity. Theme, home marker scope and motion preferences are decoded to safe defaults and applied reactively.
 
-## 3. Motion grammar (src/motion/grammar.ts)
-Phases → curves: swell (sine in-out), build (cubic in), crest (back-out), break (expo in-out), flow (quint out), settle (damped spring ζ≈0.36–0.55). Hierarchy: touch 90–160 ms < flow 520 ms < transform 760 ms < break ≈1.7 s. Readable content holds still. Every animation is a function of state + time (interruptible, continues from the current value). Reduced motion (system setting, overridable in Impostazioni): no ripples/ambient drift, transformations become ≤180 ms cross-fades, all states remain visible.
+## Shared calendar model and drawing
 
-## 4. Module map
+`domain/daySummaries.ts` derives day totals and per-activity contributions once from actual sessions and category order. Home, month history, year history and period mosaics consume this model. Day glyphs show up to four category colors plus a +N overflow indicator, with equal geometric shares for distinct activities. Recorded counts express session volume. Counts, accessible labels and full day details include every contribution; color alone is never the only session information.
 
-```
-src/
-  app/               Expo Router routes (thin): _layout, index (composition), sheets
-  domain/            pure TS: types, dates, zoned time, timing, duration, stats, milestones, history grouping
-  data/              SqlDriver interface + expo-sqlite (native) / sql.js (web, tests) drivers, migrations, repositories
-  calendar/          provider interface, google/, apple/, equivalence, import & export engines, titles, representation, duplicates, jobs
-  maps/              Google Maps link parser + resolver, map preview
-  motion/            grammar, water displacement worklets, wave generator
-  graphics/          Skia components (disc, week-lines, liquid pill, wave, ridgelines, corduroy field)
-  places/            Lineup, Switcher, Time (Mese/Anno/Tutto)
-  sheets/            session editor, selection details, activities, calendar exchange flows
-  state/             zustand store, actions, selectors
-  ui/                theme tokens, text components, controls in the identity
-  i18n/              Italian strings
-  platform/          haptics, network, app state, ids, clock
-```
+The shared month calendar controls date geometry, weekday alignment, future-state semantics, selection, recorded markers and touch targets. Home uses `day-YYYY-MM-DD`; month history uses `mini-YYYY-MM-DD`. Main and history month ids can share `month-YYYY-MM`, so UI tests scope history assertions to `time-place`.
 
-Rules: `domain/` and the calendar engines are pure and fully unit-tested; UI never talks to SQLite or providers directly (only through `state/` actions and repositories); motion logic lives in worklets; derived statistics are computed from stored sessions, never cached as truth.
+Year mode has one accessible button per month. Populated nonfuture months enable drill-down, empty/future months remain disabled, and lightweight day color bands represent actual activity contributions without creating a Skia canvas per miniature cell. Empty years retain their year/zero summary instead of manufacturing a populated mosaic.
 
-## 5. Data integrity rules (enforced in domain + data)
-- Dates are `YYYY-MM-DD`. Timed info stores wall times + IANA zone + explicit next-day flag; durations are derived DST-correctly.
-- Unknown duration is `null`. Sums use known durations only; coverage "durata disponibile per X di Y"; no known durations → "Nessuna durata registrata". Averages exclude unknowns and show the contributing count. Canonical unit: integer seconds; sum before rounding for display.
-- Timing states and transitions per `domain/timing.ts`; switching modes previews what changes; clearing removes derived values.
-- Multiple sessions per date allowed. Duplicate save taps are blocked by a per-tap request id (unique `(save_request_id, date)`).
-- Import provenance, export links, export jobs live in their own tables. Exported/linked events never count as sessions; scheduling placeholders never count as hours.
-- Deleting a session leaves calendar events untouched by default. Renaming a category never rewrites exported events.
-- Last active category id persisted; validated at launch (deleted → first remaining + visible notice; none → create/select empty state). Never save against a missing category.
+Theme tokens come from `ui/theme.ts`, with `useSurface`/`useThemePref` subscriptions. Shared text, controls, sheets, calendars, maps and management forms react to cream/dark changes. Legacy fixed-tone artwork tokens remain usable where intentional.
 
-## 6. Calendar exchange
-Provider interface (`calendar/types.ts`) implemented by Google (OAuth + REST v3: complete pagination, chunked ranges, `singleEvents=true`, colours as labels, `extendedProperties.private` for app metadata) and Apple (expo-calendar / EventKit: chunked ≤4-year ranges, URL field for app metadata, no per-event labels → disclosed). Engines are pure and tested with fake providers:
-- **Import**: one activity per operation; title-only case-insensitive contains; calendar + label filters; review list with statuses; recurring occurrences tracked by occurrence key; cancelled excluded; all-day → date only (unknown duration); multi-day → one session on the start date with span kept as provenance; app-exported events restore their original timing from metadata; duplicates skipped by default; possible matches need review.
-- **Export**: one activity per operation; destinations Google / Apple / both (equivalence detection prevents double writes); review list with title = prefix + base + suffix (base defaults to the activity name, per-event overrides, reset), notes/location inclusion toggles, timing representation per state (date marker, approved scheduling span for start-only, interval, duration-in-description), duplicate check against the real destination, actions skip/link/create/update, idempotent op ids, per-destination results, uncertain writes reconciled before retry.
-- **Auto-export**: off by default; scope all/selected activities; destination settings per activity; durable jobs with backoff; offline/unauthorised/rate-limited → retry later; ambiguity/duplicates/unapproved representations → "Da rivedere"; imported sessions excluded unless forwarding is enabled; turning off stops future writes and offers to cancel pending jobs.
+## Named periods
 
-### UI and runtime glue
-- `src/sheets/calendar/`: the hub (`/calendar`: connections, nothing prompts before **Collega**), `ImportWizard` (activity → connection + source calendars → range + filters → review → confirm), `ExportWizard` + `ExportRow` (activity → destinations with the "both" gate → titles/content/representation, optionally per destination → per-destination review with actions and outgoing-only edits → results with recovery), `AutoExportSettings`, `JobsScreen`. Pure wizard state lives in `exportModel.ts` / `rangeHelpers.ts` (unit-tested).
-- `src/calendar/registry.ts` creates the providers lazily (first calendar use). When a build sets `EXPO_PUBLIC_SERIE_E2E_CALENDAR=1`, it uses the in-memory test provider `src/calendar/memory.ts` instead. That provider exists only for automated UI verification.
-- `src/calendar/autoRuntime.ts`: after each local commit (Lineup saves and imports, via `state/hooks.ts`), jobs are queued when automatic export is on. They run after the undo window (an undone save is cancelled, never exported), on returning to the foreground, when the network comes back (`expo-network`), and every minute while open jobs exist.
+`domain/namedPeriods.ts` validates and selects sessions for named ranges. `named_periods` stores metadata and `named_period_categories` stores selected scope identifiers. All-activity scope includes later-created activities automatically. Selected scope uses identifiers rather than names; deleted activities do not silently widen that scope.
 
-## 7. Platform honesty
-The primary target is a native iOS build (EAS development build / TestFlight). This repository is developed in a Linux container, so native builds and device tests cannot run here: the UI is verified through Expo **web** in headless Chromium (Skia via CanvasKit, persistence via sql.js), and the pure modules through Jest. Google OAuth needs a client id configured by the developer; Apple calendars need a device. See README "Status".
+Dates are inclusive, valid calendar dates at or after the supported earliest date, and ordered start ≤ end. Periods may overlap, may share names and may extend into the future. These rules do not allow logging future sessions. Period totals sum actual included sessions, distinct active dates and known durations with coverage. Editing/deleting a period changes only metadata; session rows and external events remain intact.
+
+Period previews use the same calculations as stored details. Large period session lists use day grouping/virtualization; readonly preview rows do not open editors accidentally. A full day can be opened from a period and uses the existing session editor.
+
+## Data integrity
+
+- Session dates are `YYYY-MM-DD`. Timing stores wall times, an IANA zone and an explicit next-day flag; intervals are calculated with DST rules.
+- Unknown duration is `null`. Sum only known integer seconds before display rounding. Averages exclude unknown durations and show contributing counts. Zero known values produce “Nessuna durata registrata.”
+- Date-only, start-only, interval, duration-only and start + duration states remain distinct. An export-only scheduling span never becomes activity duration.
+- Multiple sessions on one date are valid. Duplicate save requests are constrained by request id/date, while a deliberate second save uses a new request.
+- Optional details applied to several dates are copied per session and are independently editable later.
+- Session, activity and period editors guard unsaved changes. Destructive session/activity actions retain their explicit safeguards; period deletion states that sessions will remain.
+- External calendar events remain intact when local sessions are deleted. Activity renaming never rewrites outgoing events automatically.
+
+## Calendar exchange boundaries
+
+`calendar/types.ts` defines the provider interface. Google uses OAuth and Calendar REST v3 with complete pagination, recurrence expansion, labels and private metadata. Apple uses expo-calendar/EventKit with readable/full access, bounded ranges and supported metadata. Providers are created lazily when the feature is first used.
+
+Import targets one activity and reviews source calendars, inclusive range, title-only matching, optional Google labels, recurrence/cancellation and duplicate status. All-day events produce unknown-duration date-only sessions. Multi-day provenance is disclosed. Recognized application metadata restores original timing.
+
+Export reviews selected sessions/destinations, equivalence of Google/iPhone calendars, prefix/base/suffix titles, content inclusion, representation and per-event outgoing edits. Explicit apply-to-session remains separate. Recognition, heuristic matches, linked changes and uncheckable destinations produce appropriate review actions. Persisted operation identities and reconciliation protect retries after partial/uncertain writes.
+
+Automatic export is opt-in, waits until undo is no longer possible, persists jobs, retries temporary failures and exposes ambiguity/unsupported representation for review. Imported sessions are excluded by default and never forwarded back into their source calendar. It runs on foreground/network return and scheduled checks while the app is active; no background delivery guarantee is made.
+
+`EXPO_PUBLIC_SERIE_E2E_CALENDAR=1` selects `calendar/memory.ts` only for an explicitly built test bundle. Browser integration results prove UI + engines + database, not OAuth or EventKit on a physical phone.
+
+## Verification and release
+
+Jest covers pure models, repository SQL/migrations, actions, providers and integration engines. Browser suites freeze **13 October 2026, 12:00 UTC**, keep real timers and fail on every unexpected page error/console error. Browser/CanvasKit screenshots support visual inspection. Native Maestro uses dates from the previous month and checks Release startup, persistence, drafts, mixed-day editing, maps, EventKit export, settings and period integrity. After the fresh logging fixture, the simulator runner stops its own app, checkpoints its database, snapshots six original tables, drops only additive v2 tables and sets schema v1. Relaunch executes the actual native migration; the gate verifies schema v2, original UI records, full row/identifier equality, foreign keys and SQLite integrity.
+
+`serie-candidate.yml` resolves one full source SHA and gates unit tests, typecheck, lint and all browser suites before calling the reusable simulator workflow. IPA packaging and prerelease publication follow only after simulator smoke success and use the same SHA. Standalone simulator/IPA manual dispatch remains available for downloadable build artifacts; standalone IPA dispatch cannot publish a prerelease. Only the dedicated final release marker on `codex/serie-calendar` triggers the coordinated workflow on push; regular development pushes do not consume macOS build minutes.
+
+`Serie-build.json` and the checksum accompany the IPA. Test evidence is stored in workflow artifacts and temporary local directories, rather than application source. Provenance and actual observed validation results are maintained in [Codex handoff](docs/CODEX_HANDOFF.md).
+
+A simulator cannot prove physical iPhone GPU performance, haptics, VoiceOver, battery behavior, permission prompts, older supported iOS versions or real Google OAuth. Those remain explicit device/integration verification boundaries.

@@ -1,0 +1,17 @@
+# PREV_YEAR and PREV_MONTH are derived from the host date in tools/sim-smoke.sh.
+# Every fixture day is in the previous month, regardless of the CI run date.
+appId: app.serie.ios
+---
+- tapOn:
+    id: month-title
+    waitToSettleTimeoutMs: 1000
+- extendedWaitUntil:
+    visible:
+      id: jump-sheet
+    timeout: 10000
+- tapOn:
+    id: jump-year-${PREV_YEAR}
+    waitToSettleTimeoutMs: 500
+- tapOn:
+    id: jump-month-${PREV_MONTH}
+    waitToSettleTimeoutMs: 1000

@@ -70,17 +70,54 @@ xcrun simctl terminate "$UDID" "$BUNDLE" 2>/dev/null || true
 
 # 2. Maestro flows (each one in its own run, so a failure does not hide the next ones)
 PREV=$(python3 -c 'import datetime as d; print((d.date.today().replace(day=1) - d.timedelta(days=1)).strftime("%Y-%m"))')
+PREV_YEAR=${PREV:0:4}
+PREV_MONTH=$((10#${PREV:5:2}))
+
+# The fixture created by flow01 belongs only to this fresh simulator install.
+# Reconstruct v1 from the additive v2 schema, then let the ACTUAL native driver
+# migrate it on app boot. Compare every original table, including nulls and ids.
+native_upgrade() {
+  local upgrade_container upgraded=0
+  xcrun simctl terminate "$UDID" "$BUNDLE" >>"$OUT/native-upgrade.log" 2>&1 || return 1
+  upgrade_container=$(xcrun simctl get_app_container "$UDID" "$BUNDLE" data) || return 1
+  python3 tools/native-upgrade.py prepare --container "$upgrade_container" --out "$OUT" \
+    --previous-month "$PREV" --source-commit "$(git rev-parse HEAD)" --bundle "$BUNDLE" \
+    >>"$OUT/native-upgrade.log" 2>&1 || return 1
+  xcrun simctl launch "$UDID" "$BUNDLE" >>"$OUT/native-upgrade.log" 2>&1 || return 1
+  for _ in $(seq 1 60); do
+    if python3 tools/native-upgrade.py status --out "$OUT"; then upgraded=1; break; fi
+    sleep 0.5
+  done
+  [ "$upgraded" = 1 ] || { echo "Native migration did not reach v2 in 30 seconds" >>"$OUT/native-upgrade.log"; return 1; }
+  maestro --device "$UDID" test "$FLOWS/subflows/upgrade-ready.yaml" -e PREV="$PREV" -e PREV_YEAR="$PREV_YEAR" -e PREV_MONTH="$PREV_MONTH" \
+    --format junit --output "$OUT/maestro-native-upgrade.xml" \
+    --test-output-dir "$OUT/maestro/native-upgrade" --debug-output "$OUT/maestro/native-upgrade/debug" --flatten-debug-output \
+    >>"$OUT/native-upgrade.log" 2>&1 || return 1
+  xcrun simctl terminate "$UDID" "$BUNDLE" >>"$OUT/native-upgrade.log" 2>&1 || return 1
+  python3 tools/native-upgrade.py verify --out "$OUT" >>"$OUT/native-upgrade.log" 2>&1
+}
+
 if command -v maestro >/dev/null; then
   say "- Maestro $(maestro --version 2>/dev/null | tail -1) · PREV=$PREV"
   for flow in "$FLOWS"/[0-9]*.yaml; do
     name=$(basename "$flow" .yaml)
     t0=$(date +%s)
-    if maestro test "$flow" -e PREV="$PREV" --format junit --output "$OUT/maestro-$name.xml" \
+    if maestro --device "$UDID" test "$flow" -e PREV="$PREV" -e PREV_YEAR="$PREV_YEAR" -e PREV_MONTH="$PREV_MONTH" --format junit --output "$OUT/maestro-$name.xml" \
       --test-output-dir "$OUT/maestro/$name" --debug-output "$OUT/maestro/$name/debug" --flatten-debug-output; then
       say "- $name: passed ($(( $(date +%s) - t0 )) s)"
+      if [ "$name" = "01-log" ]; then
+        if native_upgrade; then
+          say "- Native upgrade v1 → v2: passed (all six original tables unchanged; SQLite integrity + foreign keys valid)"
+        else
+          say "- Native upgrade v1 → v2: **failed** (see native-upgrade.log and snapshots)"
+          FAIL=1
+          xcrun simctl io "$UDID" screenshot "$OUT/screens/fail-native-upgrade.png" >/dev/null 2>&1 || true
+        fi
+      fi
     else
       say "- $name: **failed** ($(( $(date +%s) - t0 )) s)"
       FAIL=1
+      if [ "$name" = "01-log" ]; then say "- Native upgrade: **not run**, prerequisite fresh fixture failed"; fi
       xcrun simctl io "$UDID" screenshot "$OUT/screens/fail-$name.png" >/dev/null 2>&1 || true
     fi
   done
