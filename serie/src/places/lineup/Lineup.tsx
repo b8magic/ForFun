@@ -1,6 +1,6 @@
 /** Vertical logging calendar. The activity selects the destination, never the history. */
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { FlatList, Pressable, StyleSheet, View, useWindowDimensions, type ViewToken } from 'react-native';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { FlatList, Pressable, StyleSheet, View, useWindowDimensions, type NativeScrollEvent, type NativeSyntheticEvent, type ViewToken } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, usePathname } from 'expo-router';
 import { useApp } from '@/state/store';
@@ -21,6 +21,7 @@ import { SaveCapsule } from './SaveCapsule';
 
 const openDay = (date: string) => router.push({ pathname: '/day', params: { date } });
 const VIEWABILITY = { itemVisiblePercentThreshold: 30 };
+interface MonthAlignment { key: string; month: MonthRef; index: number; offset: number }
 
 export function Lineup() {
   const surface = useSurface();
@@ -50,9 +51,19 @@ export function Lineup() {
   const [listHeight, setListHeight] = useState(0);
   const visibleMonth = viewMonth;
   const list = useRef<FlatList<MonthRef>>(null);
-  const scrollKey = useRef(monthKey(viewMonth));
-  const initialAligned = useRef(false);
-  const pendingTarget = useRef<string | null>(null);
+  // A request is acknowledged only after its rendered month reaches its offset.
+  const scrollKey = useRef<string | null>(null);
+  const pendingTarget = useRef<MonthAlignment | null>(null);
+  const viewableMonths = useRef<MonthRef[]>([]);
+  const scrollOffset = useRef<number | null>(null);
+  const retryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const retryAlignment = useRef<(() => void) | null>(null);
+  const homeVisible = place === 'lineup' && pathname === '/';
+  const homeVisibleRef = useRef(homeVisible);
+  const requested = monthKey(viewMonth);
+  useLayoutEffect(() => {
+    homeVisibleRef.current = homeVisible;
+  }, [homeVisible]);
   const sectionTitleHeight = Math.ceil(48 * Math.max(1, Math.min(fontScale, 1.6)));
   const frames = useMemo(() => {
     let offset = 0;
@@ -67,34 +78,78 @@ export function Lineup() {
     return result;
   }, [months, sectionTitleHeight, fontScale]);
   const [initialIndex] = useState(() => Math.max(0, months.findIndex((month) => compareMonths(month, viewMonth) === 0)));
-  useEffect(() => {
-    if (!listHeight || initialAligned.current) return;
-    const frame = requestAnimationFrame(() => {
-      list.current?.scrollToIndex({ index: initialIndex, animated: false, viewPosition: 0 });
-      initialAligned.current = true;
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [listHeight, initialIndex]);
-  const requested = monthKey(viewMonth);
-  useEffect(() => {
-    if (requested === scrollKey.current) return;
-    const index = months.findIndex((month) => compareMonths(month, viewMonth) === 0);
-    if (index >= 0) {
-      scrollKey.current = requested;
-      pendingTarget.current = requested;
-      list.current?.scrollToIndex({ index, animated: !reduced, viewPosition: 0 });
-    }
-  }, [requested, months, viewMonth, reduced]);
-  const onVisible = useCallback(({ viewableItems }: { viewableItems: ViewToken<MonthRef>[] }) => {
-    const requestedKey = pendingTarget.current;
-    const target = requestedKey ? viewableItems.find((item) => item.isViewable && monthKey(item.item) === requestedKey) : null;
-    if (requestedKey && !target) return;
-    const month = target?.item ?? viewableItems.find((item) => item.isViewable)?.item;
-    if (!month) return;
+  const stopRetry = useCallback(() => {
+    if (retryTimer.current) clearTimeout(retryTimer.current);
+    retryTimer.current = null;
+  }, []);
+  const finishAlignment = useCallback(() => {
+    const target = pendingTarget.current;
+    if (!target || !homeVisibleRef.current || scrollOffset.current === null) return;
+    if (monthKey(useApp.getState().viewMonth) !== target.key) return;
+    if (Math.abs(scrollOffset.current - target.offset) > 2 || !viewableMonths.current.some((month) => monthKey(month) === target.key)) return;
     pendingTarget.current = null;
+    retryAlignment.current = null;
+    scrollKey.current = target.key;
+    stopRetry();
+    setViewMonth(target.month);
+  }, [stopRetry]);
+  useEffect(() => {
+    const index = months.findIndex((month) => monthKey(month) === requested);
+    if (requested === scrollKey.current || index < 0) {
+      pendingTarget.current = null;
+      return;
+    }
+    const target = { key: requested, month: months[index], index, offset: frames[index].offset };
+    pendingTarget.current = target;
+    // The covered native screen can ignore scroll commands during dismissal.
+    // Keep the request pending and issue it once Home has a measured viewport.
+    if (!homeVisible || !listHeight) return;
+    let attempts = 0;
+    const align = () => {
+      if (pendingTarget.current !== target || !homeVisibleRef.current || monthKey(useApp.getState().viewMonth) !== target.key) return;
+      stopRetry();
+      attempts++;
+      // Jump directly to the known frame; animating through years can strand
+      // the virtualized window when the route or content layout changes.
+      list.current?.scrollToIndex({ index, animated: false, viewPosition: 0 });
+      list.current?.recordInteraction();
+      finishAlignment();
+      if (pendingTarget.current === target && attempts < 12) retryTimer.current = setTimeout(align, 200);
+    };
+    retryAlignment.current = align;
+    const frame = requestAnimationFrame(align);
+    return () => {
+      cancelAnimationFrame(frame);
+      stopRetry();
+      if (retryAlignment.current === align) retryAlignment.current = null;
+    };
+  }, [requested, months, frames, homeVisible, listHeight, finishAlignment, stopRetry]);
+  const onVisible = useCallback(({ viewableItems }: { viewableItems: ViewToken<MonthRef>[] }) => {
+    viewableMonths.current = viewableItems.filter((item) => item.isViewable).map((item) => item.item);
+    if (!homeVisibleRef.current) return;
+    if (pendingTarget.current) { finishAlignment(); return; }
+    // Ignore stale viewability between a new store request and its effect.
+    if (monthKey(useApp.getState().viewMonth) !== scrollKey.current) return;
+    const month = viewableMonths.current[0];
+    if (!month) return;
     scrollKey.current = monthKey(month);
     setViewMonth(month);
-  }, []);
+  }, [finishAlignment]);
+  const onScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    scrollOffset.current = event.nativeEvent.contentOffset.y;
+    finishAlignment();
+  }, [finishAlignment]);
+  const onScrollBeginDrag = useCallback(() => {
+    // A deliberate drag takes ownership from any unfinished jump/retry.
+    pendingTarget.current = null;
+    retryAlignment.current = null;
+    stopRetry();
+    const month = viewableMonths.current[0];
+    if (month) {
+      scrollKey.current = monthKey(month);
+      setViewMonth(month);
+    }
+  }, [stopRetry]);
   const n = selectionArr.length;
   const offMonth = selectionArr.filter((date) => !date.startsWith(monthKey(visibleMonth)));
   const footerHeight = Math.max(0, listHeight - (frames[frames.length - 1]?.length ?? listHeight));
@@ -115,8 +170,13 @@ export function Lineup() {
       <FlatList
         ref={list} data={months} keyExtractor={monthKey} initialScrollIndex={initialIndex}
         getItemLayout={(_, index) => frames[index]}
-        onScrollToIndexFailed={(info) => list.current?.scrollToOffset({ offset: frames[info.index]?.offset ?? 0, animated: false })}
+        onScrollToIndexFailed={(info) => {
+          const target = pendingTarget.current;
+          if (target?.index === info.index && homeVisibleRef.current) list.current?.scrollToOffset({ offset: target.offset, animated: false });
+        }}
         onLayout={(event) => setListHeight(event.nativeEvent.layout.height)}
+        onContentSizeChange={() => retryAlignment.current?.()}
+        onScroll={onScroll} onScrollBeginDrag={onScrollBeginDrag} scrollEventThrottle={16}
         onViewableItemsChanged={onVisible} viewabilityConfig={VIEWABILITY}
         initialNumToRender={3} maxToRenderPerBatch={3} windowSize={5} showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingHorizontal: 22 }} ListFooterComponent={<View style={{ height: footerHeight }} />}
