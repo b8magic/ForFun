@@ -1,0 +1,5 @@
+{
+  "appVersion": "1.1.0",
+  "requestedAt": "2026-10-12T23:10:14.925Z",
+  "reason": "Codex calendar evolution: final local unit and browser checks passed; verify native upgrade before IPA publication."
+}
