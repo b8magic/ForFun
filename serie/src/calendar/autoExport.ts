@@ -647,6 +647,8 @@ export interface AutoJobPayload extends JobSettings {
   categoryId: string;
   /** Activity name when queued (the current name is used when the job runs). */
   categoryName: string;
+  /** Original Undo deadline. Review decisions and retry scheduling must never move it earlier. */
+  readonly notBefore: string | null;
   pair: JobPair | null;
   /** Export-only span approved for this item from the review. */
   approvedSpanMin: number | null;
@@ -684,6 +686,7 @@ function isRef(x: unknown, provider: ProviderKind): x is CalendarRef {
 /** Read a job payload written by this module; null when it is not one. */
 export function parsePayload(raw: unknown): AutoJobPayload | null {
   if (!isObj(raw) || raw.source !== 'auto_export' || !nonEmpty(raw.categoryId)) return null;
+  if (raw.notBefore != null && (typeof raw.notBefore !== 'string' || !Number.isFinite(Date.parse(raw.notBefore)))) return null;
   const title = isObj(raw.title) ? raw.title : {};
   const p = isObj(raw.pair) ? raw.pair : null;
   const pair: JobPair | null =
@@ -698,6 +701,7 @@ export function parsePayload(raw: unknown): AutoJobPayload | null {
     source: 'auto_export',
     categoryId: raw.categoryId,
     categoryName: typeof raw.categoryName === 'string' ? raw.categoryName : '',
+    notBefore: typeof raw.notBefore === 'string' ? new Date(raw.notBefore).toISOString() : null,
     labelId: nonEmpty(raw.labelId) ? raw.labelId : null,
     title: { prefix: typeof title.prefix === 'string' ? title.prefix : '', suffix: typeof title.suffix === 'string' ? title.suffix : '' },
     includeNotes: raw.includeNotes === true,
@@ -743,6 +747,11 @@ export interface EnqueueResult {
   skipped: { sessionId: string; provider: ProviderKind | null; code: EnqueueSkipCode; message: string }[];
 }
 
+export interface EnqueueOptions extends PlanOptions {
+  /** Earliest ISO instant for a new job; persisted with the insert so every runner respects Undo. */
+  notBefore?: string;
+}
+
 /**
  * Queue automatic export jobs for sessions that were just committed locally.
  * Never throws for a single session (local saving must not be affected):
@@ -754,7 +763,7 @@ export async function enqueueForSessions(
   sessions: readonly Session[],
   categories: readonly Pick<Category, 'id' | 'name'>[],
   config: AutoExportConfig,
-  opts: PlanOptions = {},
+  opts: EnqueueOptions = {},
 ): Promise<EnqueueResult> {
   const out: EnqueueResult = { jobs: [], created: 0, needsReview: 0, skipped: [] };
   if (!config.enabled) {
@@ -791,6 +800,7 @@ export async function enqueueForSessions(
           source: 'auto_export',
           categoryId: session.categoryId,
           categoryName: category?.name ?? '',
+          notBefore: opts.notBefore ?? null,
           ...settingsFrom(config),
           labelId: d.labelId,
           pair: plan.pair,
@@ -812,6 +822,7 @@ export async function enqueueForSessions(
           payload,
           status: d.review ? 'needs_review' : 'pending',
           reviewReason: d.review?.message ?? null,
+          nextAttemptAt: opts.notBefore,
         });
         byOp.set(d.opId, [...prior, job]);
         out.jobs.push(job);
@@ -950,7 +961,15 @@ async function runJobsNow(input: RunJobsInput): Promise<RunJobsResult> {
       if (j.kind === 'auto' && (j.status === 'pending' || j.status === 'failed' || j.status === 'uncertain') && parsePayload(j.payload)?.deferred === 'offline') candidates.set(j.id, j);
     }
   }
-  const queue = [...candidates.values()].sort((a, b) => a.createdAt.localeCompare(b.createdAt)).slice(0, input.limit ?? Infinity);
+  // nextAttemptAt is a mutable retry schedule. The original Undo deadline is a
+  // separate floor, including for forced retries and immediate reconnect runs.
+  const queue = [...candidates.values()]
+    .filter((job) => {
+      const notBefore = parsePayload(job.payload)?.notBefore;
+      return !notBefore || Date.parse(notBefore) <= nowMs();
+    })
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+    .slice(0, input.limit ?? Infinity);
 
   // Per-run caches.
   const connCache = new Map<ProviderKind, Promise<ConnResult>>();
@@ -1372,6 +1391,8 @@ export async function resolveReviewJob(repos: Repositories, jobId: string, actio
   // A retry keeps the reconciliation duty of an uncertain job (also after it passed through review).
   const reopen = job.status === 'uncertain' || payload?.reconcile ? ('uncertain' as const) : ('pending' as const);
   const cleared = { reviewReason: null, lastError: null, nextAttemptAt: null };
+  // "Retry now" may clear a backoff, but cannot waive the save's Undo window.
+  const retry = { ...cleared, nextAttemptAt: payload?.notBefore ?? null };
 
   switch (action.kind) {
     case 'skip':
@@ -1386,20 +1407,20 @@ export async function resolveReviewJob(repos: Repositories, jobId: string, actio
         const labelId = job.provider === 'google' && set.google?.calendarId === job.calendarId ? set.google.labelId : payload.labelId;
         next = { ...next, ...settingsFrom(c), labelId };
       }
-      await repos.exportJobs.update(job.id, { status: reopen, ...cleared, payload: next });
+      await repos.exportJobs.update(job.id, { status: reopen, ...retry, payload: next });
       break;
     }
     case 'approve_span': {
       if (!payload) throw new DomainError('invalid_payload', jobId);
       const m = validSpanMin(action.minutes);
       if (m == null) throw new DomainError('invalid_span', String(action.minutes));
-      await repos.exportJobs.update(job.id, { status: reopen, ...cleared, payload: { ...payload, approvedSpanMin: m, review: null, deferred: null } });
+      await repos.exportJobs.update(job.id, { status: reopen, ...retry, payload: { ...payload, approvedSpanMin: m, review: null, deferred: null } });
       break;
     }
     case 'create_separate': {
       if (!payload) throw new DomainError('invalid_payload', jobId);
       if (payload.review?.code !== 'possible_duplicate') throw new DomainError('action_not_allowed', 'create_separate');
-      await repos.exportJobs.update(job.id, { status: reopen, ...cleared, payload: { ...payload, allowSeparate: true, review: null, deferred: null } });
+      await repos.exportJobs.update(job.id, { status: reopen, ...retry, payload: { ...payload, allowSeparate: true, review: null, deferred: null } });
       break;
     }
     case 'link': {

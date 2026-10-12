@@ -4,7 +4,7 @@
  *   - After every local commit: if automatic export is ON, queue jobs for the
  *     new sessions. Saving never waits for this and never fails because of it.
  *   - Jobs run a few seconds later (after the "Annulla" window, so an undone
- *     save is cancelled by the engine instead of exported), when the app
+ *     save loses its queued jobs instead of being exported), when the app
  *     returns to the foreground, when the network comes back, and every
  *     minute while open jobs exist.
  *   - Providers are created lazily, only when there is something to run, so a
@@ -83,15 +83,10 @@ export async function enqueueAfterCommit(sessions: Session[]): Promise<void> {
   const repos = await getRepositories();
   const config = await loadConfig(repos);
   if (!config.enabled) return;
-  const res = await enqueueForSessions(repos, sessions, useApp.getState().categories, config);
-  // New jobs become due only after the "Annulla" window: no run (timer, foreground, network)
-  // can export a save that the user is still able to undo. An undone session's job is then
-  // cancelled by the engine ("La sessione non esiste più"), never written.
-  const notBefore = new Date(Date.now() + RUN_AFTER_COMMIT_MS - 500).toISOString();
-  const ids = new Set(sessions.map((x) => x.id));
-  for (const j of res.jobs) {
-    if (j.status === 'pending' && ids.has(j.sessionId) && j.attempts === 0 && !j.nextAttemptAt) await repos.exportJobs.update(j.id, { nextAttemptAt: notBefore });
-  }
+  // Persist the deadline in the same insert as the job: a foreground, network or
+  // periodic run must never see a new job as due while "Annulla" is available.
+  const notBefore = new Date(Date.now() + RUN_AFTER_COMMIT_MS).toISOString();
+  const res = await enqueueForSessions(repos, sessions, useApp.getState().categories, config, { notBefore });
   await refreshOpenJobs();
   if (res.created || res.jobs.length) schedule(RUN_AFTER_COMMIT_MS);
 }

@@ -100,7 +100,7 @@ describe('save', () => {
 });
 
 describe('activity context', () => {
-  it('switching persists the remembered activity and clears the selection', async () => {
+  it('switching persists the remembered activity and projects its own empty draft', async () => {
     const corsa = useApp.getState().categories.find((c) => c.name === 'Corsa')!;
     A.toggleDate('2026-10-01');
     await A.switchActivity(corsa.id);

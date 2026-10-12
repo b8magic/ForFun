@@ -112,6 +112,35 @@ export const MIGRATIONS: string[] = [
   CREATE UNIQUE INDEX export_jobs_open_op ON export_jobs(op_id) WHERE status IN ('pending', 'running', 'failed', 'uncertain', 'needs_review');
   CREATE INDEX export_jobs_status ON export_jobs(status, next_attempt_at);
   `,
+  // v2: additive only; sessions, exchange records and settings retain their ids.
+  `
+  CREATE TABLE category_drafts (
+    category_id TEXT PRIMARY KEY REFERENCES categories(id) ON DELETE CASCADE,
+    dates TEXT NOT NULL,
+    details TEXT,
+    request_id TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+
+  CREATE TABLE named_periods (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL CHECK (length(trim(name)) BETWEEN 1 AND 80),
+    start_date TEXT NOT NULL,
+    end_date TEXT NOT NULL CHECK (end_date >= start_date),
+    scope TEXT NOT NULL CHECK (scope IN ('all', 'selected')),
+    note TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+  CREATE INDEX named_periods_dates ON named_periods(start_date, end_date);
+
+  CREATE TABLE named_period_categories (
+    period_id TEXT NOT NULL REFERENCES named_periods(id) ON DELETE CASCADE,
+    category_id TEXT NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
+    PRIMARY KEY (period_id, category_id)
+  );
+  CREATE INDEX named_period_categories_category ON named_period_categories(category_id);
+  `,
 ];
 
 export async function migrate(db: SqlDriver): Promise<number> {

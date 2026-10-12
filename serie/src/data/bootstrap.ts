@@ -29,7 +29,7 @@ export function resolveActive(categories: Category[], remembered: ID | null): Ac
   return { activeId: categories[0].id, changed: remembered != null };
 }
 
-export async function bootstrap(repos: Repositories): Promise<{ categories: Category[] } & ActiveResolution> {
+export async function bootstrap(repos: Repositories, options: { rememberResolution?: boolean } = {}): Promise<{ categories: Category[] } & ActiveResolution> {
   const seeded = await repos.settings.get<boolean>(KEYS.seeded, false);
   if (!seeded) {
     const existing = await repos.categories.list();
@@ -46,6 +46,6 @@ export async function bootstrap(repos: Repositories): Promise<{ categories: Cate
   const categories = await repos.categories.list();
   const remembered = await repos.settings.get<ID | null>(KEYS.lastActive, null);
   const r = resolveActive(categories, remembered);
-  if (r.activeId !== remembered) await repos.settings.set(KEYS.lastActive, r.activeId);
+  if (options.rememberResolution !== false && r.activeId !== remembered) await repos.settings.set(KEYS.lastActive, r.activeId);
   return { categories, ...r };
 }
