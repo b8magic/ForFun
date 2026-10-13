@@ -27,6 +27,9 @@ on:
       candidate_sha:
         type: string
         required: true
+      supersedes_tag:
+        type: string
+        default: ''
 
 concurrency:
   group: ios-ipa-${{ github.ref }}
@@ -245,3 +248,15 @@ jobs:
             **Note**
             - I calendari di iPhone funzionano sempre. Google Calendar è attivo solo se `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID` era impostato al momento della build, e su un'app ri-firmata il login Google non è garantito.
             - La mappa del luogo richiede iOS 17; su iOS 16 compaiono nome e coordinate in testo.
+
+      - name: Keep a superseded intermediate candidate as a draft
+        if: inputs.supersedes_tag != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SUPERSEDED_TAG: ${{ inputs.supersedes_tag }}
+        run: |
+          [[ "$SUPERSEDED_TAG" =~ ^ipa-[0-9]+$ ]]
+          test "$SUPERSEDED_TAG" != "ipa-${{ github.run_id }}"
+          test "$(gh release view "$SUPERSEDED_TAG" --repo "$GITHUB_REPOSITORY" --json isPrerelease --jq .isPrerelease)" = true
+          gh release edit "$SUPERSEDED_TAG" --draft=true --repo "$GITHUB_REPOSITORY"
+          echo "Superseded intermediate candidate $SUPERSEDED_TAG retained as draft; verified release is ipa-${{ github.run_id }}." >> "$GITHUB_STEP_SUMMARY"

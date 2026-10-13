@@ -32,6 +32,7 @@ jobs:
     timeout-minutes: 30
     outputs:
       sha: ${{ steps.candidate.outputs.sha }}
+      supersedes_tag: ${{ steps.snapshot.outputs.supersedes_tag }}
     defaults:
       run:
         shell: bash
@@ -55,10 +56,20 @@ jobs:
           persist-credentials: false
 
       - name: Verify checked-out candidate
+        id: snapshot
         env:
           CANDIDATE_SHA: ${{ steps.candidate.outputs.sha }}
         run: |
           test "$(git rev-parse HEAD)" = "$CANDIDATE_SHA"
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const marker = 'tools/release-candidate.json';
+          const tag = fs.existsSync(marker) ? JSON.parse(fs.readFileSync(marker, 'utf8')).supersedesTag ?? '' : '';
+          if (typeof tag !== 'string' || (tag && (!/^ipa-[0-9]+$/.test(tag) || tag === `ipa-${process.env.GITHUB_RUN_ID}`))) {
+            throw new Error('Invalid superseded candidate tag');
+          }
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `supersedes_tag=${tag}\n`);
+          NODE
           echo "E2E_SHOTS=$RUNNER_TEMP/serie-web-e2e" >> "$GITHUB_ENV"
           echo "### Candidate $CANDIDATE_SHA" >> "$GITHUB_STEP_SUMMARY"
 
@@ -79,6 +90,9 @@ jobs:
 
       - name: Lint
         run: npm run lint
+
+      - name: Native pixel checker regression tests
+        run: python3 -m unittest discover -s tools -p test_native_colors.py -v
 
       - name: Install Chromium for the existing Playwright suites
         run: npx playwright install --with-deps chromium
@@ -127,4 +141,5 @@ jobs:
     secrets: inherit
     with:
       candidate_sha: ${{ needs.verify.outputs.sha }}
+      supersedes_tag: ${{ needs.verify.outputs.supersedes_tag }}
       release: ${{ github.event_name == 'push' || inputs.release }}

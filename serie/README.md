@@ -53,10 +53,12 @@ For an EAS simulator build, use `--profile development-simulator`. On a Mac with
 The individual `ios-simulator.yml` and `ios-ipa.yml` workflows retain **Run workflow** support and accept an optional full candidate SHA. Manual IPA dispatch builds downloadable artifacts only. The publishing path is the coordinated **Serie candidate (checks → simulator → IPA)** workflow:
 
 1. Check out one immutable commit; run Jest, typecheck, lint and all three browser suites.
-2. Build the iOS Release simulator app from that commit and run the four Maestro flows, with video, screenshots, app log and crash evidence. After the fresh logging fixture, reconstruct v1 and verify the actual native SQLite upgrade preserves all six original tables.
+2. Build the iOS Release simulator app from that commit and run the four Maestro flows, with video, screenshots, app log and crash evidence. After the fresh logging fixture, reconstruct v1 and verify the actual native SQLite upgrade preserves all six original tables. A native pixel check requires both actual activity colors to remain visible in the same day after adding a second activity.
 3. Build the unsigned IPA from the same commit only after both gates pass; optionally publish the prerelease.
 
 Normal development pushes do not trigger a build. On `codex/serie-calendar`, adding/updating `serie/tools/release-candidate.json` requests the final candidate pipeline; create this marker only after local checks pass. Manual dispatch can specify a full 40-character SHA. macOS jobs are sequential, and the release never runs after a failed simulator gate.
+
+If a candidate was published before final visual review found a defect, the replacement marker can name its exact `supersedesTag`. Only after the replacement is verified and published does the release job retain that intermediate prerelease as a draft. It does not alter original or unrelated releases.
 
 Artifacts include `candidate-web-verification`, `Serie-simulator`, `smoke-test` and `Serie-ipa`. The IPA prerelease includes `Serie-unsigned.ipa`, its SHA-256 checksum and `Serie-build.json` identifying the source commit and build run.
 

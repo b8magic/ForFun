@@ -97,6 +97,7 @@ native_upgrade() {
   python3 tools/native-upgrade.py verify --out "$OUT" >>"$OUT/native-upgrade.log" 2>&1
 }
 
+LOG_FLOW_PASSED=0
 if command -v maestro >/dev/null; then
   say "- Maestro $(maestro --version 2>/dev/null | tail -1) · PREV=$PREV"
   LOG_FIXTURE_READY=0
@@ -129,6 +130,7 @@ if command -v maestro >/dev/null; then
       --test-output-dir "$OUT/maestro/$name" --debug-output "$OUT/maestro/$name/debug" --flatten-debug-output; then
       say "- $name: passed ($(( $(date +%s) - t0 )) s)"
       if [ "$name" = "01-log" ]; then
+        LOG_FLOW_PASSED=1
         if native_upgrade; then
           say "- Native upgrade v1 → v2: passed (all six original tables unchanged; SQLite integrity + foreign keys valid)"
           LOG_FIXTURE_READY=1
@@ -156,6 +158,30 @@ fi
 for d in "$OUT"/maestro/*/; do
   find "$d" -name '*.png' -print0 2>/dev/null | while IFS= read -r -d '' f; do cp "$f" "$OUT/screens/$(basename "$d")--$(basename "$f")"; done
 done
+
+# Text assertions cannot detect Reanimated retaining an old fill when a day
+# changes from one activity to two. Gate the real pixels before diagnostic
+# previews: the dock's activity colors must not satisfy the mixed-day check.
+# Normalize with the same sips operation as the logged previews, retaining both
+# the original and this real resized capture; this bounds scan time and encoding.
+NATIVE_COLOR_SCREEN=$OUT/screens/01-log--03-mixed-colors-native.png
+if [ "$LOG_FLOW_PASSED" = 1 ] || [ -f "$NATIVE_COLOR_SCREEN" ]; then
+  if sips -Z 960 "$NATIVE_COLOR_SCREEN" --out "$OUT/native-colors-preview.png" >"$OUT/native-colors-resize.log" 2>&1; then
+    if NATIVE_COLOR_REPORT=$(python3 tools/check-native-colors.py "$OUT/native-colors-preview.png" 2>&1); then
+      say "- $NATIVE_COLOR_REPORT"
+    else
+      say "- **$NATIVE_COLOR_REPORT**"
+      FAIL=1
+    fi
+  else
+    NATIVE_COLOR_REPORT="Native mixed-day colors: FAILED (normalizing 01-log--03-mixed-colors-native.png failed; see native-colors-resize.log)"
+    say "- **$NATIVE_COLOR_REPORT**"
+    FAIL=1
+  fi
+  printf '%s\n' "$NATIVE_COLOR_REPORT" >"$OUT/native-colors.log"
+else
+  say "- Native mixed-day colors: **NOT_RUN** (01-log did not pass)"
+fi
 
 # A bounded set of small previews is also available through the text logs API;
 # full PNGs and video remain in the artifact. Diagnostics cannot alter the gate.
