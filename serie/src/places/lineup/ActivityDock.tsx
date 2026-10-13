@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useCallback, useLayoutEffect, useRef } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { router } from 'expo-router';
 import type { Category } from '@/domain/types';
@@ -14,18 +14,42 @@ export function ActivityDock({ categories, activeId }: { categories: Category[];
   const surface = useSurface();
   const drafts = useApp((state) => state.drafts);
   const ref = useRef<ScrollView>(null);
-  const positions = useRef(new Map<string, number>());
-  const reveal = () => { const x = positions.current.get(activeId); if (x !== undefined) ref.current?.scrollTo({ x: Math.max(0, x - 8), animated: false }); };
-  useEffect(reveal, [activeId]);
+  const positions = useRef(new Map<string, { x: number; width: number }>());
+  const viewportWidth = useRef(0);
+  const contentWidth = useRef(0);
+  const scrollOffset = useRef(0);
+  const activeIdRef = useRef(activeId);
+  const reveal = useCallback(() => {
+    const chip = positions.current.get(activeIdRef.current);
+    const viewport = viewportWidth.current;
+    if (!chip || !viewport || !contentWidth.current) return;
+    const offset = scrollOffset.current;
+    let target = offset;
+    // Choosing an already visible activity must leave neighbouring chips still.
+    if (chip.width >= viewport || chip.x < offset) target = chip.x;
+    else if (chip.x + chip.width > offset + viewport) target = chip.x + chip.width - viewport;
+    target = Math.max(0, Math.min(target, contentWidth.current - viewport));
+    if (Math.abs(target - offset) > 0.5) ref.current?.scrollTo({ x: target, animated: false });
+  }, []);
+  useLayoutEffect(() => {
+    activeIdRef.current = activeId;
+    reveal();
+  }, [activeId, reveal]);
   return (
     <View style={styles.row}>
-      <ScrollView ref={ref} horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.rail} onContentSizeChange={reveal} style={{ flex: 1 }}>
+      <ScrollView
+        ref={ref} horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.rail} style={{ flex: 1 }}
+        onLayout={(event) => { viewportWidth.current = event.nativeEvent.layout.width; reveal(); }}
+        onContentSizeChange={(width) => { contentWidth.current = width; reveal(); }}
+        onScroll={(event) => { scrollOffset.current = event.nativeEvent.contentOffset.x; }}
+        scrollEventThrottle={16}
+      >
         {categories.map((category) => {
           const active = category.id === activeId;
           const draftCount = drafts[category.id]?.dates.length ?? 0;
           const ink = active ? palette.ink : surface.fg;
           return (
-            <View key={category.id} onLayout={(event) => positions.current.set(category.id, event.nativeEvent.layout.x)} testID={active ? 'activity-switcher' : undefined} accessibilityLabel={active ? `Attività attiva: ${category.name}. Tocca per cambiare attività.` : undefined} aria-expanded={false}>
+            <View key={category.id} onLayout={(event) => { const { x, width } = event.nativeEvent.layout; positions.current.set(category.id, { x, width }); if (category.id === activeIdRef.current) reveal(); }} testID={active ? 'activity-switcher' : undefined} accessibilityLabel={active ? `Attività attiva: ${category.name}` : undefined} aria-expanded={false}>
               <Pressable onPress={() => { void switchActivity(category.id); }} accessibilityRole="button" accessibilityLabel={`${category.name}${active ? ', attività attiva' : ''}${draftCount ? `, ${draftCount} date da salvare` : ''}`} accessibilityState={{ selected: active }} testID={`activity-${category.name}`} style={({ pressed }) => [styles.chip, { backgroundColor: active ? category.color : softenColor(category.color, surface.bg, 0.18), borderColor: active ? surface.fg : 'transparent', opacity: pressed ? 0.7 : 1 }]}>
                 <IdentityDisc size={25} pattern={category.pattern} color={ink} stripe={ink} animated={false} />
                 <T variant="bodyStrong" color={ink} numberOfLines={1} style={{ maxWidth: 150 }}>{category.name}</T>
