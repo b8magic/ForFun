@@ -1,0 +1,71 @@
+{
+  "appVersion": "1.3.0",
+  "buildNumber": "4",
+  "bundleIdentifier": "app.serie.ios",
+  "minimumIOSVersion": "16.4",
+  "applicationSource": "f7191db1549f1e413c3942e48d307a95f70b6ad2",
+  "candidateSource": "0a203489a61663c2f52f01c0132d3c4abb9865e4",
+  "verifiedApplicationCandidate": "cfbfdfb599658dee24da147c5ee71f33954187ee",
+  "applicationInputsUnchanged": true,
+  "buildRun": "https://github.com/b8magic/ForFun/actions/runs/38426461913",
+  "buildJob": 115397031266,
+  "buildConclusion": "success",
+  "runner": "macos-26",
+  "xcode": "26.6",
+  "iphoneosSDK": "26.5",
+  "repositoryVisibility": "public",
+  "ipa": {
+    "url": "https://github.com/b8magic/ForFun/actions/runs/38426461913/artifacts/11830002724",
+    "artifactId": 11830002724,
+    "bytes": 16096732,
+    "sha256": "c34451f6b1c934a0828d6eb070287232da322c09dd8fd445920da93cdd92f73e",
+    "expiresAt": "2026-10-20T16:17:18Z"
+  },
+  "companionZip": {
+    "url": "https://github.com/b8magic/ForFun/actions/runs/38426461913/artifacts/11830382311",
+    "artifactId": 11830382311,
+    "bytes": 15967135,
+    "sha256": "6e1023427bda7b0eaaf68b72c587e8a302bb8d078bb5c11279902a7973bdc4ef",
+    "expiresAt": "2026-10-20T16:17:16Z"
+  },
+  "verification": {
+    "builtPlist": true,
+    "packagedHash": true,
+    "uploadedHash": true,
+    "uploadSize": true,
+    "source": true,
+    "archiveSuccess": true,
+    "evidence": "Successful immutable IPA workflow, built Info.plist output, matching packaging/raw-upload/artifact SHA-256 and exact bytes. Independent local binary/ZIP-content inspection not performed.",
+    "embeddedBundle": "main.jsbundle presence required by successful packaging step",
+    "manifest": "Generated Serie-build.json records delivery source, native version, build run and build 4; three-file IPA/checksum/manifest upload confirmed.",
+    "unitTests": 934,
+    "unitSuites": 54,
+    "browserChecks": 57,
+    "nativePixelToolTests": 9,
+    "typecheck": "passed on verified candidate and IPA job",
+    "lint": "passed on verified candidate",
+    "linuxRun": "https://github.com/b8magic/ForFun/actions/runs/38413739935",
+    "linuxSource": "cfbfdfb599658dee24da147c5ee71f33954187ee",
+    "fullNativeGatePassed": false,
+    "nativeSimulator": {
+      "run": "https://github.com/b8magic/ForFun/actions/runs/38413739935",
+      "source": "cfbfdfb599658dee24da147c5ee71f33954187ee",
+      "conclusion": "incomplete",
+      "passed": ["startup", "01-log", "six-table-upgrade", "mixed-day-colors"],
+      "crashReports": 0,
+      "failed": "02-details-map: saved-map scroll exceeded the automation timeout",
+      "notRun": ["03-calendar", "04-settings-periods", "05-feedback-v13"],
+      "correctedCaretSequenceVerified": false
+    },
+    "nativeReplay": {
+      "run": "https://github.com/b8magic/ForFun/actions/runs/38425781300",
+      "conclusion": "cancelled",
+      "concurrencyStopRun": "https://github.com/b8magic/ForFun/actions/runs/38426462127",
+      "concurrencyStopConclusion": "success"
+    },
+    "physicalIPhoneInstallationVerified": false
+  },
+  "googleCalendarConfigured": false,
+  "deliveryPolicy": "IPA-only compilation chosen by Codex following the user's delay feedback; prior complete native replay cancelled. Earlier revisions' native flow passes do not establish a full final-app gate.",
+  "publication": "Raw and companion ZIP Actions artifacts; Publish prerelease intentionally skipped for IPA-only run."
+}
