@@ -126,11 +126,10 @@ jobs:
 
   simulator:
     name: Native simulator gate
-    needs: verify
     uses: ./.github/workflows/ios-simulator.yml
     with:
       smoke: true
-      candidate_sha: ${{ needs.verify.outputs.sha }}
+      candidate_sha: ${{ inputs.candidate_sha || github.sha }}
 
   ipa:
     name: Build and publish the verified IPA

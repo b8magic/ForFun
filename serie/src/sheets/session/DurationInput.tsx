@@ -36,6 +36,11 @@ export function DurationInput({ value, onChange, onBlur, error, testID }: Props)
         }}
         selection={selection ? { start: Math.min(selection.start, text.length), end: Math.min(selection.end, text.length) } : undefined}
         onSelectionChange={({ nativeEvent }) => {
+          // iOS sends the selection for the raw text after onChangeText. Its
+          // offsets no longer belong to our formatted value (123 -> 1h23m).
+          // RN will reapply the controlled selection when we ignore that event.
+          const selectionText = (nativeEvent as typeof nativeEvent & { text?: string }).text;
+          if (selectionText !== undefined && selectionText !== text) return;
           selectionRef.current = nativeEvent.selection;
           setSelection((current) => current?.start === nativeEvent.selection.start && current.end === nativeEvent.selection.end ? current : nativeEvent.selection);
         }}
