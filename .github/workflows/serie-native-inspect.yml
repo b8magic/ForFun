@@ -1,0 +1,54 @@
+name: Inspect the completed native test evidence
+
+on:
+  push:
+    branches: [codex/serie-calendar]
+    paths: [.github/workflows/serie-native-inspect.yml]
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          artifact-ids: '11827785620'
+          run-id: '38413739935'
+          github-token: ${{ github.token }}
+          path: ${{ runner.temp }}/native-evidence
+
+      - name: Read the failed map scroll and accessibility evidence
+        env:
+          EVIDENCE: ${{ runner.temp }}/native-evidence
+        run: |
+          python3 - <<'PY'
+          import json, os, pathlib, re
+          root = pathlib.Path(os.environ['EVIDENCE'])
+          files = [p for p in root.rglob('*') if p.is_file() and '02-details-map' in str(p)]
+          print('Files:', *[str(p.relative_to(root)) for p in files], sep='\n')
+          def failures(value, path='root'):
+              if isinstance(value, dict):
+                  meta = value.get('metadata', {})
+                  if isinstance(meta, dict) and (meta.get('status') == 'FAILED' or meta.get('error')):
+                      print('FAILED COMMAND', path)
+                      print(json.dumps(value, ensure_ascii=False)[:150000])
+                      return
+                  for key, child in value.items():
+                      failures(child, path + '.' + key)
+              elif isinstance(value, list):
+                  for index, child in enumerate(value):
+                      failures(child, path + '[' + str(index) + ']')
+          for p in files:
+              if p.name.startswith('commands-') and p.suffix == '.json':
+                  print('COMMAND FILE', p.relative_to(root))
+                  failures(json.loads(p.read_text()))
+              if p.name == 'maestro.log':
+                  matches = [line for line in p.read_text(errors='replace').splitlines()
+                             if re.search(r'Scrolling try count|Element bounds|Visibility Percent|visibilityPercentageNormalized|No visible element|ElementNotFound|map-caption', line)]
+                  print('SCROLL LOG', p.relative_to(root))
+                  print('\n'.join(line[:4000] for line in matches[-150:]))
+          PY
