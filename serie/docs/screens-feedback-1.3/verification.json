@@ -1,0 +1,645 @@
+{
+  "applicationSource": "23485a3438d16ea6221dc9c67677523e96c3f660",
+  "appVersion": "1.3.0",
+  "unitTests": 927,
+  "unitSuites": 53,
+  "typecheck": "passed",
+  "lint": "passed",
+  "nativePixelToolTests": 9,
+  "browserChecks": 57,
+  "browserPlugin": "unavailable; existing Playwright fallback",
+  "reports": {
+    "core": {
+      "suite": "core",
+      "url": "http://127.0.0.1:41627/",
+      "root": "/workspace/ForFun/serie/dist-web",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "fixedTime": "2026-10-13T12:00:00.000Z",
+      "browser": "/usr/bin/chromium",
+      "browserPlugin": "not available",
+      "results": [
+        {
+          "name": "first launch has a cream calendar, active Surf and disabled Save",
+          "ok": true,
+          "ms": 226
+        },
+        {
+          "name": "month jump and multi-date save record each date once",
+          "ok": true,
+          "ms": 4361
+        },
+        {
+          "name": "drafts retain their dates and details independently across activity switches and restart",
+          "ok": true,
+          "ms": 21462
+        },
+        {
+          "name": "rapid repeated Save cannot duplicate a draft, but deliberate repeated logging can",
+          "ok": true,
+          "ms": 2988
+        },
+        {
+          "name": "future dates stay disabled and do not enter a draft",
+          "ok": true,
+          "ms": 1479
+        },
+        {
+          "name": "mixed activity markers remain visible and day details list both actual sessions",
+          "ok": true,
+          "ms": 5788
+        },
+        {
+          "name": "editing a session returns to its day and closing restores the calendar draft",
+          "ok": true,
+          "ms": 2197
+        },
+        {
+          "name": "long press opens a saved day without changing the logging draft",
+          "ok": true,
+          "ms": 1323
+        },
+        {
+          "name": "history shows only populated months and can filter an empty activity honestly",
+          "ok": true,
+          "ms": 6966
+        },
+        {
+          "name": "year mosaic includes twelve months and disables empty and future drill-downs",
+          "ok": true,
+          "ms": 3948
+        },
+        {
+          "name": "Progressi uses actual data and the three history scales remain navigable",
+          "ok": true,
+          "ms": 2628
+        },
+        {
+          "name": "history month jump reaches an older recorded year after several populated months",
+          "ok": true,
+          "ms": 13550
+        }
+      ],
+      "errors": [],
+      "warnings": []
+    },
+    "flows": {
+      "suite": "flows",
+      "url": "http://127.0.0.1:41115/",
+      "root": "/workspace/ForFun/serie/dist-web",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "fixedTime": "2026-10-13T12:00:00.000Z",
+      "browser": "/usr/bin/chromium",
+      "browserPlugin": "not available",
+      "results": [
+        {
+          "name": "timing acceptance: four sessions yield 3 h 30 min and duration coverage 2 of 4",
+          "ok": true,
+          "ms": 15694
+        },
+        {
+          "name": "editing an interval to start-only recalculates honest duration coverage",
+          "ok": true,
+          "ms": 4443
+        },
+        {
+          "name": "deleting the last known duration yields an unavailable duration, preserving other sessions",
+          "ok": true,
+          "ms": 4371
+        },
+        {
+          "name": "one duration applied to two dates remains independent and clears after saving",
+          "ok": true,
+          "ms": 9300
+        },
+        {
+          "name": "activity management rejects duplicate names, saves color, and remembers the selected activity",
+          "ok": true,
+          "ms": 7436
+        },
+        {
+          "name": "activity editing guards dirty forms and deletion removes only that activity draft",
+          "ok": true,
+          "ms": 13033
+        },
+        {
+          "name": "month jump reaches another year and explicit draft clearing survives restart",
+          "ok": true,
+          "ms": 5867
+        },
+        {
+          "name": "dark and cream themes, calendar scope and reduced motion apply immediately and persist",
+          "ok": true,
+          "ms": 6645
+        },
+        {
+          "name": "Maps rejects unrelated links, resolves coordinates, and saves the original link verbatim",
+          "ok": true,
+          "ms": 4592
+        },
+        {
+          "name": "discarding unsaved session notes keeps the stored session and returns to the same day",
+          "ok": true,
+          "ms": 4112
+        },
+        {
+          "name": "named period validates its inclusive range and previews real session counts and durations",
+          "ok": true,
+          "ms": 6031
+        },
+        {
+          "name": "period edit scopes by activity and range while keeping unknown durations honest",
+          "ok": true,
+          "ms": 1895
+        },
+        {
+          "name": "overlapping named periods coexist and deleting period metadata retains every session",
+          "ok": true,
+          "ms": 9944
+        }
+      ],
+      "errors": [],
+      "warnings": []
+    },
+    "calendar": {
+      "suite": "calendar",
+      "url": "http://127.0.0.1:43923/",
+      "root": "/workspace/ForFun/serie/dist-web-e2e",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "fixedTime": "2026-10-13T12:00:00.000Z",
+      "browser": "/usr/bin/chromium",
+      "browserPlugin": "not available",
+      "results": [
+        {
+          "name": "two manual Surf sessions are saved in September",
+          "ok": true,
+          "ms": 4590
+        },
+        {
+          "name": "calendar hub opens from the menu and asks nothing until Collega",
+          "ok": true,
+          "ms": 2817
+        },
+        {
+          "name": "import: title-only filter, durations, multi-day mapping, scoped selection, confirm",
+          "ok": true,
+          "ms": 7502
+        },
+        {
+          "name": "import again: already imported events are recognised and not selectable",
+          "ok": true,
+          "ms": 4011
+        },
+        {
+          "name": "import: title filter ignores notes; zero-length event keeps only its start",
+          "ok": true,
+          "ms": 3980
+        },
+        {
+          "name": "import: label filter (Google only) and recurring occurrences without the cancelled one",
+          "ok": true,
+          "ms": 8054
+        },
+        {
+          "name": "export: equivalent Google/iPhone destinations are blocked, then exported to Google",
+          "ok": true,
+          "ms": 10918
+        },
+        {
+          "name": "export again: already exported sessions are not recreated",
+          "ok": true,
+          "ms": 8245
+        },
+        {
+          "name": "automatic export: off by default, enabled with a destination, runs after a save",
+          "ok": true,
+          "ms": 25126
+        }
+      ],
+      "errors": [],
+      "warnings": []
+    },
+    "v12": {
+      "suite": "v12",
+      "url": "http://127.0.0.1:33817/",
+      "root": "/workspace/ForFun/serie/dist-web",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "fixedTime": "2026-10-13T12:00:00.000Z",
+      "browser": "/usr/bin/chromium",
+      "browserPlugin": "not available",
+      "results": [
+        {
+          "name": "Home names the year, Menu keeps an accessible heading, and Progressi opens through Storia",
+          "ok": true,
+          "ms": 4460
+        },
+        {
+          "name": "toggling focus exposes every stored color and a same-activity count on its own segment",
+          "ok": true,
+          "ms": 9262
+        },
+        {
+          "name": "neutral selection survives restart and preserves separate activity dates and details",
+          "ok": true,
+          "ms": 15426
+        },
+        {
+          "name": "a real left swipe reveals deletion, cancellation retains every row, and confirmation deletes only that session",
+          "ok": true,
+          "ms": 11943
+        },
+        {
+          "name": "24 presets and continuous custom controls create and persist an exact color without clipping at 320px",
+          "ok": true,
+          "ms": 11214
+        },
+        {
+          "name": "editing a custom color persists it and paints the selected activity with the same RGB value",
+          "ok": true,
+          "ms": 8201
+        },
+        {
+          "name": "duration saves with a searchable city timezone and remains editable",
+          "ok": true,
+          "ms": 11263
+        },
+        {
+          "name": "duration edits reject 60 minutes and preserve a new timezone and valid minutes across restart",
+          "ok": true,
+          "ms": 7635
+        },
+        {
+          "name": "four repeated activities keep separate counts, colors, and readable day numbers at 390px and 320px",
+          "ok": true,
+          "ms": 21919
+        }
+      ],
+      "errors": [],
+      "warnings": []
+    },
+    "v13": {
+      "suite": "v13",
+      "url": "http://127.0.0.1:40379/",
+      "root": "/workspace/ForFun/serie/dist-web",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "fixedTime": "2026-10-13T12:00:00.000Z",
+      "browser": "/usr/bin/chromium",
+      "browserPlugin": "not available",
+      "results": [
+        {
+          "name": "Home year matches month typography and smaller pills retain full touch targets at 390px and 320px",
+          "ok": true,
+          "ms": 4363
+        },
+        {
+          "name": "one numeric duration formats sequential digits, paste, range edits and suffix backspace without instructional copy",
+          "ok": true,
+          "ms": 6623
+        },
+        {
+          "name": "a saved second-precision duration survives a notes-only edit through inline history",
+          "ok": true,
+          "ms": 6633
+        },
+        {
+          "name": "inline history keeps duration, place and one note line visible at 390px and 320px and restores the editor origin",
+          "ok": true,
+          "ms": 18302
+        },
+        {
+          "name": "a real left toast swipe dismisses only the message and preserves every saved SQLite row",
+          "ok": true,
+          "ms": 5150
+        },
+        {
+          "name": "a real right toast swipe dismisses only the message and preserves every saved SQLite row",
+          "ok": true,
+          "ms": 3152
+        },
+        {
+          "name": "a real up toast swipe dismisses only the message and preserves every saved SQLite row",
+          "ok": true,
+          "ms": 3173
+        },
+        {
+          "name": "a real down toast swipe dismisses only the message and preserves every saved SQLite row",
+          "ok": true,
+          "ms": 3131
+        },
+        {
+          "name": "a short physical drag keeps the toast and subsequent keyboard Undo removes only its own save",
+          "ok": true,
+          "ms": 5257
+        },
+        {
+          "name": "tap dismissal and restart retain all four swiped saves and their complete details",
+          "ok": true,
+          "ms": 6093
+        },
+        {
+          "name": "explicit edit mode selects duplicate sessions individually, excludes other activities and preserves the new-session draft",
+          "ok": true,
+          "ms": 11532
+        },
+        {
+          "name": "bulk notes update keeps timing and place, preserves every unselected row and creates no session",
+          "ok": true,
+          "ms": 4863
+        },
+        {
+          "name": "explicit bulk clear removes only chosen fields and cancellation cannot save pending changes",
+          "ok": true,
+          "ms": 9675
+        },
+        {
+          "name": "a long activity name stays accessible and its compact chip is revealed within the 320px rail",
+          "ok": true,
+          "ms": 6293
+        }
+      ],
+      "errors": [],
+      "warnings": []
+    }
+  },
+  "revealMeasurements": [
+    {
+      "width": 390,
+      "repetition": 1,
+      "stage": "reopen after notes-only editor return",
+      "viewport": {
+        "x": 0,
+        "y": 0,
+        "width": 390,
+        "height": 844
+      },
+      "list": {
+        "x": 0,
+        "y": 0,
+        "width": 390,
+        "height": 844
+      },
+      "panel": {
+        "x": 22,
+        "y": 634,
+        "width": 346,
+        "height": 198
+      },
+      "row": {
+        "x": 22,
+        "y": 723,
+        "width": 298,
+        "height": 109
+      },
+      "scrollY": 240,
+      "fields": {
+        "session-place-preview-3c4a6110-115e-4e1b-8b48-5abebc3ea55e": {
+          "x": 44,
+          "y": 780,
+          "width": 252.8125,
+          "height": 20
+        },
+        "session-notes-preview-3c4a6110-115e-4e1b-8b48-5abebc3ea55e": {
+          "x": 44,
+          "y": 802,
+          "width": 252.8125,
+          "height": 20
+        }
+      }
+    },
+    {
+      "width": 390,
+      "repetition": 2,
+      "stage": "reopen after notes-only editor return",
+      "viewport": {
+        "x": 0,
+        "y": 0,
+        "width": 390,
+        "height": 844
+      },
+      "list": {
+        "x": 0,
+        "y": 0,
+        "width": 390,
+        "height": 844
+      },
+      "panel": {
+        "x": 22,
+        "y": 626,
+        "width": 346,
+        "height": 198
+      },
+      "row": {
+        "x": 22,
+        "y": 715,
+        "width": 298,
+        "height": 109
+      },
+      "scrollY": 248,
+      "fields": {
+        "session-place-preview-3c4a6110-115e-4e1b-8b48-5abebc3ea55e": {
+          "x": 44,
+          "y": 772,
+          "width": 252.8125,
+          "height": 20
+        },
+        "session-notes-preview-3c4a6110-115e-4e1b-8b48-5abebc3ea55e": {
+          "x": 44,
+          "y": 794,
+          "width": 252.8125,
+          "height": 20
+        }
+      }
+    },
+    {
+      "width": 390,
+      "repetition": 3,
+      "stage": "reopen after notes-only editor return",
+      "viewport": {
+        "x": 0,
+        "y": 0,
+        "width": 390,
+        "height": 844
+      },
+      "list": {
+        "x": 0,
+        "y": 0,
+        "width": 390,
+        "height": 844
+      },
+      "panel": {
+        "x": 22,
+        "y": 634,
+        "width": 346,
+        "height": 198
+      },
+      "row": {
+        "x": 22,
+        "y": 723,
+        "width": 298,
+        "height": 109
+      },
+      "scrollY": 240,
+      "fields": {
+        "session-place-preview-3c4a6110-115e-4e1b-8b48-5abebc3ea55e": {
+          "x": 44,
+          "y": 780,
+          "width": 252.8125,
+          "height": 20
+        },
+        "session-notes-preview-3c4a6110-115e-4e1b-8b48-5abebc3ea55e": {
+          "x": 44,
+          "y": 802,
+          "width": 252.8125,
+          "height": 20
+        }
+      }
+    },
+    {
+      "width": 320,
+      "repetition": 1,
+      "stage": "reopen after notes-only editor return",
+      "viewport": {
+        "x": 0,
+        "y": 0,
+        "width": 320,
+        "height": 844
+      },
+      "list": {
+        "x": 0,
+        "y": 0,
+        "width": 320,
+        "height": 844
+      },
+      "panel": {
+        "x": 22,
+        "y": 634,
+        "width": 276,
+        "height": 198
+      },
+      "row": {
+        "x": 22,
+        "y": 723,
+        "width": 228,
+        "height": 109
+      },
+      "scrollY": 278,
+      "fields": {
+        "session-place-preview-3c4a6110-115e-4e1b-8b48-5abebc3ea55e": {
+          "x": 44,
+          "y": 780,
+          "width": 182.8125,
+          "height": 20
+        },
+        "session-notes-preview-3c4a6110-115e-4e1b-8b48-5abebc3ea55e": {
+          "x": 44,
+          "y": 802,
+          "width": 182.8125,
+          "height": 20
+        }
+      }
+    },
+    {
+      "width": 320,
+      "repetition": 2,
+      "stage": "reopen after notes-only editor return",
+      "viewport": {
+        "x": 0,
+        "y": 0,
+        "width": 320,
+        "height": 844
+      },
+      "list": {
+        "x": 0,
+        "y": 0,
+        "width": 320,
+        "height": 844
+      },
+      "panel": {
+        "x": 22,
+        "y": 626,
+        "width": 276,
+        "height": 198
+      },
+      "row": {
+        "x": 22,
+        "y": 715,
+        "width": 228,
+        "height": 109
+      },
+      "scrollY": 286,
+      "fields": {
+        "session-place-preview-3c4a6110-115e-4e1b-8b48-5abebc3ea55e": {
+          "x": 44,
+          "y": 772,
+          "width": 182.8125,
+          "height": 20
+        },
+        "session-notes-preview-3c4a6110-115e-4e1b-8b48-5abebc3ea55e": {
+          "x": 44,
+          "y": 794,
+          "width": 182.8125,
+          "height": 20
+        }
+      }
+    },
+    {
+      "width": 320,
+      "repetition": 3,
+      "stage": "reopen after notes-only editor return",
+      "viewport": {
+        "x": 0,
+        "y": 0,
+        "width": 320,
+        "height": 844
+      },
+      "list": {
+        "x": 0,
+        "y": 0,
+        "width": 320,
+        "height": 844
+      },
+      "panel": {
+        "x": 22,
+        "y": 626,
+        "width": 276,
+        "height": 198
+      },
+      "row": {
+        "x": 22,
+        "y": 715,
+        "width": 228,
+        "height": 109
+      },
+      "scrollY": 286,
+      "fields": {
+        "session-place-preview-3c4a6110-115e-4e1b-8b48-5abebc3ea55e": {
+          "x": 44,
+          "y": 772,
+          "width": 182.8125,
+          "height": 20
+        },
+        "session-notes-preview-3c4a6110-115e-4e1b-8b48-5abebc3ea55e": {
+          "x": 44,
+          "y": 794,
+          "width": 182.8125,
+          "height": 20
+        }
+      }
+    }
+  ],
+  "nativeExecution": "pending candidate workflow"
+}

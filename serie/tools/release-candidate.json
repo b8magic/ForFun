@@ -1,6 +1,7 @@
 {
-  "appVersion": "1.1.0",
-  "requestedAt": "2026-10-13T02:27:19.033Z",
+  "appVersion": "1.3.0",
+  "applicationSource": "23485a3438d16ea6221dc9c67677523e96c3f660",
+  "requestedAt": "2026-10-13T12:10:17.319229Z",
   "supersedesTag": "ipa-38333430020",
-  "reason": "Final candidate after correcting retained animated fills in mounted shared-day mosaics. All 829 unit tests, typecheck/lint, 34 browser journeys with actual paint assertions, and 9 native pixel checker tests passed. Repeat all four native flows and six-table upgrade; require same-day red/lime screenshot pixels before building IPA. Supersede only the intermediate build 6 after this verified replacement is published."
+  "reason": "Final Serie 1.3 candidate after all local gates: 927 tests/53 suites, typecheck/lint, 57 browser journeys with zero errors/warnings, nine native pixel-tool checks. Includes compact duration, actual first-row inline history reveal, four-direction toast dismissal, smaller activity chips, native status-bar correction and atomic bulk editing. Run all five native flows and the six-table upgrade before one unsigned IPA. Supersede only the known intermediate 1.1 build after verified publication."
 }
