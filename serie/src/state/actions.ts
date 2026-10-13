@@ -3,7 +3,7 @@
  * Draft edits render immediately and persist in order before any local save.
  */
 import { AccessibilityInfo } from 'react-native';
-import { decodeHomeActivitiesMode, decodeMotionPref, decodeThemePref, useApp, type ActivityDraft, type AppState, type HomeActivitiesMode, type LastSave, type MotionPref, type Place, type ThemePref, type TimeScale } from './store';
+import { decodeHomeActivitiesMode, decodeMotionPref, decodeThemePref, useApp, type ActivityDraft, type AppState, type HomeActivitiesMode, type HomeSessionMode, type LastSave, type MotionPref, type Place, type ThemePref, type TimeScale } from './store';
 import type { Category, ID, LocalDate, NamedPeriodInput, NamedPeriodPatch, PatternKind, Session, SessionDetailsDraft } from '@/domain/types';
 import { addMonths, compareDates, isLocalDate, monthOf, todayIn, type MonthRef } from '@/domain/dates';
 import { deviceTimeZone } from '@/domain/zoned';
@@ -14,6 +14,8 @@ import { newId } from '@/platform/ids';
 import { haptics } from '@/platform/haptics';
 import { t } from '@/i18n/it';
 import { afterCommit } from './hooks';
+import type { BulkDetailsInput } from '@/domain/bulkDetails';
+import { withExportLock } from '@/calendar/exportCore';
 
 const set = useApp.setState;
 const get = useApp.getState;
@@ -211,8 +213,8 @@ async function reloadPeriods() {
 // ─── Lineup ──────────────────────────────────────────────────────────────────
 
 export function toggleDate(date: LocalDate): boolean {
-  const { selection, today, activeId, saving } = get();
-  if (!activeId || saving) return false;
+  const { selection, today, activeId, saving, homeSessionMode } = get();
+  if (!activeId || saving || homeSessionMode === 'edit') return false;
   if (!isLocalDate(date) || compareDates(date, today) > 0) return false; // future dates cannot be logged
   const on = selection.includes(date);
   const next = on ? selection.filter((d) => d !== date) : [...selection, date].sort();
@@ -249,7 +251,7 @@ export async function switchActivity(id: ID | null) {
   if (id !== null && !categories.some((c) => c.id === id)) return;
   if (id !== activeId) {
     activeRevision++;
-    set((state) => ({ activeId: id, ...draftProjection(state.drafts, id), activeNotice: null, switcherOpen: false }));
+    set((state) => ({ activeId: id, ...draftProjection(state.drafts, id), activeNotice: null, switcherOpen: false, homeSessionMode: 'new', bulkSelection: [] }));
     const remembering = rememberActivity(id);
     haptics.select();
     await Promise.all([remembering, flushDrafts()]);
@@ -263,7 +265,7 @@ export const closeSwitcher = () => set({ switcherOpen: false });
 /** Commit the selection. Resolves true when the data is persisted. */
 export async function save(): Promise<boolean> {
   const s = get();
-  if (s.saving || !s.selection.length) return false;
+  if (s.saving || !s.selection.length || s.homeSessionMode === 'edit') return false;
   const category = s.categories.find((c) => c.id === s.activeId);
   if (!category) {
     set({ saveError: t.noActivitiesBody });
@@ -354,6 +356,60 @@ export async function undoSave(saved: LastSave): Promise<void> {
 
 // ─── Sessions ────────────────────────────────────────────────────────────────
 
+export function setHomeSessionMode(homeSessionMode: HomeSessionMode) {
+  const state = get();
+  if (state.bulkSaving || state.saving || (homeSessionMode === 'edit' && !state.activeId)) return;
+  set({ homeSessionMode, bulkSelection: [] });
+}
+
+export function toggleBulkSession(id: ID) {
+  const state = get();
+  if (state.homeSessionMode !== 'edit' || state.bulkSaving || !state.activeId) return;
+  if (!state.sessions.some((session) => session.id === id && session.categoryId === state.activeId)) return;
+  const selected = state.bulkSelection.includes(id);
+  set({ bulkSelection: selected ? state.bulkSelection.filter((value) => value !== id) : [...state.bulkSelection, id] });
+  haptics.select();
+}
+
+export function selectBulkDay(date: LocalDate, selected: boolean) {
+  const state = get();
+  if (state.homeSessionMode !== 'edit' || state.bulkSaving || !state.activeId) return;
+  const ids = new Set(state.sessions.filter((session) => session.categoryId === state.activeId && session.date === date).map((session) => session.id));
+  set({ bulkSelection: selected ? [...new Set([...state.bulkSelection, ...ids])] : state.bulkSelection.filter((id) => !ids.has(id)) });
+}
+
+export function clearBulkSelection() {
+  if (!get().bulkSaving) set({ bulkSelection: [] });
+}
+
+/** Commit the exact reviewed sessions. An export already in flight finishes before this edit. */
+export async function updateSelectedSessions(input: BulkDetailsInput) {
+  const state = get();
+  const ids = new Set(input.expected.map((session) => session.id));
+  if (state.bulkSaving) throw new DomainError('bulk_busy');
+  if (state.homeSessionMode !== 'edit' || state.activeId !== input.categoryId) throw new DomainError('bulk_category_changed');
+  if (ids.size !== state.bulkSelection.length || state.bulkSelection.some((id) => !ids.has(id))) throw new DomainError('bulk_selection_changed');
+  set({ bulkSaving: true });
+  try {
+    const repos = await getRepositories();
+    const result = await withExportLock(repos.exportJobs, () => {
+      if (get().activeId !== input.categoryId || get().homeSessionMode !== 'edit') throw new DomainError('bulk_category_changed');
+      return repos.sessions.updateDetailsBatch(input);
+    });
+    ++sessionsRead;
+    const updated = new Map(result.sessions.map((session) => [session.id, session]));
+    set((current) => ({
+      sessions: current.sessions.map((session) => updated.get(session.id) ?? session),
+      bulkSelection: current.bulkSelection.filter((id) => !ids.has(id)),
+    }));
+    await reloadSessions().catch(() => undefined);
+    // Like the individual editor, edits do not enqueue exports or overwrite existing events.
+    return result;
+  } finally {
+    set({ bulkSaving: false });
+  }
+}
+
 export async function updateSession(id: ID, patch: SessionPatch): Promise<Session> {
   const repos = await getRepositories();
   const s = await repos.sessions.update(id, patch);
@@ -428,7 +484,7 @@ export async function deleteCategory(id: ID, strategy?: DeleteStrategy) {
       ? state.sessions.map((session) => session.categoryId === id ? { ...session, categoryId: strategy.toCategoryId, saveRequestId: null } : session)
       : state.sessions.filter((session) => session.categoryId !== id);
     const namedPeriods = state.namedPeriods.map((period) => ({ ...period, categoryIds: period.categoryIds.filter((categoryId) => categoryId !== id) }));
-    return { categories, sessions, namedPeriods, drafts, activeId, activeNotice, ...draftProjection(drafts, activeId) };
+    return { categories, sessions, namedPeriods, drafts, activeId, activeNotice, ...draftProjection(drafts, activeId), bulkSelection: [], homeSessionMode: 'new' };
   });
   const remembering = remembered === undefined ? Promise.resolve() : rememberActivity(remembered, Promise.resolve(repos));
   await Promise.all([remembering, reloadCategories(), reloadSessions(), reloadPeriods(), reloadOpenJobs()].map((work) => work.catch(() => undefined)));

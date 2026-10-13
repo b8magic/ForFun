@@ -193,9 +193,18 @@ try {
     assert((await $('scale-month').getAttribute('aria-checked')) === 'true', 'Year selection returns to month mode');
     await historyItem('mini-2026-09-10').scrollIntoViewIfNeeded();
     await historyItem('mini-2026-09-10').tap();
-    await h.visible('day-sheet');
-    assert(/2 sessioni/.test(await page.getByTestId('day-sheet').getByTestId('day-total').innerText()), 'History day opens the full mixed-activity detail');
-    await tap('sheet-close', 400);
+    await h.visible('history-day-details');
+    assert(/1 sessione/.test(await $('history-day-details').getByTestId('day-total').innerText()), 'The selected Surf filter scopes the inline day');
+    assert((await $('filter-Surf').getAttribute('aria-selected')) === 'true', 'The inline day retains the selected Surf filter');
+    assert(await $('history-day-details').locator('[role="button"][data-testid^="session-"]').count() === 1, 'The filtered Surf session remains accessible');
+    assert(!/Corsa/.test(await text('history-day-details')), 'The other activity is outside this filter');
+    await tap('filter-Tutte le attività', 350);
+    await historyItem('mini-2026-09-10').scrollIntoViewIfNeeded();
+    await historyItem('mini-2026-09-10').tap();
+    await h.visible('history-day-details');
+    assert(/2 sessioni/.test(await $('history-day-details').getByTestId('day-total').innerText()), 'All activities reveal both mixed-day sessions inline');
+    assert(await $('day-sheet').count() === 0, 'Selecting a history day does not open a sheet');
+    await tap('history-day-close', 400);
   });
 
   await check('Progressi uses actual data and the three history scales remain navigable', async () => {
@@ -225,10 +234,10 @@ try {
     await historyItem('mini-2021-03-12').scrollIntoViewIfNeeded();
     await screenshot('09-history-far-year-jump');
     await historyItem('mini-2021-03-12').tap();
-    await h.visible('day-sheet');
-    assert(/2021/.test(await page.getByTestId('day-sheet').innerText()), 'The opened day belongs to the requested older year');
-    assert(/1 sessione/.test(await page.getByTestId('day-sheet').getByTestId('day-total').innerText()), 'Older session is actually preserved and visible');
-    await tap('sheet-close', 350);
+    await h.visible('history-day-details');
+    assert(await $('history-day-2021-03-12').isVisible(), 'The inline day belongs to the requested older year');
+    assert(/1 sessione/.test(await $('history-day-details').getByTestId('day-total').innerText()), 'Older session is actually preserved and visible');
+    await tap('history-day-close', 350);
     await tap('back-to-log', 450);
   });
 } finally {

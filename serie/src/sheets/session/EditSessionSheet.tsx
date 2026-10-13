@@ -194,16 +194,16 @@ function Editor({ session, categories, today, onDeleting }: { session: Session; 
             </Section>
           ) : null}
 
-          <Section label={t.notes} right={<T variant="label" color={S.mute}>{t.detailsOptional}</T>}>
-            <Field value={notes} onChangeText={setNotes} placeholder={t.notesPlaceholder} multiline accessibilityLabel={t.notes} testID="session-notes" />
+          <Section label={t.notes}>
+            <Field value={notes} onChangeText={setNotes} multiline accessibilityLabel={t.notes} testID="session-notes" />
           </Section>
 
-          <Section label={t.place} right={<T variant="label" color={S.mute}>{t.detailsOptional}</T>}>
+          <Section label={t.place}>
             <PlaceEditor value={place} onChange={setPlace} accent={accent} testID="session-place" />
           </Section>
 
           <View onLayout={(e) => (sectionY.current.timing = e.nativeEvent.layout.y)}>
-            <Section label={t.timing} right={<T variant="label" color={S.mute}>{t.detailsOptional}</T>}>
+            <Section label={t.timing}>
               <TimingEditor date={date} value={timing} onChange={setTiming} deviceZone={deviceZone} showErrors={attempted} accent={accent} testID="session-timing" />
             </Section>
           </View>

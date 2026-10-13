@@ -99,6 +99,8 @@ export default function RootLayout() {
           <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: S.bg }, animation: 'fade' }}>
             <Stack.Screen name="index" />
             <Stack.Screen name="details" options={{ ...sheet, sheetAllowedDetents: [0.62, 1] }} />
+            <Stack.Screen name="bulk" options={{ ...sheet, sheetAllowedDetents: [1] }} />
+            <Stack.Screen name="bulk-day" options={{ ...sheet, sheetAllowedDetents: [1] }} />
             <Stack.Screen name="session/[id]" options={{ ...sheet, sheetAllowedDetents: [1] }} />
             <Stack.Screen name="activities" options={{ ...sheet, sheetAllowedDetents: [1] }} />
             <Stack.Screen name="menu" options={{ ...sheet, sheetAllowedDetents: [0.85, 1] }} />

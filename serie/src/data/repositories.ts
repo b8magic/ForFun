@@ -26,6 +26,7 @@ import type {
 } from '@/domain/types';
 import { isLocalDate } from '@/domain/dates';
 import { DATE_ONLY, normalizeTiming } from '@/domain/timing';
+import { bulkTimingForDate, sameSessionVersion, type BulkDetailsInput } from '@/domain/bulkDetails';
 
 export interface Deps {
   newId: () => string;
@@ -252,6 +253,13 @@ export interface SessionPatch {
 
 export function sessionsRepo(db: SqlDriver, deps: Deps) {
   const insert = (ex: SqlExecutor, s: Session) => ex.run(`INSERT INTO sessions (${SESSION_COLS}) VALUES (${SESSION_PLACEHOLDERS}) ON CONFLICT DO NOTHING`, sessionParams(s));
+  const write = async (ex: SqlExecutor, s: Session) => {
+    const p = sessionParams(s);
+    await ex.run(
+      `UPDATE sessions SET category_id = ?, date = ?, timing_state = ?, start_time = ?, end_time = ?, end_day_offset = ?, time_zone = ?, declared_sec = ?, duration_sec = ?, duration_source = ?, place_label = ?, place_address = ?, map_url = ?, lat = ?, lng = ?, place_resolution = ?, place_note = ?, notes = ?, updated_at = ? WHERE id = ?`,
+      [...p.slice(1, 19), s.updatedAt, s.id],
+    );
+  };
 
   return {
     async listAll(): Promise<Session[]> {
@@ -345,12 +353,38 @@ export function sessionsRepo(db: SqlDriver, deps: Deps) {
           await tx.run('UPDATE sessions SET save_request_id = NULL WHERE id = ?', [id]);
           next.saveRequestId = null;
         }
-        const p = sessionParams(next);
-        await tx.run(
-          `UPDATE sessions SET category_id = ?, date = ?, timing_state = ?, start_time = ?, end_time = ?, end_day_offset = ?, time_zone = ?, declared_sec = ?, duration_sec = ?, duration_source = ?, place_label = ?, place_address = ?, map_url = ?, lat = ?, lng = ?, place_resolution = ?, place_note = ?, notes = ?, updated_at = ? WHERE id = ?`,
-          [...p.slice(1, 19), next.updatedAt, id],
-        );
+        await write(tx, next);
         return next;
+      });
+    },
+    /** Edit only the reviewed IDs, in one transaction. Drafts and calendar records stay intact. */
+    async updateDetailsBatch(input: BulkDetailsInput): Promise<{ sessions: Session[]; changed: number }> {
+      const expected = [...new Map(input.expected.map((session) => [session.id, session])).values()];
+      if (!expected.length) throw new DomainError('no_sessions');
+      if (Object.keys(input.patch).some((key) => !['notes', 'place', 'timing'].includes(key))) throw new DomainError('invalid_patch');
+      return db.transaction(async (tx) => {
+        const prepared: { current: Session; next: Session; changed: boolean }[] = [];
+        const now = deps.now();
+        for (const reviewed of expected) {
+          const row = await tx.first<SessionRow>('SELECT * FROM sessions WHERE id = ?', [reviewed.id]);
+          if (!row) throw new DomainError('session_missing', reviewed.id);
+          const current = sessionFromRow(row);
+          if (current.categoryId !== input.categoryId || reviewed.categoryId !== input.categoryId) throw new DomainError('bulk_category_changed');
+          if (!sameSessionVersion(current, reviewed)) throw new DomainError('session_changed', reviewed.id);
+          const timing = input.patch.timing === undefined ? current.timing : bulkTimingForDate(current.date, input.patch.timing);
+          if (!timing) throw new DomainError('timing_invalid_for_date', current.date);
+          const next = {
+            ...current, timing,
+            notes: input.patch.notes === undefined ? current.notes : clean(input.patch.notes),
+            place: input.patch.place === undefined ? current.place : normalizePlace(input.patch.place),
+          };
+          const changed = !sameSessionVersion(current, next);
+          if (changed) next.updatedAt = now;
+          prepared.push({ current, next, changed });
+        }
+        // Validate every target before the first write; SQL failures still roll the whole batch back.
+        for (const item of prepared) if (item.changed) await write(tx, item.next);
+        return { sessions: prepared.map((item) => item.next), changed: prepared.filter((item) => item.changed).length };
       });
     },
     /** Deletes the session. Calendar events are never touched; links keep their record. */

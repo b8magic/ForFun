@@ -1,4 +1,4 @@
-# Native smoke: a Google Maps place link → Apple Maps, hours/minutes duration,
+# Native smoke: a Google Maps place link → Apple Maps, compact numeric duration,
 # then saved-session map and timing. Needs 01 (active activity: Corsa).
 appId: app.serie.ios
 name: 02 dettagli, luogo e mappa
@@ -62,8 +62,7 @@ name: 02 dettagli, luogo e mappa
       id: map-caption
     timeout: 15000
 - takeScreenshot: 10-details-map
-# Duration is entered with the two visible numeric controls, not a raw minutes
-# field. Begin the pan below AppleMaps so its gesture recognizer cannot eat it.
+# Begin the pan below AppleMaps so its gesture recognizer cannot eat it.
 - swipe:
     from:
       id: map-caption
@@ -77,21 +76,16 @@ name: 02 dettagli, luogo e mappa
     id: details-timing-mode-duration_only
 - scrollUntilVisible:
     element:
-      id: details-timing-duration-hours
+      id: details-timing-duration-input
     direction: DOWN
     timeout: 15000
 - tapOn:
-    id: details-timing-duration-hours
+    id: details-timing-duration-input
 - inputText: '1'
-- tapOn:
-    id: details-timing-duration-minutes
 - inputText: '30'
 - assertVisible:
-    id: details-timing-duration-hours
-    text: '1'
-- assertVisible:
-    id: details-timing-duration-minutes
-    text: '30'
+    id: details-timing-duration-input
+    text: '1h30m'
 - takeScreenshot: 10-details-duration
 # The numeric keyboard has no Return key; the visible Apply footer closes it.
 - tapOn:
@@ -130,7 +124,7 @@ name: 02 dettagli, luogo e mappa
     visible:
       id: month-${PREV}
     timeout: 10000
-# Populated month calendars are open by default; the day opens a full sheet.
+# Populated month calendars are open by default; day details remain inline.
 - scrollUntilVisible:
     element:
       id: mini-${PREV}-15
@@ -139,6 +133,18 @@ name: 02 dettagli, luogo e mappa
 - tapOn:
     id: mini-${PREV}-15
     waitToSettleTimeoutMs: 1500
+- extendedWaitUntil:
+    visible:
+      id: history-day-details
+    timeout: 10000
+- assertVisible:
+    id: history-day-${PREV}-15
+- assertNotVisible:
+    id: day-sheet
+- assertVisible:
+    id: day-total
+    text: '.*1 h 30 min.*'
+- assertVisible: '.*Livorno.*'
 - scrollUntilVisible:
     element:
       id: "session-(?!editor).+"
@@ -157,32 +163,31 @@ name: 02 dettagli, luogo e mappa
     direction: DOWN
     timeout: 15000
 - takeScreenshot: 11-session-map
-# The saved duration reopens as the same hours/minutes, after the place map.
+# The saved duration reopens unchanged, after the place map.
 - swipe:
     from:
       id: map-caption
     direction: UP
 - scrollUntilVisible:
     element:
-      id: session-timing-duration-hours
+      id: session-timing-duration-input
     direction: DOWN
     timeout: 15000
 - assertVisible:
-    id: session-timing-duration-hours
-    text: '1'
-- assertVisible:
-    id: session-timing-duration-minutes
-    text: '30'
+    id: session-timing-duration-input
+    text: '1h30m'
 - takeScreenshot: 11-session-duration
 - tapOn:
     id: sheet-close
     waitToSettleTimeoutMs: 1500
 - extendedWaitUntil:
     visible:
-      id: day-sheet
+      id: history-day-details
     timeout: 10000
+- assertVisible:
+    id: history-day-${PREV}-15
 - tapOn:
-    id: sheet-close
+    id: history-day-close
     waitToSettleTimeoutMs: 1000
 # the history header (and its back button) scrolled away above the day
 - scrollUntilVisible:

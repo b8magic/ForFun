@@ -10,7 +10,9 @@ Verification: **861 tests/48 suites**, **43 browser checks**, clean types/lint a
 
 ## What it does
 
-Version **1.2.0** adds neutral calendar viewing, per-activity `×N` session badges, confirmed swipe deletion in day details, 24 color presets plus a continuous HSV/HEX picker, separate hour/minute controls and searchable IANA timezone selection. Home names the year; history/progress use the direct Home entry instead of duplicate menu items. The current IPA contains these changes; delivery provenance is recorded in the handoff.
+Delivered version **1.2.0** adds neutral calendar viewing, per-activity `×N` session badges, confirmed swipe deletion in day details, 24 color presets plus a continuous HSV/HEX picker, separate hour/minute controls and searchable IANA timezone selection. Home names the year; history/progress use the direct Home entry instead of duplicate menu items. The current IPA contains these changes; delivery provenance is recorded in the handoff.
+
+**Version 1.3.0 is in final verification:** compact formatted duration input, dismissible messages, inline monthly day previews, smaller activity pills, corrected native status-bar behavior and explicit bulk editing from Home. The verified download above remains 1.2 until the new candidate succeeds.
 
 - **Immediate logging.** Surf is active on a fresh installation. The remembered activity opens directly on later launches. Visible activity chips switch the context; activity management has its own control. A deleted remembered activity falls back safely with a notice.
 - **Continuous calendar.** Scroll through months or tap the sticky month title to jump to a month/year. Each day shows up to four recorded activity colors and a +N overflow marker; accessible labels and day sheets include every actual activity. Settings choose all-activity markers or only the active activity. Future dates cannot enter a logging draft.
@@ -58,8 +60,8 @@ For an EAS simulator build, use `--profile development-simulator`. On a Mac with
 
 The individual `ios-simulator.yml` and `ios-ipa.yml` workflows retain **Run workflow** support and accept an optional full candidate SHA. Manual IPA dispatch builds downloadable artifacts only. The publishing path is the coordinated **Serie candidate (checks → simulator → IPA)** workflow:
 
-1. Check out one immutable commit; run Jest, typecheck, lint and all four browser suites.
-2. Build the iOS Release simulator app from that commit and run the four Maestro flows, with video, screenshots, app log and crash evidence. After the fresh logging fixture, reconstruct v1 and verify the actual native SQLite upgrade preserves all six original tables. A native pixel check requires both actual activity colors to remain visible in the same day after adding a second activity.
+1. Check out one immutable commit; run Jest, typecheck, lint and all five browser suites.
+2. Build the iOS Release simulator app from that commit and run the five Maestro flows, with video, screenshots, app log and crash evidence. After the fresh logging fixture, reconstruct v1 and verify the actual native SQLite upgrade preserves all six original tables. A native pixel check requires both actual activity colors to remain visible in the same day after adding a second activity.
 3. Build the unsigned IPA from the same commit only after both gates pass; optionally publish the prerelease.
 
 Normal development pushes do not trigger a build. On `codex/serie-calendar`, adding/updating `serie/tools/release-candidate.json` requests the final candidate pipeline; create this marker only after local checks pass. Manual dispatch can specify a full 40-character SHA. macOS jobs are sequential, and the release never runs after a failed simulator gate.
@@ -122,10 +124,13 @@ The browser suites use **13 October 2026, 12:00 UTC** as the fixed date while le
 - `tools/e2e.mjs`: meaningful first launch, multi-date save, separate durable drafts across activity switches/restart, repeat-save protection, intentional same-day sessions, disabled future dates, mixed activity calendar/day details, edit-return, long press, honest empty filters and omission of empty month rows, twelve-month year mosaic, drill-down, Progressi and direct history navigation to an older recorded year.
 - `tools/e2e-flows.mjs`: the four-session duration acceptance case, edit/delete recalculation, independent multi-date durations, activity management/discard guards/deleted drafts, cross-year month jump, settings/theme persistence, Maps resolution and unchanged links, session discard guard, named-period validation/preview/persistence/scoped edit/overlap/delete with sessions preserved.
 - `tools/e2e-calendar.mjs`: memory-provider import/export/automatic export, title-only matching, labels, recurrence/cancellation, re-import detection, equivalent destinations, idempotency and explicit change review.
-- `tools/e2e-v12.mjs`: neutral activity focus and persistence, per-activity session counts, confirmed swipe deletion, arbitrary colors and contrast, hour/minute durations, searchable timezones and simplified navigation.
+- `tools/e2e-v12.mjs`: neutral activity focus and persistence, per-activity session counts, confirmed swipe deletion, arbitrary colors and contrast, numeric hour/minute durations, searchable timezones and simplified navigation.
+- `tools/e2e-v13.mjs`: compact numeric typing/editing, exact saved-second preservation, real four-direction toast gestures with persisted-row checks, inline history context and bulk keep/set/clear with drafts and unselected sessions preserved.
 - `maestro/`: native logging/drafts/mixed-day/history, Apple Maps, EventKit export, settings and period/session integrity. A native v1 → v2 upgrade check compares original categories, sessions, settings and calendar-exchange tables after relaunch. `tools/sim-smoke.sh` derives fixture dates from the previous month so all test sessions are historical on the runner.
 
-Evidence defaults to a temporary `serie-e2e/` directory. Set `E2E_SHOTS` to choose a base directory and `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` to select another Chromium executable. Results and screenshots are separated into `core`, `flows` and `calendar` subdirectories.
+The fifth native flow additionally checks actual UIKit status-bar taps, numeric keyboard editing, four-direction message dismissal, inline history and bulk editing.
+
+Evidence defaults to a temporary `serie-e2e/` directory. Set `E2E_SHOTS` to choose a base directory and `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` to select another Chromium executable. Results and screenshots are separated into `core`, `flows`, `calendar`, `v12` and `v13` subdirectories.
 
 ## Status
 

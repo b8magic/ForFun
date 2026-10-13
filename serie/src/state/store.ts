@@ -12,6 +12,7 @@ export type TimeScale = 'month' | 'year' | 'all';
 export type MotionPref = 'system' | 'reduced' | 'full';
 export type ThemePref = 'cream' | 'dark';
 export type HomeActivitiesMode = 'all' | 'active';
+export type HomeSessionMode = 'new' | 'edit';
 
 export const decodeThemePref = (value: unknown): ThemePref => value === 'dark' ? 'dark' : 'cream';
 export const decodeHomeActivitiesMode = (value: unknown): HomeActivitiesMode => value === 'active' ? 'active' : 'all';
@@ -81,6 +82,10 @@ export interface AppState {
   motionPref: MotionPref;
   themePref: ThemePref;
   homeActivitiesMode: HomeActivitiesMode;
+  /** Existing-session selection is transient and never consumes the logging draft. */
+  homeSessionMode: HomeSessionMode;
+  bulkSelection: ID[];
+  bulkSaving: boolean;
   /** Live iOS "Riduci movimento" setting (kept in sync by the root layout). */
   systemReducedMotion: boolean;
   openJobs: number;
@@ -115,6 +120,9 @@ export const useApp = create<AppState>(() => ({
   motionPref: 'system',
   themePref: 'cream',
   homeActivitiesMode: 'all',
+  homeSessionMode: 'new',
+  bulkSelection: [],
+  bulkSaving: false,
   systemReducedMotion: false,
   openJobs: 0,
 }));

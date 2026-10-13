@@ -261,7 +261,7 @@ try {
     assert((await $('color-hex').inputValue()) === '#A13BCD', 'Edited custom color survives a restart');
     await tap('activity-use', 550);
     await h.visible('lineup');
-    const fillColor = await $(`activity-${customName}`).evaluate((node) => getComputedStyle(node).backgroundColor);
+    const fillColor = await $(`activity-${customName}`).locator('[data-testid^="activity-pill-"]').evaluate((node) => getComputedStyle(node).backgroundColor);
     assert(fillColor === 'rgb(161, 59, 205)', `The chip uses the exact edited color: ${fillColor}`);
     await jumpMonth(2026, 9);
     await tap('day-2026-09-15');
@@ -271,7 +271,7 @@ try {
     await screenshot('10-custom-color-saved');
   });
 
-  await check('hours and minutes save with a searchable city timezone and remain editable', async () => {
+  await check('duration saves with a searchable city timezone and remains editable', async () => {
     await switchTo('Allenamento');
     await jumpMonth(2026, 9);
     await tap('day-2026-09-20');
@@ -280,8 +280,8 @@ try {
       await fill('details-timing-start', '08:10');
       await duration('details-timing', '1', '35');
       await chooseZone('details-timing', 'Roma', 'Europe/Rome');
-      assert(/1 h 35 min/.test(await text('details-timing-source')), 'The duration echo matches both fields');
-      await captureWidths('11-duration-fields', ['details-timing-start', 'details-timing-duration-hours', 'details-timing-duration-minutes', 'details-timing-zone-open', 'details-apply'], 'details-timing-duration');
+      assert((await $('details-timing-duration-input').inputValue()) === '1h35m', 'The duration field represents the entered hours and minutes');
+      await captureWidths('11-duration-fields', ['details-timing-start', 'details-timing-duration-input', 'details-timing-zone-open', 'details-apply'], 'details-timing-duration');
       await tap('details-timing-zone-open');
       await fill('details-timing-zone-search', 'Roma');
       await captureWidths('12-timezone-choice', ['details-timing-zone-picker', 'details-timing-zone-search', 'details-timing-zone-option-Europe/Rome', 'details-apply'], 'details-timing-zone-search');
@@ -294,7 +294,7 @@ try {
     assert(/1 h 35 min/.test(await text('day-total')), 'Day totals use the saved duration');
     await sessionRows().first().tap();
     await h.visible('session-editor');
-    assert(Number(await $('session-timing-duration-hours').inputValue()) === 1 && Number(await $('session-timing-duration-minutes').inputValue()) === 35, 'Both saved duration fields reopen');
+    assert((await $('session-timing-duration-input').inputValue()) === '1h35m', 'The saved duration reopens with its hours and minutes');
     assert((await label('session-timing-zone-open')).includes('Europe/Rome'), 'The chosen timezone reopens');
   });
 
@@ -315,7 +315,7 @@ try {
     await tap('day-2026-09-20', 350);
     await sessionRows().first().tap();
     await h.visible('session-editor');
-    assert(Number(await $('session-timing-duration-hours').inputValue()) === 2 && Number(await $('session-timing-duration-minutes').inputValue()) === 5, 'Edited hours and minutes survive restart');
+    assert((await $('session-timing-duration-input').inputValue()) === '2h05m', 'Edited hours and minutes survive restart');
     assert((await label('session-timing-zone-open')).includes('America/New_York'), 'Edited timezone survives restart');
     await screenshot('13-edited-timezone-after-restart');
     await tap('sheet-close', 350);

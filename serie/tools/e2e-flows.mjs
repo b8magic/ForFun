@@ -13,13 +13,14 @@ const openHistory = async () => {
 async function openSession(date, nth = 0) {
   await historyItem(`mini-${date}`).scrollIntoViewIfNeeded();
   await historyItem(`mini-${date}`).tap();
-  await h.visible('day-sheet');
-  await page.getByTestId('day-sheet').locator('[data-testid^="session-"]').nth(nth).tap();
+  await h.visible('history-day-details');
+  assert(await $('day-sheet').count() === 0, 'History consults the day inline');
+  await $('history-day-details').locator('[role="button"][data-testid^="session-"]').nth(nth).tap();
   await h.visible('session-editor');
 }
 async function closeDay() {
-  await h.visible('day-sheet');
-  await tap('sheet-close', 350);
+  await h.visible('history-day-details');
+  await tap('history-day-close', 350);
 }
 async function enterPeriod() {
   await tap('history-handle', 450);
@@ -222,8 +223,8 @@ try {
     await dismissDiscard('sheet-close');
     assert(await $('session-editor').isVisible(), 'Continue editing retains the editor');
     await acceptDiscard('sheet-close');
-    await h.visible('day-sheet');
-    await page.getByTestId('day-sheet').locator('[data-testid^="session-"]').first().tap();
+    await h.visible('history-day-details');
+    await $('history-day-details').locator('[role="button"][data-testid^="session-"]').first().tap();
     await h.visible('session-editor');
     assert((await $('session-notes').inputValue()) === '', 'Discarded notes were not saved');
     await tap('sheet-close', 350);

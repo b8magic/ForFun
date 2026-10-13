@@ -87,7 +87,7 @@ export function DetailsSheet() {
   };
 
   const title = n > 0 ? t.detailsForSelection(n) : s.detailsTitle;
-  const eyebrow = [t.detailsOptional, active?.name, n ? datesSummary(selection) : null].filter(Boolean).join(' · ');
+  const eyebrow = [active?.name, n ? datesSummary(selection) : null].filter(Boolean).join(' · ');
   const primary = n > 1 ? t.applyToAll(n) : n === 1 ? s.applyToOne : s.keepDetails;
 
   return (
@@ -115,7 +115,7 @@ export function DetailsSheet() {
           {n === 0 ? <Note>{s.detailsNoSelection}</Note> : null}
 
           <Section label={t.notes}>
-            <Field value={notes} onChangeText={setNotes} placeholder={t.notesPlaceholder} multiline accessibilityLabel={t.notes} testID="details-notes" />
+            <Field value={notes} onChangeText={setNotes} multiline accessibilityLabel={t.notes} testID="details-notes" />
           </Section>
 
           <Section label={t.place}>

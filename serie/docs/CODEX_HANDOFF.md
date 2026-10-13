@@ -7,7 +7,25 @@
 - Contribution author/tool: Codex. Final implementation commits use subjects beginning `Codex: …` so a future Claude/Codex reviewer can identify the work through Git history.
 - User-approved scope: complete the calendar/appearance/draft/day/history/named-period evolution, preserve existing data and integrations, run meaningful tests, and deliver one final verified GitHub IPA. No release marker is added before local candidate checks pass.
 
-## Current update: Serie 1.2.0
+## Current update: Serie 1.3.0
+
+Implementation follows the user's next iPhone feedback: compact numeric duration entry, fewer redundant labels, consistent year typography, smaller activity pills, dismissible save messages, native status-bar scroll correction, inline monthly history details and editing existing sessions together from Home.
+
+- Home uses explicit **Nuove / Modifica** modes. New logging drafts remain separate and durable; existing-session selection is transient and contains stable session IDs. Tapping a day with multiple sessions opens an individual checklist, so other activities and unselected same-day sessions cannot be changed accidentally. Empty days are disabled in edit mode.
+- Bulk details use independent **Mantieni / Imposta / Rimuovi** operations for notes, place and timing. All selected records and their complete versions are checked before one SQLite transaction writes any changes. Every target date validates its own wall time/DST result. Stale/missing/moved records or invalid dates reject the entire batch. Untouched details, including exact seconds, remain intact. The export lock orders edits after already-running exports; no bulk operation silently rewrites existing calendar events or schedules new exports.
+- Applying selection details still updates only the activity's persistent new-session draft. Home **Salva** creates the sessions; bulk **Salva modifiche** updates already-existing sessions immediately. Cancel/discard does neither.
+- One numeric duration input formats `1237` as `12h37m`, supports numeric typing, backspace, range edits and pasted colon/unit forms, and preserves saved second precision until the duration itself is edited. Notes have no instructional placeholder; optional/declared-duration repetitions are removed.
+- Save confirmations move with a drag in any direction. A completed drag dismisses only the message, never its sessions. A short/cancelled drag springs back and restores keyboard/accessibility activation; an intentional **Annulla** tap retains existing undo behavior. Outgoing toast handlers cannot dismiss replacement messages.
+- Month history expands one day panel beneath its month, with timing, place and a bounded first note line. Selecting another day updates that inline panel; session edits return to the same selected day/filter/scroll. Deletion still requires confirmation. Year drill-down retains its separate day sheet.
+- The year now uses exactly the same condensed typeface as month headings. Activity pills are visually smaller with 44pt minimum touch targets. Both Home scroll views disable UIKit's automatic scroll-to-top shortcut, which otherwise targets the virtual calendar's first month (January 1900).
+
+No dependencies or database schema changes are required. The existing six-table native migration gate remains in place. Linux checks cover the data, timing and actual browser UI; the coordinated candidate workflow will additionally compile and execute the native Release app before producing a single unsigned IPA. Unlike the previous IPA-only delivery, this update includes a fifth native flow for status-bar taps, numeric keyboard entry, message swipes, inline history and bulk editing. Standard hosted runners on the now-public repository do not consume the private-repository included-minute allowance.
+
+**Local gates passed:** 927 tests in 53 suites, typecheck, lint, 57 browser journeys (12 core + 13 flows + 9 calendar + 9 previous-feedback + 14 new-feedback), zero browser errors/warnings, and nine native pixel-checker tests. Real touch gestures compare complete persisted SQLite rows, and six repeated inline reopen checks at 390/320px verify place/note visibility. Browser-plugin availability remains unavailable; the existing Playwright/system-Chromium fallback drives the actual exported app.
+
+**Native execution and IPA delivery are pending the final candidate run.** Prior delivery evidence below describes 1.2 and 1.1 only.
+
+## Previous update: Serie 1.2.0
 
 User feedback after testing 1.1 approved these additions: deselecting the active activity for a fully colored overview; swipe-to-delete from the day sheet; arbitrary activity colors and 24 presets; visible same-activity session counts; hours/minutes duration controls and a searchable timezone picker; large year on Home and removal of redundant menu entries/copy.
 

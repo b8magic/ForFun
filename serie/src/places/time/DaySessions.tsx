@@ -7,7 +7,7 @@ import { summarize } from '@/domain/stats';
 import { useSurface } from '@/ui/useTheme';
 import { T } from '@/ui/T';
 import { t } from '@/i18n/it';
-import { dateLabel, durationLine, timingSummary } from './format';
+import { compactDurationLine, dateLabel, durationLine, placeSummary, sessionPreview, timingSummary } from './format';
 import { DaySessionRow } from './DaySessionRow';
 
 interface Props {
@@ -19,18 +19,24 @@ interface Props {
   showDate?: boolean;
   /** Unsaved period previews show the rows without opening an editor. */
   interactive?: boolean;
+  /** Browsing a calendar day keeps each field visible and notes to one line. */
+  preview?: boolean;
   /** Only saved day details offer deletion; the caller confirms before writing. */
   onDelete?: (session: Session) => void;
+  /** Only the first row bounds the initial inline reveal, however long the day is. */
+  onFirstRowLayout?: (node: View) => void;
 }
 
-export function DaySessions({ date, sessions, catById, showActivity, showDate = true, interactive = true, onDelete }: Props) {
+export function DaySessions({ date, sessions, catById, showActivity, showDate = true, interactive = true, preview = false, onDelete, onFirstRowLayout }: Props) {
   const C = useSurface();
   const openedRow = useRef<SwipeableMethods | null>(null);
   const openRow = useCallback((row: SwipeableMethods) => {
     if (openedRow.current !== row) openedRow.current?.close();
     openedRow.current = row;
   }, []);
-  const dayDur = durationLine(summarize(sessions).duration);
+  const duration = summarize(sessions).duration;
+  const fullTotal = [t.sessions(sessions.length), durationLine(duration)].filter(Boolean).join(' · ');
+  const total = preview ? [t.sessions(sessions.length), compactDurationLine(duration)].filter(Boolean).join(' · ') : fullTotal;
   return (
     <View style={styles.day}>
       {showDate ? (
@@ -38,25 +44,29 @@ export function DaySessions({ date, sessions, catById, showActivity, showDate = 
           {t.sessionsOnDay(dateLabel(date))}
         </T>
       ) : null}
-      <T variant="data" color={C.fg} testID="day-total">
-        {[t.sessions(sessions.length), dayDur].filter(Boolean).join(' · ')}
+      <T variant="data" color={C.fg} accessibilityLabel={preview ? fullTotal : undefined} testID="day-total">
+        {total}
       </T>
       {sessions.map((s, i) => {
         const c = catById.get(s.categoryId);
-        const place = s.place ? [s.place.label?.trim(), s.place.address?.trim()].filter(Boolean).join(' · ') || (s.place.coords ? 'Posizione salvata' : s.place.mapUrl ? 'Link mappa salvato' : t.sessionSheets.placeUnnamed) : null;
-        const detail = [timingSummary(s), place, s.notes ? `“${s.notes}”` : null].filter(Boolean).join('\n');
+        const compact = preview ? sessionPreview(s) : undefined;
+        const detail = (compact
+          ? [compact.timing, compact.place, compact.notes]
+          : [timingSummary(s), placeSummary(s.place), s.notes ? `“${s.notes}”` : null]).filter(Boolean).join('\n');
         return (
           <DaySessionRow
             key={s.id}
             id={s.id}
             title={showActivity && c ? c.name : `Sessione ${i + 1}`}
             detail={detail}
+            preview={compact}
             color={c?.color ?? C.mute}
             interactive={interactive}
             accessibilityLabel={`${showActivity && c ? c.name + ', ' : ''}sessione ${i + 1}: ${detail.replace(/\n/g, ', ')}${interactive ? '. Apri dettagli' : ''}`}
             deleteLabel={`Elimina ${showActivity && c ? c.name + ', ' : ''}sessione ${i + 1}`}
             onDelete={onDelete ? () => onDelete(s) : undefined}
             onOpen={openRow}
+            onLayoutReady={i === 0 ? onFirstRowLayout : undefined}
           />
         );
       })}

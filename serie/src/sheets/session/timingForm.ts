@@ -47,7 +47,7 @@ export interface TimingForm {
   start: string;
   end: string;
   nextDay: boolean;
-  /** Raw hours:minutes; legacy decimal input remains readable. Saved seconds survive until edited. */
+  /** Hours:minutes behind the unified digit input; saved seconds survive until edited. */
   duration: string;
   /** Selected IANA zone; blank = use the device zone. */
   zone: string;
@@ -108,7 +108,7 @@ export function parseFormDuration(raw: string): DurationParse {
   const [hours, minutes, savedSeconds] = parts;
   if (!hours && !minutes && savedSeconds == null) return { ok: false, error: 'empty' };
   if ((hours && !/^\d+$/.test(hours)) || (minutes && !/^\d{1,2}$/.test(minutes)) || Number(minutes) > 59) return { ok: false, error: 'invalid' };
-  // This third part only comes from the exact prefill; the editor exposes hours and minutes.
+  // This third part only comes from the exact prefill; edits use whole minutes.
   if (savedSeconds != null && (!/^\d{2}$/.test(savedSeconds) || Number(savedSeconds) > 59)) return { ok: false, error: 'invalid' };
   const seconds = Number(hours) * 3600 + Number(minutes) * 60 + Number(savedSeconds ?? 0);
   if (!Number.isFinite(seconds)) return { ok: false, error: 'invalid' };

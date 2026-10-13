@@ -25,12 +25,9 @@ import { useMotionReduced } from '@/state/selectors';
 import {
   TIMING_MODES,
   derivedEndCopy,
-  durationInputFromParts,
-  durationPartsFrom,
   durationSourceCopy,
   evaluateTiming,
   fieldErrorCopy,
-  formatTimingDuration,
   modeHasDuration,
   modeHasEnd,
   modeHasStart,
@@ -43,6 +40,7 @@ import {
   type TimingForm,
 } from './timingForm';
 import { TimeZonePicker } from './TimeZonePicker';
+import { DurationInput } from './DurationInput';
 
 const s = t.sessionSheets;
 
@@ -101,16 +99,14 @@ export function TimingEditor({ date, value: form, onChange, deviceZone, showErro
     if (n !== form[f] && isWallTime(n)) set({ [f]: n });
   };
 
-  const durationParts = durationPartsFrom(form.duration);
   const parsedDuration = parseFormDuration(form.duration);
-  const durEcho = parsedDuration.ok ? s.durationEcho(formatTimingDuration(parsedDuration.seconds)) : null;
   const savedSeconds = parsedDuration.ok ? parsedDuration.seconds % 60 : 0;
-  const changeDuration = (part: 'hours' | 'minutes', text: string) => {
-    set({ duration: durationInputFromParts({ ...durationParts, [part]: text }) });
+  const changeDuration = (duration: string) => {
+    set({ duration });
     if (prefill?.field === 'duration') setPrefill(null);
   };
 
-  const source = ev.ok ? durationSourceCopy(ev.timing) : null;
+  const source = ev.ok && !modeHasDuration(form.mode) ? durationSourceCopy(ev.timing) : null;
   const derived = ev.ok && ev.timing?.state === 'start_duration' ? derivedEndCopy(date, ev.timing) : null;
   const degraded = ev.ok && ev.effective && ev.effective !== form.mode && form.mode !== 'date_only';
   const hasStart = modeHasStart(form.mode);
@@ -182,38 +178,13 @@ export function TimingEditor({ date, value: form, onChange, deviceZone, showErro
           ) : null}
           {modeHasDuration(form.mode) ? (
             <View style={{ gap: 8 }} testID={`${testID}-duration`}>
-              <T variant="label" color={S.mute}>{s.durationLabel}</T>
-              <View style={styles.fieldRow}>
-                <TimeInput
-                  label={s.durationHoursLabel}
-                  accessibilityLabel={s.durationHoursA11y}
-                  value={durationParts.hours}
-                  onChangeText={(v) => changeDuration('hours', v)}
-                  onBlur={() => touch('duration')}
-                  invalid={!!err('duration')}
-                  accessibilityHint={err('duration') ?? s.durationPartsHint}
-                  placeholder="0"
-                  inputMode="numeric"
-                  keyboardType="number-pad"
-                  maxLength={3}
-                  testID={`${testID}-duration-hours`}
-                />
-                <TimeInput
-                  label={s.durationMinutesLabel}
-                  accessibilityLabel={s.durationMinutesA11y}
-                  value={durationParts.minutes}
-                  onChangeText={(v) => changeDuration('minutes', v)}
-                  onBlur={() => touch('duration')}
-                  invalid={!!err('duration')}
-                  accessibilityHint={err('duration') ?? s.durationPartsHint}
-                  placeholder="0"
-                  inputMode="numeric"
-                  keyboardType="number-pad"
-                  maxLength={2}
-                  testID={`${testID}-duration-minutes`}
-                />
-              </View>
-              {durEcho ? <T variant="small" color={S.mute}>{durEcho}</T> : null}
+              <DurationInput
+                value={form.duration}
+                onChange={changeDuration}
+                onBlur={() => touch('duration')}
+                error={err('duration')}
+                testID={`${testID}-duration-input`}
+              />
               {savedSeconds ? <T variant="small" color={S.mute} testID={`${testID}-duration-precision`}>{s.durationSecondsKept(savedSeconds)}</T> : null}
             </View>
           ) : null}
@@ -223,12 +194,6 @@ export function TimingEditor({ date, value: form, onChange, deviceZone, showErro
               {msg}
             </T>
           ))}
-
-          {modeHasDuration(form.mode) && !form.duration.trim() && !fieldErrors.length ? (
-            <T variant="small" color={S.mute}>
-              {s.durationPartsHint}
-            </T>
-          ) : null}
 
           {modeHasEnd(form.mode) ? (
             <Toggle

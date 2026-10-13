@@ -126,8 +126,10 @@ export async function createHarness(suite, defaultRoot = 'dist-web') {
     assert((await label('activity-switcher')).includes(`Attività attiva: ${name}`), `Active activity should be ${name}`);
   }
   async function duration(testID, hours, minutes = '') {
-    await fill(`${testID}-duration-hours`, hours);
-    await fill(`${testID}-duration-minutes`, minutes);
+    // Retain the existing hours/minutes fixtures through the compact numeric
+    // editor: its final two digits are minutes, including invalid 60+ values.
+    const digits = hours || minutes ? `${hours || '0'}${(minutes || '0').padStart(2, '0')}` : '';
+    await fill(`${testID}-duration-input`, digits);
   }
   async function swipeLeft(id, distance = 140) {
     await visible(id);

@@ -102,6 +102,7 @@ if command -v maestro >/dev/null; then
   say "- Maestro $(maestro --version 2>/dev/null | tail -1) · PREV=$PREV"
   LOG_FIXTURE_READY=0
   MAP_FIXTURE_READY=0
+  SETTINGS_FIXTURE_READY=0
   for flow in "$FLOWS"/[0-9]*.yaml; do
     name=$(basename "$flow" .yaml)
     case "$name" in
@@ -112,7 +113,7 @@ if command -v maestro >/dev/null; then
           continue
         fi
         ;;
-      03-calendar|04-settings-periods)
+      03-calendar|04-settings-periods|05-feedback-v13)
         if [ "$LOG_FIXTURE_READY" != 1 ]; then
           say "- $name: **NOT_RUN** (required 01-log fixture and native upgrade did not pass)"
           FAIL=1
@@ -120,6 +121,11 @@ if command -v maestro >/dev/null; then
         fi
         if [ "$MAP_FIXTURE_READY" != 1 ]; then
           say "- $name: **NOT_RUN** (required 02-details-map fixture did not pass)"
+          FAIL=1
+          continue
+        fi
+        if [ "$name" = "05-feedback-v13" ] && [ "$SETTINGS_FIXTURE_READY" != 1 ]; then
+          say "- $name: **NOT_RUN** (required 04-settings-periods note/edit fixture did not pass)"
           FAIL=1
           continue
         fi
@@ -141,6 +147,8 @@ if command -v maestro >/dev/null; then
         fi
       elif [ "$name" = "02-details-map" ]; then
         MAP_FIXTURE_READY=1
+      elif [ "$name" = "04-settings-periods" ]; then
+        SETTINGS_FIXTURE_READY=1
       fi
     else
       say "- $name: **failed** ($(( $(date +%s) - t0 )) s)"

@@ -29,12 +29,16 @@ interface Props {
   preventFuture?: boolean;
   recentSave?: { id: number; dates: readonly string[] };
   selectionEnabled?: boolean;
+  /** History uses the same marker for an open day, without implying a draft. */
+  selectionLabel?: string;
+  /** Existing-session mode: counts selected records, including partial same-day selections. */
+  existingSelection?: ReadonlyMap<string, number>;
 }
 
 const EMPTY_SELECTION = new Set<string>();
 
 /** One shared calendar keeps colours and day meaning identical across surfaces. */
-export const MonthCalendar = memo(function MonthCalendar({ month, days, activeId = null, selection = EMPTY_SELECTION, today, showAll = true, onPressDay, onLongPressDay, testID, dayTestPrefix = 'day-', compact = false, disabled = false, preventFuture = true, recentSave, selectionEnabled = true }: Props) {
+export const MonthCalendar = memo(function MonthCalendar({ month, days, activeId = null, selection = EMPTY_SELECTION, today, showAll = true, onPressDay, onLongPressDay, testID, dayTestPrefix = 'day-', compact = false, disabled = false, preventFuture = true, recentSave, selectionEnabled = true, selectionLabel = 'selezionato, da salvare', existingSelection }: Props) {
   const surface = useSurface();
   const reduced = useMotionReduced();
   const { width, fontScale } = useWindowDimensions();
@@ -57,11 +61,14 @@ export const MonthCalendar = memo(function MonthCalendar({ month, days, activeId
             const day = days.get(date);
             const activities = day?.categories.filter((category) => showAll || category.categoryId === activeId) ?? [];
             const selected = selection.has(date);
+            const existingCount = day?.categories.find((category) => category.categoryId === activeId)?.count ?? 0;
+            const selectedCount = existingSelection?.get(date) ?? 0;
             const future = date > today;
             const isToday = date === today;
             const names = activities.map((activity) => `${categoryNames.get(activity.categoryId) ?? 'Attività'}: ${activity.count} ${activity.count === 1 ? 'sessione' : 'sessioni'}`).join(', ');
-            const label = `${parsed.d} ${MONTHS[parsed.m - 1]} ${parsed.y}${isToday ? ', oggi' : ''}${selected ? ', selezionato, da salvare' : ''}${names ? `, ${names}, ${day?.count ?? 0} ${(day?.count ?? 0) === 1 ? 'sessione registrata' : 'sessioni registrate'}` : ', nessuna sessione registrata'}${future ? ', data futura' : ''}`;
-            const disabledTap = disabled || !onPressDay || (preventFuture && future);
+            const selectedLabel = existingSelection ? selectedCount ? `, ${selectedCount} di ${existingCount} sessioni selezionate per la modifica` : '' : selected ? `, ${selectionLabel}` : '';
+            const label = `${parsed.d} ${MONTHS[parsed.m - 1]} ${parsed.y}${isToday ? ', oggi' : ''}${selectedLabel}${names ? `, ${names}, ${day?.count ?? 0} ${(day?.count ?? 0) === 1 ? 'sessione registrata' : 'sessioni registrate'}` : ', nessuna sessione registrata'}${future ? ', data futura' : ''}`;
+            const disabledTap = disabled || !onPressDay || (preventFuture && future) || (!!existingSelection && !existingCount);
             return (
               <Pressable
                 key={date}
@@ -71,12 +78,12 @@ export const MonthCalendar = memo(function MonthCalendar({ month, days, activeId
                 disabled={disabledTap}
                 accessibilityRole={onPressDay || onLongPressDay ? 'button' : 'text'}
                 accessibilityLabel={label}
-                accessibilityHint={onLongPressDay ? selectionEnabled ? 'Tocca per selezionare. Tieni premuto per le sessioni del giorno.' : 'Mostra le sessioni del giorno' : undefined}
+                accessibilityHint={existingSelection ? existingCount > 1 ? 'Scegli quali sessioni modificare.' : 'Seleziona la sessione per la modifica.' : onLongPressDay ? selectionEnabled ? 'Tocca per selezionare. Tieni premuto per le sessioni del giorno.' : 'Mostra le sessioni del giorno' : undefined}
                 accessibilityState={{ selected, disabled: disabledTap }}
-                accessibilityActions={onLongPressDay ? [{ name: 'showSessions', label: 'Mostra le sessioni del giorno' }] : undefined}
+                accessibilityActions={onLongPressDay && !existingSelection ? [{ name: 'showSessions', label: 'Mostra le sessioni del giorno' }] : undefined}
                 onAccessibilityAction={(event) => { if (event.nativeEvent.actionName === 'showSessions') onLongPressDay?.(date); }}
                 testID={`${dayTestPrefix}${date}`}
-                style={({ pressed }) => [styles.column, { justifyContent: 'center', opacity: future ? 0.3 : pressed ? 0.65 : 1 }]}
+                style={({ pressed }) => [styles.column, { justifyContent: 'center', opacity: future || (existingSelection && !existingCount) ? 0.3 : pressed ? 0.65 : 1 }]}
               >
                 <DayMosaic activities={activities} size={size} activeId={activeId} selected={selected} today={isToday} reduced={reduced} celebration={recentSave?.dates.includes(date) ? recentSave.id : undefined} />
                 <View pointerEvents="none" style={styles.number}>
@@ -84,6 +91,7 @@ export const MonthCalendar = memo(function MonthCalendar({ month, days, activeId
                     <T variant={isToday || selected ? 'dayStrong' : 'day'} color={surface.fg} align="center" style={{ fontSize: compact ? 14 : 16, lineHeight: compact ? 19 : 22 }} maxFontSizeMultiplier={1.6}>{parsed.d}</T>
                   </View>
                 </View>
+                {existingSelection && existingCount > 1 && selectedCount > 0 ? <View pointerEvents="none" style={[styles.existingCount, { backgroundColor: surface.bg }]}><T variant="labelStrong" color={surface.fg} style={{ fontSize: 9, lineHeight: 11 }}>{selectedCount}/{existingCount}</T></View> : null}
               </Pressable>
             );
           })}
@@ -98,4 +106,5 @@ const styles = StyleSheet.create({
   column: { flex: 1, alignItems: 'center', minWidth: 0 },
   number: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, justifyContent: 'center', alignItems: 'center' },
   numberGround: { paddingHorizontal: 3, paddingVertical: 1, borderRadius: 4 },
+  existingCount: { position: 'absolute', bottom: 0, right: 1, borderRadius: 4, paddingHorizontal: 2 },
 });

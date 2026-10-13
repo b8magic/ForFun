@@ -1,0 +1,543 @@
+# Native 1.3 regressions, after the upgrade/map/calendar/period fixtures.
+# New sessions are created only here, after flow03's Creati:2 export assertion.
+# No clearState: flow01's upgrade and flow04's saved note remain verifiable.
+appId: app.serie.ios
+name: 05 durata compatta, barra iOS, messaggi, storia inline
+---
+- launchApp
+- extendedWaitUntil:
+    visible:
+      id: activity-switcher
+      text: "Attività attiva: Corsa.*"
+    timeout: 60000
+- runFlow: subflows/jump-prev.yaml
+
+# Tap the ACTUAL iOS status bar. A component callback or synthetic onScroll
+# cannot prove that UIKit's scroll-to-top shortcut has been disabled.
+- tapOn:
+    id: day-${PREV}-24
+- assertVisible:
+    id: day-${PREV}-24
+    text: '.*selezionato.*'
+- tapOn:
+    point: '10%, 2%'
+    waitToSettleTimeoutMs: 1500
+- assertVisible:
+    id: home-month-${PREV}
+- assertVisible:
+    id: day-${PREV}-15
+    text: '.*Corsa.*1 sessione registrata.*'
+- assertVisible:
+    id: day-${PREV}-24
+    text: '.*selezionato.*'
+- assertNotVisible:
+    id: home-month-1900-01
+- takeScreenshot: 40-status-bar-preserves-month
+
+# Notes are blank without instructional copy. Direct footer submission while
+# the real multiline keyboard is open keeps the precise draft text.
+- tapOn:
+    id: details-link
+- extendedWaitUntil:
+    visible:
+      id: details-notes
+    timeout: 10000
+- assertNotVisible: '(?i)facoltativo'
+- tapOn:
+    id: details-notes
+- inputText: Bozza Corsa 1.3
+- tapOn:
+    id: details-apply
+    waitToSettleTimeoutMs: 1500
+- extendedWaitUntil:
+    notVisible:
+      id: details-sheet
+    timeout: 10000
+- tapOn:
+    id: details-link
+- scrollUntilVisible:
+    element:
+      id: details-timing-mode-duration_only
+    direction: DOWN
+    timeout: 15000
+- tapOn:
+    id: details-timing-mode-duration_only
+- scrollUntilVisible:
+    element:
+      id: details-timing-duration-input
+    direction: DOWN
+    timeout: 15000
+- tapOn:
+    id: details-timing-duration-input
+- inputText: '123'
+- assertVisible:
+    id: details-timing-duration-input
+    text: '1h23m'
+# These are actual numeric keyboard keys. Tapping 7 proves formatted typing
+# continues at the digit stream's end, rather than after a literal suffix.
+- assertVisible:
+    text: '9'
+    below:
+      id: details-apply
+- tapOn:
+    text: '7'
+    below:
+      id: details-apply
+- assertVisible:
+    id: details-timing-duration-input
+    text: '12h37m'
+- eraseText: 1
+- assertVisible:
+    id: details-timing-duration-input
+    text: '1h23m'
+- inputText: '7'
+- assertVisible:
+    id: details-timing-duration-input
+    text: '12h37m'
+- takeScreenshot: 41-numeric-duration-keyboard
+- tapOn:
+    id: details-apply
+    waitToSettleTimeoutMs: 1500
+- extendedWaitUntil:
+    notVisible:
+      id: details-sheet
+    timeout: 10000
+
+# Keep this Corsa draft while saving Surf fixtures. Four physical directions
+# must close only the confirmation; none of them invokes its Annulla action.
+- runFlow:
+    file: subflows/select-activity.yaml
+    env:
+      ACTIVITY: Surf
+- tapOn:
+    id: day-${PREV}-20
+- tapOn:
+    id: save
+    waitToSettleTimeoutMs: 500
+- extendedWaitUntil:
+    visible:
+      id: toast-action
+    timeout: 2000
+- swipe:
+    from:
+      id: toast-swipe
+    direction: LEFT
+    duration: 400
+    waitToSettleTimeoutMs: 200
+- extendedWaitUntil:
+    notVisible:
+      id: toast
+    timeout: 2000
+- assertVisible:
+    id: day-${PREV}-20
+    text: '.*Surf.*1 sessione registrata.*'
+- tapOn:
+    id: day-${PREV}-20
+- tapOn:
+    id: save
+    waitToSettleTimeoutMs: 500
+- extendedWaitUntil:
+    visible:
+      id: toast-action
+    timeout: 2000
+- swipe:
+    from:
+      id: toast-swipe
+    direction: RIGHT
+    duration: 400
+    waitToSettleTimeoutMs: 200
+- extendedWaitUntil:
+    notVisible:
+      id: toast
+    timeout: 2000
+- assertVisible:
+    id: day-${PREV}-20
+    text: '.*Surf.*2 sessioni registrate.*'
+- tapOn:
+    id: day-${PREV}-21
+- tapOn:
+    id: save
+    waitToSettleTimeoutMs: 500
+- extendedWaitUntil:
+    visible:
+      id: toast-action
+    timeout: 2000
+- swipe:
+    from:
+      id: toast-swipe
+    direction: UP
+    duration: 400
+    waitToSettleTimeoutMs: 200
+- extendedWaitUntil:
+    notVisible:
+      id: toast
+    timeout: 2000
+- assertVisible:
+    id: day-${PREV}-21
+    text: '.*Surf.*1 sessione registrata.*'
+- tapOn:
+    id: day-${PREV}-22
+- tapOn:
+    id: save
+    waitToSettleTimeoutMs: 500
+- extendedWaitUntil:
+    visible:
+      id: toast-action
+    timeout: 2000
+- swipe:
+    from:
+      id: toast-swipe
+    direction: DOWN
+    duration: 400
+    waitToSettleTimeoutMs: 200
+- extendedWaitUntil:
+    notVisible:
+      id: toast
+    timeout: 2000
+- assertVisible:
+    id: day-${PREV}-22
+    text: '.*Surf.*1 sessione registrata.*'
+- takeScreenshot: 42-four-swipes-keep-sessions
+
+# An intentional Undo tap still removes precisely its latest batch.
+- tapOn:
+    id: day-${PREV}-23
+- tapOn:
+    id: save
+    waitToSettleTimeoutMs: 500
+- tapOn:
+    id: toast-action
+    waitToSettleTimeoutMs: 1000
+- assertVisible:
+    id: day-${PREV}-23
+    text: '.*nessuna sessione registrata.*'
+- assertVisible:
+    id: day-${PREV}-20
+    text: '.*Surf.*2 sessioni registrate.*'
+- extendedWaitUntil:
+    notVisible:
+      id: toast
+    timeout: 10000
+- stopApp
+- launchApp
+- extendedWaitUntil:
+    visible:
+      id: lineup
+    timeout: 60000
+- runFlow: subflows/jump-prev.yaml
+- assertVisible:
+    id: day-${PREV}-20
+    text: '.*Surf.*2 sessioni registrate.*'
+- assertVisible:
+    id: day-${PREV}-21
+    text: '.*Surf.*1 sessione registrata.*'
+- assertVisible:
+    id: day-${PREV}-22
+    text: '.*Surf.*1 sessione registrata.*'
+- runFlow:
+    file: subflows/select-activity.yaml
+    env:
+      ACTIVITY: Corsa
+- assertVisible:
+    id: day-${PREV}-24
+    text: '.*selezionato.*'
+- tapOn:
+    id: details-link
+- assertVisible:
+    id: details-notes
+    text: Bozza Corsa 1.3
+- scrollUntilVisible:
+    element:
+      id: details-timing-duration-input
+    direction: DOWN
+    timeout: 15000
+- assertVisible:
+    id: details-timing-duration-input
+    text: '12h37m'
+- tapOn:
+    id: details-apply
+
+# History exposes duration, place and notes together inside the month.
+- tapOn:
+    id: history-handle
+- scrollUntilVisible:
+    element:
+      id: mini-${PREV}-15
+    direction: DOWN
+    timeout: 15000
+- tapOn:
+    id: mini-${PREV}-15
+    waitToSettleTimeoutMs: 1500
+- assertVisible:
+    id: history-day-${PREV}-15
+- assertNotVisible:
+    id: day-sheet
+- assertVisible:
+    id: day-total
+    text: '.*1 h 30 min.*'
+- assertVisible: '.*Livorno.*'
+- assertVisible: '.*Nota dopo il periodo.*'
+- takeScreenshot: 43-inline-history-details
+- tapOn:
+    id: 'session-(?!editor).+'
+- extendedWaitUntil:
+    visible:
+      id: session-editor
+    timeout: 10000
+- assertNotVisible: '(?i)facoltativo'
+- scrollUntilVisible:
+    element:
+      id: session-notes
+    direction: DOWN
+    timeout: 15000
+- tapOn:
+    id: session-notes
+- eraseText
+- inputText: Nota inline nativa 1.3
+- tapOn:
+    id: session-save
+    waitToSettleTimeoutMs: 1500
+- extendedWaitUntil:
+    visible:
+      id: history-day-details
+    timeout: 10000
+- assertVisible:
+    id: history-day-${PREV}-15
+- assertVisible: '.*Nota inline nativa 1.3.*'
+- assertVisible: '.*Livorno.*'
+- assertVisible:
+    id: day-total
+    text: '.*1 h 30 min.*'
+- assertNotVisible:
+    id: day-sheet
+- takeScreenshot: 44-inline-history-after-edit
+- tapOn:
+    id: history-day-close
+- scrollUntilVisible:
+    element:
+      id: mini-${PREV}-10
+    direction: UP
+    timeout: 15000
+- tapOn:
+    id: mini-${PREV}-10
+    waitToSettleTimeoutMs: 1000
+- assertVisible:
+    id: history-day-${PREV}-10
+- assertVisible:
+    id: day-total
+    text: '.*2 sessioni.*'
+- assertNotVisible:
+    id: history-day-${PREV}-15
+- scrollUntilVisible:
+    element:
+      id: filter-Corsa
+    direction: UP
+    timeout: 15000
+- tapOn:
+    id: filter-Corsa
+- assertNotVisible:
+    id: history-day-details
+- scrollUntilVisible:
+    element:
+      id: mini-${PREV}-10
+    direction: DOWN
+    timeout: 15000
+- tapOn:
+    id: mini-${PREV}-10
+- assertVisible:
+    id: day-total
+    text: '.*1 sessione.*'
+- scrollUntilVisible:
+    element:
+      id: month-${PREV}
+      childOf:
+        id: time-place
+    direction: UP
+    timeout: 15000
+- tapOn:
+    id: month-${PREV}
+    childOf:
+      id: time-place
+- assertNotVisible:
+    id: history-day-details
+- scrollUntilVisible:
+    element:
+      id: back-to-log
+    direction: UP
+    timeout: 15000
+- tapOn:
+    id: back-to-log
+- assertVisible:
+    id: day-${PREV}-24
+    text: '.*selezionato.*'
+- assertVisible:
+    id: day-${PREV}-15
+    text: '.*Corsa.*1 sessione registrata.*'
+- takeScreenshot: 45-calendar-draft-preserved
+
+# Updating existing sessions has its own selection and never consumes the
+# independent new-session draft. Same-day duplicates stay individually chosen.
+- runFlow:
+    file: subflows/select-activity.yaml
+    env:
+      ACTIVITY: Surf
+- tapOn:
+    id: day-${PREV}-26
+- tapOn:
+    id: details-link
+- tapOn:
+    id: details-notes
+- inputText: Bozza Surf dopo modifica in blocco
+- tapOn:
+    id: details-apply
+    waitToSettleTimeoutMs: 1000
+- tapOn:
+    id: home-mode-edit
+- assertNotVisible:
+    id: save
+- tapOn:
+    id: day-${PREV}-28
+- assertVisible:
+    id: bulk-selection-count
+    text: Tocca i giorni con sessioni registrate
+- tapOn:
+    id: day-${PREV}-20
+- extendedWaitUntil:
+    visible:
+      id: bulk-day-sheet
+    timeout: 10000
+- assertVisible:
+    id: bulk-day-done
+    text: 'Fatto · 0 selezionate'
+- tapOn:
+    id: bulk-day-all
+- assertVisible:
+    id: bulk-day-done
+    text: 'Fatto · 2 selezionate'
+- tapOn:
+    id: bulk-day-all
+- tapOn:
+    id: 'bulk-day-session-.+'
+    index: 0
+- assertVisible:
+    id: bulk-day-done
+    text: 'Fatto · 1 selezionata'
+- takeScreenshot: 46-bulk-duplicate-selection
+- tapOn:
+    id: bulk-day-done
+- tapOn:
+    id: day-${PREV}-21
+- assertVisible:
+    id: bulk-selection-count
+    text: '2 sessioni · 2 giorni'
+- tapOn:
+    id: bulk-edit
+- extendedWaitUntil:
+    visible:
+      id: bulk-details-sheet
+    timeout: 10000
+- tapOn:
+    id: bulk-notes-set
+- tapOn:
+    id: bulk-notes-input
+- inputText: Nota comune nativa 1.3
+# The numeric/multiline keyboard-safe footer performs one update, not a save
+# of new dates. An explicit field choice leaves every other detail unchanged.
+- tapOn:
+    id: bulk-save
+    waitToSettleTimeoutMs: 1500
+- extendedWaitUntil:
+    notVisible:
+      id: bulk-details-sheet
+    timeout: 10000
+- assertVisible:
+    id: bulk-selection-count
+    text: Tocca i giorni con sessioni registrate
+- assertVisible:
+    id: day-${PREV}-20
+    text: '.*Surf.*2 sessioni registrate.*'
+- assertVisible:
+    id: day-${PREV}-21
+    text: '.*Surf.*1 sessione registrata.*'
+- tapOn:
+    id: home-mode-new
+- assertVisible:
+    id: day-${PREV}-26
+    text: '.*selezionato.*nessuna sessione registrata.*'
+- tapOn:
+    id: details-link
+- assertVisible:
+    id: details-notes
+    text: Bozza Surf dopo modifica in blocco
+- tapOn:
+    id: details-apply
+- tapOn:
+    id: history-handle
+- scrollUntilVisible:
+    element:
+      id: mini-${PREV}-20
+    direction: DOWN
+    timeout: 15000
+- tapOn:
+    id: mini-${PREV}-20
+- assertVisible:
+    id: history-day-${PREV}-20
+- assertVisible:
+    id: day-total
+    text: '.*2 sessioni.*'
+- assertVisible: '.*Nota comune nativa 1.3.*'
+- takeScreenshot: 47-bulk-existing-sessions
+- tapOn:
+    id: history-day-close
+- scrollUntilVisible:
+    element:
+      id: mini-${PREV}-21
+    direction: UP
+    timeout: 15000
+- tapOn:
+    id: mini-${PREV}-21
+- assertVisible: '.*Nota comune nativa 1.3.*'
+- tapOn:
+    id: history-day-close
+- scrollUntilVisible:
+    element:
+      id: mini-${PREV}-15
+    direction: UP
+    timeout: 15000
+- tapOn:
+    id: mini-${PREV}-15
+- assertVisible: '.*Nota inline nativa 1.3.*'
+- assertVisible: '.*Livorno.*'
+- assertVisible:
+    id: day-total
+    text: '.*1 h 30 min.*'
+- tapOn:
+    id: history-day-close
+- scrollUntilVisible:
+    element:
+      id: back-to-log
+    direction: UP
+    timeout: 15000
+- tapOn:
+    id: back-to-log
+- stopApp
+- launchApp
+- extendedWaitUntil:
+    visible:
+      id: lineup
+    timeout: 60000
+- runFlow: subflows/jump-prev.yaml
+- assertVisible:
+    id: day-${PREV}-26
+    text: '.*selezionato.*nessuna sessione registrata.*'
+- assertVisible:
+    id: day-${PREV}-20
+    text: '.*Surf.*2 sessioni registrate.*'
+- runFlow:
+    file: subflows/select-activity.yaml
+    env:
+      ACTIVITY: Corsa
+- assertVisible:
+    id: day-${PREV}-24
+    text: '.*selezionato.*nessuna sessione registrata.*'
+- takeScreenshot: 48-bulk-drafts-after-restart

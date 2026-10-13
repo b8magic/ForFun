@@ -11,17 +11,20 @@ interface Props {
   id: string;
   title: string;
   detail: string;
+  preview?: { timing: string; place: string | null; notes: string | null };
   color: string;
   interactive: boolean;
   accessibilityLabel: string;
   deleteLabel: string;
   onDelete?: () => void;
   onOpen: (row: SwipeableMethods) => void;
+  onLayoutReady?: (node: View) => void;
 }
 
 /** Swiping reveals an action. Only an explicit press can request deletion. */
-export function DaySessionRow({ id, title, detail, color, interactive, accessibilityLabel, deleteLabel, onDelete, onOpen }: Props) {
+export function DaySessionRow({ id, title, detail, preview, color, interactive, accessibilityLabel, deleteLabel, onDelete, onOpen, onLayoutReady }: Props) {
   const C = useSurface();
+  const row = useRef<View>(null);
   const swipeable = useRef<SwipeableMethods>(null);
   const [open, setOpen] = useState(false);
   const canDelete = interactive && !!onDelete;
@@ -30,7 +33,12 @@ export function DaySessionRow({ id, title, detail, color, interactive, accessibi
     onDelete?.();
   };
   const content = (
-    <View style={[styles.row, { backgroundColor: C.bg, borderTopColor: C.faint }]}>
+    <View
+      ref={row}
+      collapsable={!onLayoutReady}
+      onLayout={onLayoutReady ? () => { if (row.current) onLayoutReady(row.current); } : undefined}
+      style={[styles.row, { backgroundColor: C.bg, borderTopColor: C.faint }]}
+    >
       <Pressable
         onPress={() => router.push(`/session/${id}`)}
         disabled={!interactive}
@@ -44,7 +52,13 @@ export function DaySessionRow({ id, title, detail, color, interactive, accessibi
         <View style={[styles.dot, { backgroundColor: color }]} />
         <View style={styles.copy}>
           <T variant="bodyStrong" color={C.fg}>{title}</T>
-          <T variant="small" color={C.mute}>{detail}</T>
+          {preview ? (
+            <>
+              <T variant="small" color={C.fg}>{preview.timing}</T>
+              {preview.place ? <T variant="small" color={C.mute} numberOfLines={1} testID={`session-place-preview-${id}`}>{preview.place}</T> : null}
+              {preview.notes ? <T variant="small" color={C.mute} numberOfLines={1} testID={`session-notes-preview-${id}`}>{preview.notes}</T> : null}
+            </>
+          ) : <T variant="small" color={C.mute}>{detail}</T>}
         </View>
         {interactive ? <Chevron dir="right" color={C.mute} size={7} /> : null}
       </Pressable>
@@ -113,7 +127,7 @@ function TrashGlyph({ color }: { color: string }) {
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', borderTopWidth: StyleSheet.hairlineWidth },
   details: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 56, paddingVertical: 10 },
-  copy: { flex: 1, gap: 2 },
+  copy: { flex: 1, minWidth: 0, gap: 2 },
   dot: { width: 10, height: 10, borderRadius: 5 },
   deleteButton: { width: 44, minHeight: 44, marginLeft: 4, alignItems: 'center', justifyContent: 'center' },
   revealedDelete: { width: 92, alignSelf: 'stretch', alignItems: 'center', justifyContent: 'center' },

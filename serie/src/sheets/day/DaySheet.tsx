@@ -3,7 +3,7 @@ import { AccessibilityInfo, View } from 'react-native';
 import { router } from 'expo-router';
 import { EARLIEST_DATE, isLocalDate } from '@/domain/dates';
 import { useApp } from '@/state/store';
-import { deleteSession, showToast, toggleDate } from '@/state/actions';
+import { deleteSession, setHomeSessionMode, showToast, toggleDate } from '@/state/actions';
 import { useActive } from '@/state/selectors';
 import { DaySessions } from '@/places/time/DaySessions';
 import { dateLabel, timingSummary } from '@/places/time/format';
@@ -61,7 +61,8 @@ export function DaySheet({ date }: { date: string }) {
   const selectForLogging = () => {
     // A tap here adds to the current draft. It never unselects a day or writes a session.
     const state = useApp.getState();
-    if (!valid || !state.activeId || state.saving || date > state.today) return;
+    if (!valid || !state.activeId || state.saving || state.bulkSaving || date > state.today) return;
+    setHomeSessionMode('new');
     if (!state.selection.includes(date) && !toggleDate(date)) return;
     close();
   };

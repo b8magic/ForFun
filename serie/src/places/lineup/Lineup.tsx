@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, usePathname } from 'expo-router';
 import { useApp } from '@/state/store';
 import { useActive, useMotionReduced } from '@/state/selectors';
-import { clearSelection, goToday, save, setPlace, setViewMonth, toggleDate } from '@/state/actions';
+import { clearSelection, goToday, save, setPlace, setViewMonth, toggleBulkSession, toggleDate } from '@/state/actions';
 import { EARLIEST_DATE, addDays, compareMonths, monthKey, monthOf, monthRange, type MonthRef } from '@/domain/dates';
 import { buildDaySummaries } from '@/domain/daySummaries';
 import { MONTHS_TITLE, t } from '@/i18n/it';
@@ -18,6 +18,7 @@ import { Chevron, MenuGlyph } from '@/ui/glyphs';
 import { MonthCalendar, calendarHeight } from '@/ui/calendar/MonthCalendar';
 import { ActivityDock } from './ActivityDock';
 import { SaveCapsule } from './SaveCapsule';
+import { HomeBulkControls, HomeSessionModes } from './HomeBulkMode';
 
 const openDay = (date: string) => router.push({ pathname: '/day', params: { date } });
 const VIEWABILITY = { itemVisiblePercentThreshold: 30 };
@@ -32,6 +33,9 @@ export function Lineup() {
   const categories = useApp((state) => state.categories);
   const sessions = useApp((state) => state.sessions);
   const selectionArr = useApp((state) => state.selection);
+  const sessionMode = useApp((state) => state.homeSessionMode);
+  const bulkSelection = useApp((state) => state.bulkSelection);
+  const bulkSaving = useApp((state) => state.bulkSaving);
   const today = useApp((state) => state.today);
   const viewMonth = useApp((state) => state.viewMonth);
   const mode = useApp((state) => state.homeActivitiesMode);
@@ -47,7 +51,19 @@ export function Lineup() {
   // Only the visible window is rendered. Stable month indices prevent scroll jumps.
   const months = useMemo(() => monthRange(monthOf(EARLIEST_DATE), current), [current]);
   const days = useMemo(() => buildDaySummaries(sessions, categories), [sessions, categories]);
-  const selection = useMemo(() => new Set(selectionArr), [selectionArr]);
+  const bulkDays = useMemo(() => {
+    const selected = new Set(bulkSelection);
+    const counts = new Map<string, number>();
+    for (const session of sessions) if (selected.has(session.id) && session.categoryId === active?.id) counts.set(session.date, (counts.get(session.date) ?? 0) + 1);
+    return counts;
+  }, [bulkSelection, sessions, active?.id]);
+  const selection = useMemo(() => new Set(sessionMode === 'edit' ? bulkDays.keys() : selectionArr), [selectionArr, sessionMode, bulkDays]);
+  const selectExistingDay = useCallback((date: string) => {
+    const state = useApp.getState();
+    const matches = state.sessions.filter((session) => session.categoryId === state.activeId && session.date === date);
+    if (matches.length > 1) router.push({ pathname: '/bulk-day', params: { date } });
+    else if (matches.length === 1) toggleBulkSession(matches[0].id);
+  }, []);
   const [listHeight, setListHeight] = useState(0);
   const visibleMonth = viewMonth;
   const list = useRef<FlatList<MonthRef>>(null);
@@ -159,7 +175,7 @@ export function Lineup() {
     <View style={[styles.root, { backgroundColor: surface.bg, paddingTop: insets.top }]} testID="lineup">
       <View style={styles.header}>
         <Pressable onPress={() => router.push('/jump')} accessibilityRole="button" accessibilityLabel={`${MONTHS_TITLE[visibleMonth.m - 1]} ${visibleMonth.y}. Scegli mese e anno`} testID="month-title" style={styles.monthTitle}>
-          <T variant="heading" color={surface.fg} maxFontSizeMultiplier={1.15} style={{ fontFamily: fonts.displayBlack, fontSize: 30, lineHeight: 36 }}>{visibleMonth.y}</T>
+          <T variant="heading" color={surface.fg} maxFontSizeMultiplier={1.15} testID="home-year" style={{ fontFamily: fonts.displayCondensedMedium, fontSize: 30, lineHeight: 36 }}>{visibleMonth.y}</T>
           <Chevron dir="down" color={surface.fg} size={7} />
         </Pressable>
         <Pressable onPress={() => setPlace('time')} accessibilityRole="button" accessibilityLabel="Storia" testID="history-handle" style={styles.headerButton}><T variant="bodyStrong" color={surface.fg}>Storia</T></Pressable>
@@ -169,6 +185,8 @@ export function Lineup() {
       {activeNotice ? <T variant="small" color={surface.mute} style={{ paddingHorizontal: 22 }}>{activeNotice}</T> : null}
       <FlatList
         ref={list} data={months} keyExtractor={monthKey} initialScrollIndex={initialIndex}
+        // The native status-bar shortcut would jump to January 1900, not today.
+        scrollsToTop={false}
         getItemLayout={(_, index) => frames[index]}
         onScrollToIndexFailed={(info) => {
           const target = pendingTarget.current;
@@ -180,17 +198,17 @@ export function Lineup() {
         onViewableItemsChanged={onVisible} viewabilityConfig={VIEWABILITY}
         initialNumToRender={3} maxToRenderPerBatch={3} windowSize={5} showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingHorizontal: 22 }} ListFooterComponent={<View style={{ height: footerHeight }} />}
-        extraData={{ selection, activeId: active?.id, mode, saving, days, fontScale }} testID="month-list"
+        extraData={{ selection, activeId: active?.id, mode, saving, days, fontScale, sessionMode, bulkDays, bulkSaving }} testID="month-list"
         renderItem={({ item }) => (
           <View style={{ paddingBottom: 28 }} testID={`home-month-${monthKey(item)}`}>
             <Pressable onPress={() => { setViewMonth(item); router.push('/jump'); }} accessibilityRole="button" accessibilityLabel={`${MONTHS_TITLE[item.m - 1]} ${item.y}. Scegli mese e anno`} style={{ height: sectionTitleHeight, justifyContent: 'center' }}><T variant="heading" color={surface.fg}>{MONTHS_TITLE[item.m - 1]} <T variant="data" color={surface.mute}>{item.y}</T></T></Pressable>
-            <MonthCalendar month={item} days={days} activeId={active?.id} selection={selection} today={today} showAll={!active || mode === 'all'} onPressDay={active ? toggleDate : openDay} onLongPressDay={openDay} selectionEnabled={!!active} disabled={saving} recentSave={highlightSaveId && breakEvent ? breakEvent : undefined} testID={`month-${monthKey(item)}`} />
+            <MonthCalendar month={item} days={days} activeId={active?.id} selection={selection} today={today} showAll={!active || mode === 'all'} onPressDay={active ? sessionMode === 'edit' ? selectExistingDay : toggleDate : openDay} onLongPressDay={sessionMode === 'edit' ? selectExistingDay : openDay} selectionEnabled={!!active} disabled={saving || bulkSaving} existingSelection={sessionMode === 'edit' ? bulkDays : undefined} recentSave={sessionMode === 'new' && highlightSaveId && breakEvent ? breakEvent : undefined} testID={`month-${monthKey(item)}`} />
           </View>
         )}
       />
       <View style={[styles.dock, { backgroundColor: surface.bg, borderTopColor: surface.faint, paddingBottom: Math.max(insets.bottom, 12) }]}>
         {place === 'lineup' ? <ToastContent inline /> : null}
-        {active ? <><View style={styles.context}>
+        {active ? <><HomeSessionModes />{sessionMode === 'edit' ? <HomeBulkControls count={[...bulkDays.values()].reduce((sum, count) => sum + count, 0)} dayCount={bulkDays.size} color={active.color} /> : <><View style={styles.context}>
           <Pressable onPress={() => router.push('/details')} accessibilityRole="button" accessibilityLabel={n ? t.detailsForSelection(n) : t.detailsLink} testID="details-link" style={styles.contextButton}><T variant="label" color={surface.mute} style={{ letterSpacing: 0.6 }}>{pendingDetails ? '✓ Dettagli' : '+ Dettagli'}</T></Pressable>
           {n === 1 ? <Pressable onPress={() => openDay(selectionArr[0])} accessibilityRole="button" accessibilityLabel="Sessioni del giorno" testID="selected-day-details" style={styles.contextButton}><T variant="label" color={surface.fg} style={{ letterSpacing: 0.3 }}>Sessioni</T></Pressable> : null}
           {n ? <Pressable onPress={clearSelection} accessibilityRole="button" accessibilityLabel="Svuota la selezione" testID="clear-selection" style={styles.contextButton}><T variant="label" color={surface.mute} style={{ letterSpacing: 0.3 }}>Svuota</T></Pressable> : null}
@@ -198,7 +216,7 @@ export function Lineup() {
         {offMonth.length ? <Pressable onPress={() => setViewMonth(monthOf(offMonth[0]))} accessibilityRole="button" testID="off-month" style={{ minHeight: 28, justifyContent: 'center' }}><T variant="small" color={surface.mute}>{offMonth.length} {offMonth.length === 1 ? 'data in un altro mese' : 'date in altri mesi'}</T></Pressable> : null}
         {saveError ? <T variant="small" color={surface.danger} accessibilityLiveRegion="assertive">{saveError}</T> : null}
         <SaveCapsule count={n} color={active.color} activityName={active.name} busy={saving} error={saveError} reduced={reduced} visible={place === 'lineup' && pathname === '/'} celebration={breakEvent?.categoryId === active.id ? breakEvent.id : null} onSave={() => { void save(); }} />
-        </> : null}
+        </>}</> : null}
         <View style={{ height: 10 }} /><ActivityDock categories={categories} activeId={active?.id ?? null} />
       </View>
     </View>
