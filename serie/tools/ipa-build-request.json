@@ -1,0 +1,14 @@
+{
+  "version": "1.2.0",
+  "applicationSource": "dbfbbbfca27fc251c5eaaf6b429a0b4b80d3a47e",
+  "reason": "User feedback: neutral focus, swipe deletion, free colors, repeat counts, timezone choice and hours/minutes",
+  "verifiedLocally": {
+    "unitTests": 861,
+    "unitSuites": 48,
+    "browserChecks": 43,
+    "typecheck": true,
+    "lint": true,
+    "nativePixelToolTests": 9
+  },
+  "buildPolicy": "Single unsigned IPA job only; no remote simulator or repeated cloud tests"
+}

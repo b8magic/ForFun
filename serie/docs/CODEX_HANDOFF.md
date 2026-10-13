@@ -7,7 +7,23 @@
 - Contribution author/tool: Codex. Final implementation commits use subjects beginning `Codex: …` so a future Claude/Codex reviewer can identify the work through Git history.
 - User-approved scope: complete the calendar/appearance/draft/day/history/named-period evolution, preserve existing data and integrations, run meaningful tests, and deliver one final verified GitHub IPA. No release marker is added before local candidate checks pass.
 
-## Delivered build
+## Current update: Serie 1.2.0
+
+User feedback after testing 1.1 approved these additions: deselecting the active activity for a fully colored overview; swipe-to-delete from the day sheet; arbitrary activity colors and 24 presets; visible same-activity session counts; hours/minutes duration controls and a searchable timezone picker; large year on Home and removal of redundant menu entries/copy.
+
+- Explicit `lastActiveCategoryId: null` now persists neutral viewing. A missing preference still resolves to the first activity; a missing saved activity retains the existing fallback notice. Per-activity drafts survive deselection/restart; neutral taps inspect days and cannot create unattributed sessions. Creating an extra activity preserves neutral viewing; creating the first activity enables logging.
+- Day rows reveal deletion with a left swipe and expose a 44pt trash button/accessibility action. Deletion needs confirmation, writes through the existing repository action and retains other sessions. Native shapes show `×N` for counts above one in Home/history month tiles, without changing equal category shares. Very small yearly mosaics use their existing accessible counts/detail instead of tiny badges.
+- The original eight palette entries retain identity and exact RGB values; sixteen additional entries bring the total to 24. Continuous HSV tracks share one Skia canvas, with keyboard/accessibility controls and optional validated HEX input. Existing saved colors are not remapped. Contrast-aware foregrounds and a bounded capsule text background keep arbitrary colors readable.
+- Timing keeps the existing canonical domain model. Hour/minute controls replace decimal entry; existing exact seconds are retained until a duration field changes. IANA selection supports city search, device zone, saved aliases and a runtime-validated tzdb fallback without added dependencies.
+- Identity patterns remain visual activity identifiers in discs/preview/filter controls. The old WaterCanvas/DayGrid/Switcher implementation has no live imports and does not describe today's vertical calendar.
+
+**Build-cost policy for this update:** local unit/type/lint/browser verification, followed by one IPA-only GitHub attempt. The new `serie/tools/ipa-build-request.json` marker triggers only `ios-ipa.yml`; the old `release-candidate.json` is unchanged, so the simulator/candidate pipeline does not run. No billing settings, repository visibility, dependencies or native project folders are changed. Native Maestro selectors are maintained for future runs but native execution is not claimed for 1.2.
+
+Audit of the seven 1.1 candidates found 110m51s of actual macOS runner time (100m11s simulator + 10m40s IPA) and 53m52s Linux. Per-job rounding gives approximately 115 macOS and 59 Linux minutes. The last publication retry reused successful jobs and did not recompile. At GitHub's published rates this is about $7.48 list-price equivalent, **not an invoice or verified account quota deduction**; storage/other runs are excluded. The first five simulator builds compiled but failed UI automation or exposed issues. Those repeated pipelines were extra cost beyond producing the IPA. Sources: [runner pricing](https://docs.github.com/en/billing/reference/actions-runner-pricing), [billing behavior](https://docs.github.com/en/billing/concepts/product-billing/github-actions).
+
+Local verification passed: **861 tests/48 suites**, typecheck, lint, **43 browser journeys** (12core+13flows+9calendar+9feedback), zero browser errors/warnings, and nine pixel-tool tests. [Screenshots and machine-readable results](screens-feedback-1.2/README.md) preserve browser evidence at application commit `dbfbbbfca27fc251c5eaaf6b429a0b4b80d3a47e`. All seven native Maestro YAML files parse and twelve subflow references resolve; native flows were not executed. The single IPA attempt receipt will be recorded after GitHub responds. The link below is the **previous 1.1 delivery**, not a binary containing these new changes.
+
+## Previous delivered build: 1.1.0
 
 - **Serie 1.1.0, build 7**, bundle `app.serie.ios`, minimum iOS **16.4**.
 - Binary source: **`429a8a4a18971e1f4f1b69e86033f3c4933164cd`**. Later documentation commits add receipts and captured screens only; the delivered application code remains this immutable candidate.

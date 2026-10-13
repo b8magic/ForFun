@@ -55,13 +55,10 @@ name: 01 registra, bozze persistenti, giorno, storia
     notVisible:
       id: details-sheet
     timeout: 10000
-- tapOn:
-    id: activity-Corsa
-- extendedWaitUntil:
-    visible:
-      id: activity-switcher
-      text: "Attività attiva: Corsa.*"
-    timeout: 10000
+- runFlow:
+    file: subflows/select-activity.yaml
+    env:
+      ACTIVITY: Corsa
 - assertVisible:
     id: save
     text: "Salva.*Nessuna data selezionata"
@@ -79,13 +76,10 @@ name: 01 registra, bozze persistenti, giorno, storia
     notVisible:
       id: details-sheet
     timeout: 10000
-- tapOn:
-    id: activity-Surf
-- extendedWaitUntil:
-    visible:
-      id: activity-switcher
-      text: "Attività attiva: Surf.*"
-    timeout: 10000
+- runFlow:
+    file: subflows/select-activity.yaml
+    env:
+      ACTIVITY: Surf
 - assertVisible:
     id: day-${PREV}-18
     text: ".*selezionato.*"
@@ -115,13 +109,10 @@ name: 01 registra, bozze persistenti, giorno, storia
     timeout: 10000
 - tapOn:
     id: clear-selection
-- tapOn:
-    id: activity-Corsa
-- extendedWaitUntil:
-    visible:
-      id: activity-switcher
-      text: "Attività attiva: Corsa.*"
-    timeout: 10000
+- runFlow:
+    file: subflows/select-activity.yaml
+    env:
+      ACTIVITY: Corsa
 - assertVisible:
     id: day-${PREV}-19
     text: ".*selezionato.*"
@@ -148,13 +139,10 @@ name: 01 registra, bozze persistenti, giorno, storia
     notVisible:
       id: toast
     timeout: 30000
-- tapOn:
-    id: activity-Surf
-- extendedWaitUntil:
-    visible:
-      id: activity-switcher
-      text: "Attività attiva: Surf.*"
-    timeout: 10000
+- runFlow:
+    file: subflows/select-activity.yaml
+    env:
+      ACTIVITY: Surf
 - assertVisible:
     id: day-${PREV}-12
     text: ".*1 sessione registrata.*"
@@ -162,6 +150,40 @@ name: 01 registra, bozze persistenti, giorno, storia
     id: day-${PREV}-10
     text: ".*Surf.*Corsa.*2 sessioni registrate.*"
 - takeScreenshot: 03-mixed-colors-native
+
+# Tapping the active chip intentionally switches to all-activities viewing.
+# A normal day tap consults the saved sessions and leaves no logging draft.
+- tapOn:
+    id: activity-Surf
+- extendedWaitUntil:
+    notVisible:
+      id: activity-switcher
+    timeout: 10000
+- assertNotVisible:
+    id: save
+- assertNotVisible:
+    id: details-link
+- tapOn:
+    id: day-${PREV}-10
+- extendedWaitUntil:
+    visible:
+      id: day-sheet
+    timeout: 10000
+- assertVisible:
+    id: day-total
+    text: ".*2 sessioni.*"
+- assertVisible: ".*Surf, sessione.*"
+- assertVisible: ".*Corsa, sessione.*"
+- takeScreenshot: 03-neutral-day-native
+- tapOn:
+    id: sheet-close
+- runFlow:
+    file: subflows/select-activity.yaml
+    env:
+      ACTIVITY: Surf
+- assertNotVisible:
+    id: day-${PREV}-10
+    text: ".*selezionato.*"
 
 # Main-calendar tap still selects for logging; the visible detail control opens
 # the saved day without committing the newly selected draft.
@@ -222,13 +244,10 @@ name: 01 registra, bozze persistenti, giorno, storia
 - tapOn:
     id: back-to-log
     waitToSettleTimeoutMs: 1500
-- tapOn:
-    id: activity-Corsa
-- extendedWaitUntil:
-    visible:
-      id: activity-switcher
-      text: "Attività attiva: Corsa.*"
-    timeout: 10000
+- runFlow:
+    file: subflows/select-activity.yaml
+    env:
+      ACTIVITY: Corsa
 - takeScreenshot: 08-corsa-before-restart
 - stopApp
 - launchApp

@@ -1,0 +1,286 @@
+{
+  "appVersion": "1.2.0",
+  "applicationSource": "dbfbbbfca27fc251c5eaaf6b429a0b4b80d3a47e",
+  "environment": "Local Linux, Chromium154, Expo web export; not native iOS screenshots",
+  "unitTests": 861,
+  "unitSuites": 48,
+  "typecheck": "passed",
+  "lint": "passed",
+  "browserSuites": [
+    {
+      "suite": "core",
+      "results": [
+        {
+          "name": "first launch has a cream calendar, active Surf and disabled Save",
+          "ok": true,
+          "ms": 197
+        },
+        {
+          "name": "month jump and multi-date save record each date once",
+          "ok": true,
+          "ms": 4760
+        },
+        {
+          "name": "drafts retain their dates and details independently across activity switches and restart",
+          "ok": true,
+          "ms": 21349
+        },
+        {
+          "name": "rapid repeated Save cannot duplicate a draft, but deliberate repeated logging can",
+          "ok": true,
+          "ms": 3664
+        },
+        {
+          "name": "future dates stay disabled and do not enter a draft",
+          "ok": true,
+          "ms": 1583
+        },
+        {
+          "name": "mixed activity markers remain visible and day details list both actual sessions",
+          "ok": true,
+          "ms": 5961
+        },
+        {
+          "name": "editing a session returns to its day and closing restores the calendar draft",
+          "ok": true,
+          "ms": 2124
+        },
+        {
+          "name": "long press opens a saved day without changing the logging draft",
+          "ok": true,
+          "ms": 1347
+        },
+        {
+          "name": "history shows only populated months and can filter an empty activity honestly",
+          "ok": true,
+          "ms": 7134
+        },
+        {
+          "name": "year mosaic includes twelve months and disables empty and future drill-downs",
+          "ok": true,
+          "ms": 2592
+        },
+        {
+          "name": "Progressi uses actual data and the three history scales remain navigable",
+          "ok": true,
+          "ms": 2775
+        },
+        {
+          "name": "history month jump reaches an older recorded year after several populated months",
+          "ok": true,
+          "ms": 14023
+        }
+      ],
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "suite": "flows",
+      "results": [
+        {
+          "name": "timing acceptance: four sessions yield 3 h 30 min and duration coverage 2 of 4",
+          "ok": true,
+          "ms": 15648
+        },
+        {
+          "name": "editing an interval to start-only recalculates honest duration coverage",
+          "ok": true,
+          "ms": 2943
+        },
+        {
+          "name": "deleting the last known duration yields an unavailable duration, preserving other sessions",
+          "ok": true,
+          "ms": 3792
+        },
+        {
+          "name": "one duration applied to two dates remains independent and clears after saving",
+          "ok": true,
+          "ms": 8759
+        },
+        {
+          "name": "activity management rejects duplicate names, saves color, and remembers the selected activity",
+          "ok": true,
+          "ms": 5248
+        },
+        {
+          "name": "activity editing guards dirty forms and deletion removes only that activity draft",
+          "ok": true,
+          "ms": 11793
+        },
+        {
+          "name": "month jump reaches another year and explicit draft clearing survives restart",
+          "ok": true,
+          "ms": 5010
+        },
+        {
+          "name": "dark and cream themes, calendar scope and reduced motion apply immediately and persist",
+          "ok": true,
+          "ms": 6465
+        },
+        {
+          "name": "Maps rejects unrelated links, resolves coordinates, and saves the original link verbatim",
+          "ok": true,
+          "ms": 4732
+        },
+        {
+          "name": "discarding unsaved session notes keeps the stored session and returns to the same day",
+          "ok": true,
+          "ms": 2753
+        },
+        {
+          "name": "named period validates its inclusive range and previews real session counts and durations",
+          "ok": true,
+          "ms": 6167
+        },
+        {
+          "name": "period edit scopes by activity and range while keeping unknown durations honest",
+          "ok": true,
+          "ms": 1866
+        },
+        {
+          "name": "overlapping named periods coexist and deleting period metadata retains every session",
+          "ok": true,
+          "ms": 9357
+        }
+      ],
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "suite": "calendar",
+      "results": [
+        {
+          "name": "two manual Surf sessions are saved in September",
+          "ok": true,
+          "ms": 5383
+        },
+        {
+          "name": "calendar hub opens from the menu and asks nothing until Collega",
+          "ok": true,
+          "ms": 3011
+        },
+        {
+          "name": "import: title-only filter, durations, multi-day mapping, scoped selection, confirm",
+          "ok": true,
+          "ms": 8530
+        },
+        {
+          "name": "import again: already imported events are recognised and not selectable",
+          "ok": true,
+          "ms": 4723
+        },
+        {
+          "name": "import: title filter ignores notes; zero-length event keeps only its start",
+          "ok": true,
+          "ms": 4594
+        },
+        {
+          "name": "import: label filter (Google only) and recurring occurrences without the cancelled one",
+          "ok": true,
+          "ms": 8792
+        },
+        {
+          "name": "export: equivalent Google/iPhone destinations are blocked, then exported to Google",
+          "ok": true,
+          "ms": 11265
+        },
+        {
+          "name": "export again: already exported sessions are not recreated",
+          "ok": true,
+          "ms": 8347
+        },
+        {
+          "name": "automatic export: off by default, enabled with a destination, runs after a save",
+          "ok": true,
+          "ms": 24516
+        }
+      ],
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "suite": "v12",
+      "results": [
+        {
+          "name": "Home names the year, Menu keeps an accessible heading, and Progressi opens through Storia",
+          "ok": true,
+          "ms": 3941
+        },
+        {
+          "name": "toggling focus exposes every stored color and a same-activity count on its own segment",
+          "ok": true,
+          "ms": 8065
+        },
+        {
+          "name": "neutral selection survives restart and preserves separate activity dates and details",
+          "ok": true,
+          "ms": 11919
+        },
+        {
+          "name": "a real left swipe reveals deletion, cancellation retains every row, and confirmation deletes only that session",
+          "ok": true,
+          "ms": 9748
+        },
+        {
+          "name": "24 presets and continuous custom controls create and persist an exact color without clipping at 320px",
+          "ok": true,
+          "ms": 9132
+        },
+        {
+          "name": "editing a custom color persists it and paints the selected activity with the same RGB value",
+          "ok": true,
+          "ms": 6640
+        },
+        {
+          "name": "hours and minutes save with a searchable city timezone and remain editable",
+          "ok": true,
+          "ms": 10525
+        },
+        {
+          "name": "duration edits reject 60 minutes and preserve a new timezone and valid minutes across restart",
+          "ok": true,
+          "ms": 7080
+        },
+        {
+          "name": "four repeated activities keep separate counts, colors, and readable day numbers at 390px and 320px",
+          "ok": true,
+          "ms": 21548
+        }
+      ],
+      "errors": [],
+      "warnings": []
+    }
+  ],
+  "screenshots": [
+    {
+      "file": "home-counts-390.png",
+      "sha256": "b891c48d1e1a65d51181d4d9ed6db968e8df13f28d50c9e81dcb824db9ad0ba3",
+      "sourceScreenshot": "14-four-activity-counts-390.png"
+    },
+    {
+      "file": "home-counts-320.png",
+      "sha256": "281524c9df3561f667214e652ea407e980f9a59771a302d4721e1ca7b37320f7",
+      "sourceScreenshot": "14-four-activity-counts-320.png"
+    },
+    {
+      "file": "day-swipe.png",
+      "sha256": "90c89a1c3c2fc8aebf03093131a33957b2bb28c397fd0ad401d28e79304f11b9",
+      "sourceScreenshot": "06-swipe-reveals-delete.png"
+    },
+    {
+      "file": "palette-320.png",
+      "sha256": "d34970aaa81ec4574557c42b7be9ffb1cde82758338d1127566035edeec62b0d",
+      "sourceScreenshot": "08-color-palette-320.png"
+    },
+    {
+      "file": "custom-color-390.png",
+      "sha256": "adc00df18278f90cf96207c7865076ef58d50ea437e91fe2069fcf080ab8e27d",
+      "sourceScreenshot": "09-color-custom-390.png"
+    },
+    {
+      "file": "duration-320.png",
+      "sha256": "ddc5d9d40317e0a2947156262aca9f723f20afd7939fe131e81f2b9558363c64",
+      "sourceScreenshot": "11-duration-fields-320.png"
+    }
+  ]
+}

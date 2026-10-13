@@ -118,9 +118,37 @@ export async function createHarness(suite, defaultRoot = 'dist-web') {
   }
   async function switchTo(name) {
     // Activity chips are directly available in the calendar header.
-    if ((await label('activity-switcher')).includes(`Attività attiva: ${name}`)) return;
+    // Tapping the selected chip now turns focus off. Helpers that merely need
+    // an activity must also work when no activity-switcher is mounted.
+    await visible(`activity-${name}`);
+    if ((await label(`activity-${name}`)).includes(`${name}, attività attiva`)) return;
     await tap(`activity-${name}`, 450);
     assert((await label('activity-switcher')).includes(`Attività attiva: ${name}`), `Active activity should be ${name}`);
+  }
+  async function duration(testID, hours, minutes = '') {
+    await fill(`${testID}-duration-hours`, hours);
+    await fill(`${testID}-duration-minutes`, minutes);
+  }
+  async function swipeLeft(id, distance = 140) {
+    await visible(id);
+    await $(id).scrollIntoViewIfNeeded();
+    const box = await $(id).boundingBox();
+    assert(box, `${id} must have a touch target`);
+    const from = { x: box.x + box.width * 0.85, y: box.y + box.height / 2 };
+    const to = { x: Math.max(box.x + 8, from.x - distance), y: from.y };
+    const cdp = await context.newCDPSession(page);
+    try {
+      const point = (x) => [{ x, y: from.y, radiusX: 3, radiusY: 3, force: 1, id: 1 }];
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: point(from.x) });
+      for (let step = 1; step <= 10; step++) {
+        await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: point(from.x + (to.x - from.x) * step / 10) });
+        await page.waitForTimeout(20);
+      }
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+      await page.waitForTimeout(450);
+    } finally {
+      await cdp.detach();
+    }
   }
   async function jumpMonth(year, month, trigger = 'month-title') {
     await tap(trigger, 350);
@@ -177,5 +205,5 @@ export async function createHarness(suite, defaultRoot = 'dist-web') {
     if (server) await new Promise((resolve) => server.close(resolve));
     if (!passed) process.exitCode = 1;
   }
-  return { page, context, url, shots, results, errors, $, visible, label, text, body, tap, fill, screenshot, go, home: () => go(), reload, switchTo, jumpMonth, save, details, check, finish };
+  return { page, context, url, shots, results, errors, $, visible, label, text, body, tap, fill, screenshot, go, home: () => go(), reload, switchTo, duration, swipeLeft, jumpMonth, save, details, check, finish };
 }

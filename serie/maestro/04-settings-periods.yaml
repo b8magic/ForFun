@@ -12,6 +12,11 @@ name: 04 impostazioni, periodi, modifica dal giorno
     timeout: 60000
 - tapOn:
     id: menu
+# Consultation lives in Home's Storia entry and its Progressi scale.
+- assertNotVisible:
+    id: menu-history
+- assertNotVisible:
+    id: menu-progress
 - tapOn:
     id: theme-pref-dark
 - tapOn:

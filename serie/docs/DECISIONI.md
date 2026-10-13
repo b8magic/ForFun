@@ -1,4 +1,4 @@
-# Serie 1.1 — scelte da provare su iPhone
+# Serie — scelte da provare su iPhone
 
 Le richieste sono implementate in un'unica direzione. Queste sono le scelte adottate dove erano possibili più soluzioni: potrai rivederle dopo aver usato l'app, senza che servano risposte prima della consegna.
 
@@ -16,3 +16,14 @@ Le richieste sono implementate in un'unica direzione. Queste sono le scelte adot
 | Periodi con un nome | Intervallo inclusivo, nome, nota facoltativa e tutte o alcune attività; sovrapposizioni consentite. | Un periodo racconta una parte della propria storia e conta le sessioni comprese. Cancellarlo elimina soltanto la sua descrizione, senza cancellare allenamenti o altre sessioni. |
 
 La versione consegnata, il commit esatto dell'IPA e i risultati delle verifiche sono registrati nel [documento di passaggio a Claude/Codex](CODEX_HANDOFF.md). Le preferenze già presenti permettono di provare tema, movimento e visualizzazione delle attività direttamente sull'iPhone.
+
+## Aggiornamento 1.2 dopo la prova su iPhone
+
+- Toccare di nuovo l'attività attiva la disattiva. Nessuna attività selezionata significa visualizzare tutte le attività a colori pieni, anche con «Solo attiva» impostato. Il tocco su un giorno apre il dettaglio; per registrare si sceglie nuovamente un'attività. Le bozze vengono conservate e anche la modalità senza selezione viene ricordata alla riapertura.
+- Le sessioni ripetute mostrano `×2`, `×3` ecc. sulla porzione del proprio colore nelle griglie mensili della Home e di Storia. Le porzioni restano uguali tra attività; i mosaici annuali più piccoli conservano i conteggi nei dettagli, evitando cifre illeggibili.
+- Nel dettaglio del giorno, scorrere una sessione verso sinistra rivela «Elimina». Un secondo comando conferma la cancellazione. Resta disponibile anche un pulsante accessibile senza gesto.
+- La scelta del colore offre 24 campioni e un selettore continuo, con codice esadecimale facoltativo. I colori già scelti restano invariati. I testi sopra colori personalizzati mantengono il contrasto.
+- Il fuso orario si sceglie da un elenco ricercabile; il fuso del dispositivo è una scelta rapida. Le durate si inseriscono con ore e minuti separati, preservando la precisione delle sessioni esistenti.
+- La Home mostra l'anno in grande. Il menu omette il proprio titolo visibile e i collegamenti duplicati a Storia e Progressi; le etichette per le tecnologie assistive restano disponibili.
+- Le grane identificano visivamente le attività nei simboli e nelle anteprime. Non modificano conteggi, statistiche o comportamento delle sessioni e non sono texture dei giorni del calendario verticale.
+- Per contenere il consumo di GitHub Actions, i controlli di questa versione si svolgono localmente e si richiede una sola compilazione IPA, senza avviare il simulatore remoto. Se la quota impedisce l'avvio, si conserva il codice verificato e si registra il blocco senza abilitare spese o cambiare la visibilità del repository.

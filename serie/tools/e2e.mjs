@@ -35,6 +35,7 @@ try {
     assert(/Attività attiva: Surf/.test(await label('activity-switcher')), 'First activity is Surf');
     assert((await $('save').getAttribute('aria-disabled')) === 'true', 'No dates selected');
     assert(/Ottobre 2026/.test(await label('month-title')), 'The fixture clock controls the calendar month');
+    assert((await text('month-title')) === '2026', 'Home uses the current year as its large title');
     await screenshot('01-first-launch');
   });
 
@@ -126,14 +127,14 @@ try {
     await h.visible('day-sheet');
     const sheet = page.getByTestId('day-sheet');
     assert(/2 sessioni/.test(await sheet.getByTestId('day-total').innerText()), 'Full day total includes both activities');
-    assert(await sheet.getByRole('button', { name: /Surf, sessione/ }).count() === 1, 'Surf session is listed');
-    assert(await sheet.getByRole('button', { name: /Corsa, sessione/ }).count() === 1, 'Corsa session is listed');
+    assert(await sheet.getByRole('button', { name: /^Surf, sessione/ }).count() === 1, 'Surf session is listed');
+    assert(await sheet.getByRole('button', { name: /^Corsa, sessione/ }).count() === 1, 'Corsa session is listed');
     await screenshot('05-mixed-day-details');
   });
 
   await check('editing a session returns to its day and closing restores the calendar draft', async () => {
     const sheet = page.getByTestId('day-sheet');
-    await sheet.getByRole('button', { name: /Surf, sessione/ }).tap();
+    await sheet.getByRole('button', { name: /^Surf, sessione/ }).tap();
     await h.visible('session-editor');
     await fill('session-notes', 'Aggiornata dalla giornata');
     await tap('session-save', 650);

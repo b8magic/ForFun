@@ -1,4 +1,4 @@
-# Native smoke test 3/3: iPhone calendars (EventKit) on the simulator's own test calendars.
+# Native smoke: iPhone calendars (EventKit) on the simulator's own test calendars.
 # Connect → export both Corsa sessions (mixed day + mapped day) → "Creati: 2". Needs 02.
 appId: app.serie.ios
 name: 03 calendari di iPhone, esportazione

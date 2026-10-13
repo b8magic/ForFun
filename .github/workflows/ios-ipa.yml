@@ -1,6 +1,6 @@
 # Serie — unsigned iOS IPA for sideloading (SideStore / AltStore Classic re-sign it with your Apple ID).
 #
-# Manual Run workflow builds artifacts only. Publication is available when
+# Manual Run workflow and the dedicated IPA marker build artifacts only. Publication is available when
 # called by serie-candidate.yml after web and native gates pass.
 #
 # Produces:
@@ -13,6 +13,9 @@
 name: iOS IPA (unsigned, sideload)
 
 on:
+  push:
+    branches: [codex/serie-calendar]
+    paths: [serie/tools/ipa-build-request.json]
   workflow_dispatch:
     inputs:
       candidate_sha:

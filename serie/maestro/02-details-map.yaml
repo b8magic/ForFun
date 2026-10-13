@@ -1,5 +1,5 @@
-# Native smoke test 2/3: details sheet with a place from a Google Maps link → Apple Maps (expo-maps),
-# save, then open the session from history and see its map. Needs 01 (active activity: Corsa).
+# Native smoke: a Google Maps place link → Apple Maps, hours/minutes duration,
+# then saved-session map and timing. Needs 01 (active activity: Corsa).
 appId: app.serie.ios
 name: 02 dettagli, luogo e mappa
 ---
@@ -62,6 +62,38 @@ name: 02 dettagli, luogo e mappa
       id: map-caption
     timeout: 15000
 - takeScreenshot: 10-details-map
+# Duration is entered with the two visible numeric controls, not a raw minutes
+# field. Begin the pan below AppleMaps so its gesture recognizer cannot eat it.
+- swipe:
+    from:
+      id: map-caption
+    direction: UP
+- scrollUntilVisible:
+    element:
+      id: details-timing-mode-duration_only
+    direction: DOWN
+    timeout: 15000
+- tapOn:
+    id: details-timing-mode-duration_only
+- scrollUntilVisible:
+    element:
+      id: details-timing-duration-hours
+    direction: DOWN
+    timeout: 15000
+- tapOn:
+    id: details-timing-duration-hours
+- inputText: '1'
+- tapOn:
+    id: details-timing-duration-minutes
+- inputText: '30'
+- assertVisible:
+    id: details-timing-duration-hours
+    text: '1'
+- assertVisible:
+    id: details-timing-duration-minutes
+    text: '30'
+- takeScreenshot: 10-details-duration
+# The numeric keyboard has no Return key; the visible Apply footer closes it.
 - tapOn:
     id: details-apply
     waitToSettleTimeoutMs: 1500
@@ -125,6 +157,23 @@ name: 02 dettagli, luogo e mappa
     direction: DOWN
     timeout: 15000
 - takeScreenshot: 11-session-map
+# The saved duration reopens as the same hours/minutes, after the place map.
+- swipe:
+    from:
+      id: map-caption
+    direction: UP
+- scrollUntilVisible:
+    element:
+      id: session-timing-duration-hours
+    direction: DOWN
+    timeout: 15000
+- assertVisible:
+    id: session-timing-duration-hours
+    text: '1'
+- assertVisible:
+    id: session-timing-duration-minutes
+    text: '30'
+- takeScreenshot: 11-session-duration
 - tapOn:
     id: sheet-close
     waitToSettleTimeoutMs: 1500

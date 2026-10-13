@@ -3,7 +3,7 @@
 import { assert, createHarness } from './e2e-harness.mjs';
 
 const h = await createHarness('flows');
-const { page, $, tap, fill, text, label, body, home, switchTo, jumpMonth, details, save, check, screenshot } = h;
+const { page, $, tap, fill, text, label, body, home, switchTo, duration, jumpMonth, details, save, check, screenshot } = h;
 const historyItem = (id) => page.getByTestId('time-place').getByTestId(id).first();
 const monthLabel = async (key) => (await historyItem(`month-${key}`).getAttribute('aria-label')) ?? '';
 const openHistory = async () => {
@@ -68,7 +68,7 @@ try {
     await tap('day-2026-09-04');
     await details(async () => {
       await tap('details-timing-mode-duration_only');
-      await fill('details-timing-duration', '1,5');
+      await duration('details-timing', '1', '30');
     });
     await save();
     await openHistory();
@@ -105,7 +105,7 @@ try {
     await tap('day-2026-10-06');
     await details(async () => {
       await tap('details-timing-mode-duration_only');
-      await fill('details-timing-duration', '1');
+      await duration('details-timing', '1', '0');
     });
     await save();
     await tap('day-2026-10-07');
