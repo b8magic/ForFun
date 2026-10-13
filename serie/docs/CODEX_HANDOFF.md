@@ -7,11 +7,19 @@
 - Contribution author/tool: Codex. Final implementation commits use subjects beginning `Codex: …` so a future Claude/Codex reviewer can identify the work through Git history.
 - User-approved scope: complete the calendar/appearance/draft/day/history/named-period evolution, preserve existing data and integrations, run meaningful tests, and deliver one final verified GitHub IPA. No release marker is added before local candidate checks pass.
 
-## Current update: Serie 1.3.1 (IPA compilation pending)
+## Current delivery: Serie 1.3.1
 
 User feedback asks for shared Home day selection even with no activity selected, preserved through activity/mode changes; neutral editing across activities; immediate explicit deletion without a confirmation; a swipe that cannot also open the editor; and removal of missing-time/duration filler from day previews. Per-activity optional details remain separate. No schema or dependency changes.
 
-Delivery policy: targeted local checks and one IPA-only archive, with no simulator/video/full-browser pipeline. Local verification passed: **949 tests in 56 suites**, typecheck and lint, plus **7/7 focused browser journeys** with zero console errors/warnings. The browser checks physical touch swipes/long press, exact SQLite rows after neutral/scoped edits and deletion, selection persistence and clean inline history. Actual iPhone gesture behavior is not claimed as verified; no native simulator run is required for this delivery. IPA build and receipt pending.
+Delivery policy: targeted local checks and one IPA-only archive, with no simulator/video/full-browser pipeline. Local verification passed: **949 tests in 56 suites**, typecheck and lint, plus **7/7 focused browser journeys** with zero console errors/warnings. The browser checks emulated touch swipes/long press, exact SQLite rows after neutral/scoped edits and deletion, selection persistence and clean inline history. Actual iPhone gesture behavior is not claimed as verified; no native simulator run is required for this delivery. Native Release archive, packaging and both uploads succeeded in [run 38434726237](https://github.com/b8magic/ForFun/actions/runs/38434726237).
+
+### Delivered IPA 1.3.1
+
+- **[Serie 1.3.1, build 5 — unsigned IPA](https://github.com/b8magic/ForFun/actions/runs/38434726237/artifacts/11833217391)**. Bundle `app.serie.ios`, minimum iOS **16.4**. File: **16,098,092 bytes**, retained until **2026-10-20 17:14:43 UTC**. Install with SideStore or AltStore Classic; sign in to GitHub if requested.
+- Binary source: **`aaeab5c777ff3ea6db2279e6ea518b4c1b8360ac`**; application source **`89d0a4cdc45d45385ed926e26dfded4ac0f60f6f`**. The build marker and later delivery documentation do not change the verified application inputs.
+- IPA SHA-256: **`d518e169d592f9dc8d6cc43b1427ddcd3db0be690144ebc172058bd9af9fd55d`**. Successful packaging logs built Info.plist values, requires embedded `main.jsbundle`, and produces the checksum matching raw upload and artifact metadata, including exact bytes.
+- [Companion ZIP](https://github.com/b8magic/ForFun/actions/runs/38434726237/artifacts/11833287278): **15,968,451 bytes**, SHA-256 `a73c4064fdd81dff61e6133efdb2f1697eef7f56ab642c706916da10ad35bbd2`. The three-file upload contains IPA, checksum and generated `Serie-build.json` with source, version, run and build number. Independent local binary/ZIP-content inspection is not claimed.
+- Job `115425630971` succeeded on `macos-26`, Xcode **26.6**, iPhoneOS SDK **26.5**. IPA-only policy intentionally skips prerelease publication. [Delivery receipt](ipa-1.3.1.json) · [Local verification](verification-1.3.1.json).
 
 ## Previous delivery: Serie 1.3.0
 
@@ -94,11 +102,11 @@ The user-facing Italian decision register is [DECISIONI.md](DECISIONI.md). It re
 
 Home uses a continuous shared calendar with visible activity chips, a sticky month jump, a cream default and a saved dark option. The persistent activity dock and Storia header provide the primary navigation. Full and reduced motion use the same compact layout: waves stay local and date hit targets hold their positions. Day markers are derived from actual session/category contributions; the all/active marker preference changes visibility, never stored sessions. Glyphs show up to four colors plus +N overflow, with every contribution retained in labels/day details. Geometry allocates equal shares to distinct activities; session volume is expressed by recorded counts. Motion defaults to the system accessibility preference. Activity, period and saved-session editors share dirty-form protection for Close/back and native sheet gestures.
 
-Drafts are persisted per stable activity id with dates, applied optional details and a retry-safe request id. Selection-details edits remain local until Applica; closing that panel discards unapplied edits while preserving the previously applied draft. Switch/restart restores each draft; successful save clears only its captured draft. Draft/activity removal cannot leak stale data into another activity.
+Since 1.3.1, Home dates are shared across activity focus and Nuove/Modifica, persisted under homeSelection. First upgrade unions legacy per-activity dates; an explicitly saved empty selection stays empty. Applied optional details and retry-safe save request IDs remain per activity. Selection-details edits remain local until Applica. Saving captures the current activity/date revision and cannot clear a newer working selection. Bulk editing changes existing records immediately, retains the selected dates and never changes other activities when focus is active.
 
 Main-calendar tap selects a date for logging. Long press or the explicit one-selected-day detail action opens the full actual day across activities. Existing session editing returns to that day, then to its origin. **Nuova sessione** selects the date; it does not save automatically.
 
-History shares month/day drawing, opens populated month calendars immediately, shows twelve small calendars in populated years, disables empty/future year drill-down and uses **Progressi** for all-time analysis. Month history omits empty month rows; year placeholders, filter zeros and unknown durations stay explicit.
+History shares month/day drawing, opens populated month calendars immediately, shows twelve small calendars in populated years, disables empty/future year drill-down and uses **Progressi** for all-time analysis. Month history omits empty month rows; year placeholders and filter zeros stay explicit. Day previews omit missing-time/duration copy; aggregate duration coverage remains explicit.
 
 Named periods are inclusive metadata filters over actual sessions, using all or selected stable activity ids. Duplicate names/overlap/future endpoints are allowed. Metadata deletion never deletes sessions. Activity, period and saved-session editors share dismissal guards; theme subscriptions apply across functional sheets.
 
