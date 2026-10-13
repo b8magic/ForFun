@@ -37,7 +37,7 @@ def main():
         names[after_failure:after_failure] = (
             "02-details-map--09-before-name.png",
             "02-details-map--09-before-link.png",
-            "02-details-map--09-link-focused.png",
+            "02-details-map--09-link-target.png",
             "02-details-map--10-before-map-scroll.png",
         )
     paths = [root / name for name in names if (root / name).is_file()][:6]
