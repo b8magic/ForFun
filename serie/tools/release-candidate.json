@@ -1,7 +1,7 @@
 {
   "appVersion": "1.3.0",
-  "applicationSource": "23485a3438d16ea6221dc9c67677523e96c3f660",
-  "requestedAt": "2026-10-13T13:04:01Z",
+  "applicationSource": "f7191db1549f1e413c3942e48d307a95f70b6ad2",
+  "requestedAt": "2026-10-13T14:28:47Z",
   "supersedesTag": "ipa-38333430020",
-  "reason": "Retry the complete Serie 1.3 native gate after run 38395345885 exposed a Maestro navigation error: Solo durata is offscreen in the horizontal timing-mode rail. Flows 02 and 05 now reveal the rail vertically, swipe it horizontally, then assert and select the duration mode. Application source, assets, dependencies and configuration are unchanged from the previously verified candidate; 927 unit tests and 57 browser journeys passed locally and remotely. The first native run passed logging/restarts, six-table migration and native mixed colors with no crashes; later flows were correctly blocked. Repeat all five native flows before producing the one final unsigned IPA. Native job ceiling accommodates the expanded suite."
+  "reason": "Serie 1.3 native duration correction. Run 38403711967 passed native logging, maps, EventKit, periods, the six-table upgrade and mixed-day color checks without crashes. Flow 05 exposed a real iOS caret bug: the late raw-text selection overwrote the formatted caret. DurationInput now rejects selection coordinates attached to obsolete unformatted text; the native assertion remains unchanged. Seven component regressions cover native event ordering, keyboard insertion/deletion, range edits and saved seconds. Local validation: 934 tests/54 suites, types, lint and all 14 new-feedback browser journeys pass. Repeat all five browser suites and all five native flows before producing the one final unsigned IPA. Linux and simulator gates now run concurrently on the same frozen candidate; IPA still requires both to succeed."
 }
