@@ -7,6 +7,7 @@ name: 03 calendari di iPhone, esportazione
 - extendedWaitUntil:
     visible:
       id: activity-switcher
+      text: "Attività attiva: Corsa.*"
     timeout: 60000
 - tapOn:
     id: menu

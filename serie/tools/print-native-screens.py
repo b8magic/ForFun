@@ -12,17 +12,18 @@ import sys
 import tempfile
 
 NAMES = (
-    "00-launch.png",
     "fail-01-log.png",
     "fail-native-upgrade.png",
     "fail-02-details-map.png",
     "fail-03-calendar.png",
     "fail-04-settings-periods.png",
+    "01-log--02-notes-keyboard.png",
     "01-log--03-mixed-colors-native.png",
     "01-log--06-history-year.png",
     "04-settings-periods--32-period-preview.png",
-    "04-settings-periods--34-day-after-edit.png",
     "04-settings-periods--31-dark-after-restart.png",
+    "04-settings-periods--34-day-after-edit.png",
+    "00-launch.png",
 )
 
 

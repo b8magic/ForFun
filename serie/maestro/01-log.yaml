@@ -45,10 +45,16 @@ name: 01 registra, bozze persistenti, giorno, storia
 - tapOn:
     id: details-notes
 - inputText: Bozza Surf nativa
+# Capture the real keyboard/footer arrangement before the direct Apply tap.
+- takeScreenshot: 02-notes-keyboard
 # The visible footer applies the exact multiline note and closes the keyboard.
 - tapOn:
     id: details-apply
     waitToSettleTimeoutMs: 1500
+- extendedWaitUntil:
+    notVisible:
+      id: details-sheet
+    timeout: 10000
 - tapOn:
     id: activity-Corsa
 - assertVisible:
@@ -64,6 +70,10 @@ name: 01 registra, bozze persistenti, giorno, storia
 - tapOn:
     id: details-apply
     waitToSettleTimeoutMs: 1500
+- extendedWaitUntil:
+    notVisible:
+      id: details-sheet
+    timeout: 10000
 - tapOn:
     id: activity-Surf
 - stopApp
@@ -85,6 +95,10 @@ name: 01 registra, bozze persistenti, giorno, storia
 - takeScreenshot: 03-surf-draft-after-restart
 - tapOn:
     id: details-apply
+- extendedWaitUntil:
+    notVisible:
+      id: details-sheet
+    timeout: 10000
 - tapOn:
     id: clear-selection
 - tapOn:
@@ -99,6 +113,10 @@ name: 01 registra, bozze persistenti, giorno, storia
     text: "Bozza Corsa nativa"
 - tapOn:
     id: details-apply
+- extendedWaitUntil:
+    notVisible:
+      id: details-sheet
+    timeout: 10000
 - tapOn:
     id: clear-selection
 # A Corsa session on an already recorded Surf day must show both real colors.

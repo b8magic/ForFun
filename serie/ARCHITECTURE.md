@@ -18,6 +18,8 @@ Main-calendar tap always toggles the active draft's date, even when sessions alr
 
 Routes live under `src/app/`; domain/state/components stay outside the route directory. Every navigational transition uses Expo Router. Form dismissal guards cover explicit Close, local back/cancel and native route removal, including sheet gestures. Motion follows the system accessibility setting by default, with a saved user override available. Full/reduced motion share the compact layout; local waves preserve stationary date targets. A persistent activity dock and the Storia header provide the primary navigation.
 
+Activity, period, selection-detail and session-edit forms use `KeyboardSafe` around the whole sheet so the iOS keyboard moves both scrolling content and the fixed primary footer. Inner scrolling bodies disable automatic keyboard insets to reserve that space once. Android uses its configured window resize behavior. Successful submissions dismiss the keyboard; multiline notes retain ordinary line breaks.
+
 ## State, persistence and commit boundaries
 
 The UI reads `useApp`. Writes go through `state/actions.ts`, repositories and the database. Stored sessions are the only source of session statistics; exported events, periods and drafts never count as sessions.

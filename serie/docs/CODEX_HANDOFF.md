@@ -23,18 +23,20 @@ Calendar providers/engines remain intact. A separate memory-provider web bundle 
 
 ## Validation commands and observed results
 
-Final local verification of the **1.1.0** implementation passed after the far-month navigation fix (`1ed7b00`):
+Final local verification of the **1.1.0** implementation passed after the far-month navigation fix (`1ed7b00`) and native keyboard/footer correction (`8a1896f`):
 
 - **829 unit tests in 45 suites**, including the original-data upgrade fixture; the final normal Jest run has no pending timer warning.
 - **Typecheck and lint passed** after the implementation changes.
 - **34/34 browser checks passed** against the final static normal and memory-provider bundles: core **12/12**, details/settings/periods **13/13**, calendar integration **9/9**.
 - All three browser reports contain **zero page errors, console errors or warnings**. Screenshot review covers cream/dark calendars, mixed-activity day markers/details, month/year/progress views, old-year navigation, period previews and session preservation. Dense history bounds/focus behavior were also checked by the history review.
 
-Final local browser evidence: `/tmp/serie-final-e2e/core/`, `/tmp/serie-final-e2e/flows/`, `/tmp/serie-final-e2e/calendar/` (each contains `results.json` and PNGs). Earlier failed-attempt screenshots were removed from these final evidence folders; the separate `/tmp/serie-prefar-e2e/` directory documents the older snapshot and is not final-candidate evidence.
+Final local browser evidence: `/tmp/serie-keyboard-confirmed-e2e/core/`, `/tmp/serie-keyboard-confirmed-e2e/flows/`, `/tmp/serie-keyboard-confirmed-e2e/calendar/` (each contains `results.json` and PNGs). All 34 checks passed with zero browser errors/warnings against regenerated static bundles. A separate focused-input probe passed **4/4** forms at 375×500, preserving multiline notes and direct footer taps (`/tmp/serie-keyboard-fix/focused-forms/`). The earlier `/tmp/serie-final-e2e/` and `/tmp/serie-prefar-e2e/` directories document older snapshots; the interrupted `/tmp/serie-keyboard-prefinal-e2e/` run was deliberately stopped when the final web-focus correction arrived and is not final-candidate evidence.
 
 **Native simulator, actual native upgrade execution, IPA packaging and prerelease publication remain pending** until the candidate workflow succeeds. Do not infer those passes from local browser/SQL tests or reuse the original branch’s historical totals.
 
 The first candidate run (`38320706064`, source `6d60f7c`) passed all Linux gates and the native Release build. Startup remained running, no crash reports were found, and native EventKit export passed. The notes journey stopped because Maestro's generic `hideKeyboard` could not dismiss a multiline input; dependent map/period journeys then lacked their fixtures. The automation now submits those notes through the existing keyboard-safe Apply/Save footer and uses Enter for single-line period fields. Assertions and inputs are preserved. Dependent native journeys explicitly report `NOT_RUN` and fail the gate if their fixtures are unavailable. Small native PNG previews are included in logs as well as full artifact originals because workspace access to the connector's File Service ZIP URL returned HTTP 403. This is diagnostic output only and cannot change test outcomes.
+
+The second candidate (`38323259409`, source `362853f`) passed all Linux gates and native compilation but revealed a real form-layout defect: the iOS notes keyboard covered the fixed Apply footer. Its native failure PNG proves the selection-details sheet stayed open, so `activity-Corsa` was unavailable. Selection-details and session-edit forms now use the same whole-sheet `KeyboardSafe` container as activity/period forms; inner scroll views no longer add duplicate keyboard insets, valid submissions dismiss the keyboard and Android keeps its window-resize behavior. Native flow01 records the visible keyboard/footer before Apply, and submit checks wait for the old form to disappear. The EventKit flow now requires the intended Corsa/map fixture: earlier isolated `Creati: 2` passes establish provider export only, since they exported Surf after logging failed. A final successful candidate is still required; no IPA was published from either failed run.
 
 Completed static checks:
 

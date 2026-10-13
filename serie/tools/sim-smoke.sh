@@ -111,7 +111,7 @@ if command -v maestro >/dev/null; then
           continue
         fi
         ;;
-      04-settings-periods)
+      03-calendar|04-settings-periods)
         if [ "$LOG_FIXTURE_READY" != 1 ]; then
           say "- $name: **NOT_RUN** (required 01-log fixture and native upgrade did not pass)"
           FAIL=1

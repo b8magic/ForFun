@@ -67,6 +67,10 @@ name: 04 impostazioni, periodi, modifica dal giorno
 - tapOn:
     id: period-save
 - extendedWaitUntil:
+    notVisible:
+      id: period-form
+    timeout: 10000
+- extendedWaitUntil:
     visible:
       id: period-detail
     timeout: 10000
@@ -99,6 +103,14 @@ name: 04 impostazioni, periodi, modifica dal giorno
 - pressKey: Enter
 - tapOn:
     id: period-save
+- extendedWaitUntil:
+    notVisible:
+      id: period-form
+    timeout: 10000
+- extendedWaitUntil:
+    visible:
+      id: period-detail
+    timeout: 10000
 - extendedWaitUntil:
     visible: Periodo Maestro aggiornato
     timeout: 10000
@@ -162,6 +174,10 @@ name: 04 impostazioni, periodi, modifica dal giorno
 - tapOn:
     id: session-save
     waitToSettleTimeoutMs: 1500
+- extendedWaitUntil:
+    notVisible:
+      id: session-editor
+    timeout: 10000
 - extendedWaitUntil:
     visible:
       id: day-sheet
