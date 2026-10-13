@@ -29,7 +29,10 @@ NAMES = (
 
 def main():
     root = Path(sys.argv[1]).resolve(strict=True)
-    paths = [root / name for name in NAMES if (root / name).is_file()][:6]
+    names = list(NAMES)
+    if (root / "fail-01-log.png").is_file():
+        names.insert(1, "01-log--03-surf-before-restart.png")
+    paths = [root / name for name in names if (root / name).is_file()][:6]
     with tempfile.TemporaryDirectory(prefix="serie-native-previews-") as temp:
         for index, path in enumerate(paths):
             target = Path(temp) / f"{index}.png"

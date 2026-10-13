@@ -57,6 +57,11 @@ name: 01 registra, bozze persistenti, giorno, storia
     timeout: 10000
 - tapOn:
     id: activity-Corsa
+- extendedWaitUntil:
+    visible:
+      id: activity-switcher
+      text: "Attività attiva: Corsa.*"
+    timeout: 10000
 - assertVisible:
     id: save
     text: "Salva.*Nessuna data selezionata"
@@ -76,6 +81,15 @@ name: 01 registra, bozze persistenti, giorno, storia
     timeout: 10000
 - tapOn:
     id: activity-Surf
+- extendedWaitUntil:
+    visible:
+      id: activity-switcher
+      text: "Attività attiva: Surf.*"
+    timeout: 10000
+- assertVisible:
+    id: day-${PREV}-18
+    text: ".*selezionato.*"
+- takeScreenshot: 03-surf-before-restart
 - stopApp
 - launchApp
 - extendedWaitUntil:
@@ -103,6 +117,11 @@ name: 01 registra, bozze persistenti, giorno, storia
     id: clear-selection
 - tapOn:
     id: activity-Corsa
+- extendedWaitUntil:
+    visible:
+      id: activity-switcher
+      text: "Attività attiva: Corsa.*"
+    timeout: 10000
 - assertVisible:
     id: day-${PREV}-19
     text: ".*selezionato.*"
@@ -131,6 +150,11 @@ name: 01 registra, bozze persistenti, giorno, storia
     timeout: 30000
 - tapOn:
     id: activity-Surf
+- extendedWaitUntil:
+    visible:
+      id: activity-switcher
+      text: "Attività attiva: Surf.*"
+    timeout: 10000
 - assertVisible:
     id: day-${PREV}-12
     text: ".*1 sessione registrata.*"
@@ -200,6 +224,12 @@ name: 01 registra, bozze persistenti, giorno, storia
     waitToSettleTimeoutMs: 1500
 - tapOn:
     id: activity-Corsa
+- extendedWaitUntil:
+    visible:
+      id: activity-switcher
+      text: "Attività attiva: Corsa.*"
+    timeout: 10000
+- takeScreenshot: 08-corsa-before-restart
 - stopApp
 - launchApp
 - extendedWaitUntil:

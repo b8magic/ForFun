@@ -20,6 +20,8 @@ Routes live under `src/app/`; domain/state/components stay outside the route dir
 
 Activity, period, selection-detail and session-edit forms use `KeyboardSafe` around the whole sheet so the iOS keyboard moves both scrolling content and the fixed primary footer. Inner scrolling bodies disable automatic keyboard insets to reserve that space once. Android uses its configured window resize behavior. Successful submissions dismiss the keyboard; multiline notes retain ordinary line breaks.
 
+The activity dock measures its viewport, content offset and chip bounds. Selecting a fully visible chip leaves the rail still; a clipped chip is revealed with the smallest required offset. Initial/restart and size changes recheck the current active id, while deliberate horizontal scrolling remains under the user's control.
+
 ## State, persistence and commit boundaries
 
 The UI reads `useApp`. Writes go through `state/actions.ts`, repositories and the database. Stored sessions are the only source of session statistics; exported events, periods and drafts never count as sessions.
