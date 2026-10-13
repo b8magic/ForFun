@@ -1,17 +1,16 @@
 {
-  "version": "1.3.0",
-  "applicationSource": "f7191db1549f1e413c3942e48d307a95f70b6ad2",
-  "verifiedCandidate": "cfbfdfb599658dee24da147c5ee71f33954187ee",
-  "reason": "Deliver the completed user feedback update without another full simulator cycle",
-  "verified": {
-    "unitTests": 934,
-    "unitSuites": 54,
-    "browserChecks": 57,
+  "version": "1.3.1",
+  "applicationSource": "89d0a4cdc45d45385ed926e26dfded4ac0f60f6f",
+  "reason": "Shared Home date selection, neutral bulk editing, swipe/tap separation, immediate explicit deletion and clean day previews",
+  "verifiedLocally": {
+    "unitTests": 949,
+    "unitSuites": 56,
+    "focusedBrowserChecks": 7,
+    "browserErrors": 0,
+    "browserWarnings": 0,
     "typecheck": true,
-    "lint": true,
-    "nativePixelToolTests": 9,
-    "linuxRunId": 38413739935
+    "lint": true
   },
-  "nativeStatus": "Full five-flow verification incomplete; native build, logging, migration and mixed-day colors passed. Saved-map automation timed out. Duration caret fix has component and browser regression coverage.",
-  "buildPolicy": "Single unsigned IPA job only; no further simulator, video or repeated browser run"
+  "nativeStatus": "No simulator cycle for this update; native archive and packaging required. Physical iPhone gestures remain device verification.",
+  "buildPolicy": "Single unsigned IPA job only; no simulator, video or repeated browser workflow"
 }
