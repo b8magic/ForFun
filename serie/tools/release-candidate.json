@@ -1,5 +1,5 @@
 {
   "appVersion": "1.1.0",
-  "requestedAt": "2026-10-13T00:42:40.489Z",
-  "reason": "Verify the measured activity-dock correction after 829 unit tests, typecheck, lint, 34 fresh static browser checks and focused form/dock checks passed; native assertions now confirm every activity switch before restart."
+  "requestedAt": "2026-10-13T01:14:37.166Z",
+  "reason": "Repeat the native gate after the full logging/drafts/history and six-table native upgrade passed; reach clipped place fields through their actual scroll body and verify focus/values, preserving both native map checks. Application layout/data behavior unchanged; typecheck/lint and script syntax passed."
 }
