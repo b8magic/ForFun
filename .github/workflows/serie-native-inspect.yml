@@ -33,7 +33,7 @@ jobs:
           def failures(value, path='root'):
               if isinstance(value, dict):
                   meta = value.get('metadata', {})
-                  if isinstance(meta, dict) and (meta.get('status') == 'FAILED' or meta.get('error')):
+                  if value.get('status') == 'FAILED' or (isinstance(meta, dict) and (meta.get('status') == 'FAILED' or meta.get('error'))):
                       print('FAILED COMMAND', path)
                       print(json.dumps(value, ensure_ascii=False)[:150000])
                       return
@@ -43,12 +43,15 @@ jobs:
                   for index, child in enumerate(value):
                       failures(child, path + '[' + str(index) + ']')
           for p in files:
-              if p.name.startswith('commands-') and p.suffix == '.json':
+              if (p.name.startswith('commands-') or p.name == 'commands.json') and p.suffix == '.json':
                   print('COMMAND FILE', p.relative_to(root))
                   failures(json.loads(p.read_text()))
-              if p.name == 'maestro.log':
+              if p.name == 'step-063-scrollUntilVisible-map-caption.json':
+                  print('FAILURE HIERARCHY', p.relative_to(root))
+                  print(p.read_text()[:200000])
+              if p.name in ('maestro.log', 'device-xctest.log'):
                   matches = [line for line in p.read_text(errors='replace').splitlines()
-                             if re.search(r'Scrolling try count|Element bounds|Visibility Percent|visibilityPercentageNormalized|No visible element|ElementNotFound|map-caption', line)]
+                             if re.search(r'Scrolling try count|Element bounds|Visibility Percent|visibilityPercentageNormalized|No visible element|ElementNotFound|map-caption|14:58:[1-4][0-9]', line)]
                   print('SCROLL LOG', p.relative_to(root))
                   print('\n'.join(line[:4000] for line in matches[-150:]))
           PY
