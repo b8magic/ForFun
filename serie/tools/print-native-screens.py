@@ -32,6 +32,14 @@ def main():
     names = list(NAMES)
     if (root / "fail-01-log.png").is_file():
         names.insert(1, "01-log--03-surf-before-restart.png")
+    if (root / "fail-02-details-map.png").is_file():
+        after_failure = names.index("fail-02-details-map.png") + 1
+        names[after_failure:after_failure] = (
+            "02-details-map--09-before-name.png",
+            "02-details-map--09-before-link.png",
+            "02-details-map--09-link-focused.png",
+            "02-details-map--10-before-map-scroll.png",
+        )
     paths = [root / name for name in names if (root / name).is_file()][:6]
     with tempfile.TemporaryDirectory(prefix="serie-native-previews-") as temp:
         for index, path in enumerate(paths):

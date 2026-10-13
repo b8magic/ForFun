@@ -7,6 +7,7 @@ name: 02 dettagli, luogo e mappa
 - extendedWaitUntil:
     visible:
       id: activity-switcher
+      text: "Attività attiva: Corsa.*"
     timeout: 60000
 - runFlow: subflows/jump-prev.yaml
 - tapOn:
@@ -19,16 +20,47 @@ name: 02 dettagli, luogo e mappa
     visible:
       id: details-place-name
     timeout: 10000
+- takeScreenshot: 09-before-name
 - tapOn:
     id: details-place-name
     waitToSettleTimeoutMs: 1500
+- assertVisible:
+    id: details-place-name
+    focused: true
 - inputText: Livorno
+- assertVisible:
+    id: details-place-name
+    text: Livorno
 - pressKey: Enter
+# Adding the name label and Clear footer can clip the next field in the short
+# detent. Pan the actual scrolling body, not the screen or a covered AX node.
+- swipe:
+    from:
+      id: details-scroll
+    direction: UP
+- takeScreenshot: 09-before-link
 - tapOn:
     id: details-place-link
     waitToSettleTimeoutMs: 1500
+- assertVisible:
+    id: details-place-link
+    focused: true
+- assertVisible:
+    id: details-sheet
+- takeScreenshot: 09-link-focused
 - inputText: "https://www.google.com/maps/place/Livorno/@43.5485,10.3106,15z"
+- assertVisible:
+    id: details-place-link
+    text: 'https://www\.google\.com/maps/place/Livorno/@43\.5485,10\.3106,15z'
 - pressKey: Enter
+- assertVisible:
+    id: details-sheet
+- takeScreenshot: 10-before-map-scroll
+# Begin outside AppleMaps, whose own recognizer consumes map-centre drags.
+- swipe:
+    from:
+      id: details-place-link
+    direction: UP
 - extendedWaitUntil:
     visible:
       id: map-caption
@@ -37,6 +69,10 @@ name: 02 dettagli, luogo e mappa
 - tapOn:
     id: details-apply
     waitToSettleTimeoutMs: 1500
+- extendedWaitUntil:
+    notVisible:
+      id: details-sheet
+    timeout: 10000
 - extendedWaitUntil:
     visible:
       id: save

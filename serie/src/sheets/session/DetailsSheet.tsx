@@ -111,7 +111,7 @@ export function DetailsSheet() {
           </View>
         }
       >
-        <SheetScroll ref={scrollRef}>
+        <SheetScroll ref={scrollRef} testID="details-scroll">
           {n === 0 ? <Note>{s.detailsNoSelection}</Note> : null}
 
           <Section label={t.notes}>
