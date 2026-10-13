@@ -1,5 +1,6 @@
 {
   "appVersion": "1.1.0",
-  "requestedAt": "2026-10-13T01:42:41.833Z",
-  "reason": "Repeat the complete native gate with actual entered-value and open-sheet proofs instead of unreliable iOS accessibility focus metadata. Full native logging and six-table upgrade passed again; both native map captions, save counts, EventKit export and period checks remain mandatory. Application behavior unchanged; native YAML, AST and input-regex checks passed."
+  "requestedAt": "2026-10-13T02:27:19.033Z",
+  "supersedesTag": "ipa-38333430020",
+  "reason": "Final candidate after correcting retained animated fills in mounted shared-day mosaics. All 829 unit tests, typecheck/lint, 34 browser journeys with actual paint assertions, and 9 native pixel checker tests passed. Repeat all four native flows and six-table upgrade; require same-day red/lime screenshot pixels before building IPA. Supersede only the intermediate build 6 after this verified replacement is published."
 }
