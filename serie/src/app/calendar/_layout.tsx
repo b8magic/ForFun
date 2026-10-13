@@ -1,5 +1,6 @@
 import { Stack } from 'expo-router';
-import { palette } from '@/ui/theme';
+import { useSurface } from '@/ui/useTheme';
 export default function CalendarLayout() {
-  return <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: palette.ink2 } }} />;
+  const S = useSurface();
+  return <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: S.bg } }} />;
 }

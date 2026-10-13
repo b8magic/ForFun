@@ -6,6 +6,7 @@
 import type { SqlDriver, SqlExecutor, SqlParam } from './driver';
 import type {
   Category,
+  CategoryDraft,
   ExportJob,
   ExportJobStatus,
   ExportLink,
@@ -13,6 +14,9 @@ import type {
   ID,
   ImportProvenance,
   LocalDate,
+  NamedPeriod,
+  NamedPeriodInput,
+  NamedPeriodPatch,
   PatternKind,
   Place,
   ProviderKind,
@@ -22,6 +26,7 @@ import type {
 } from '@/domain/types';
 import { isLocalDate } from '@/domain/dates';
 import { DATE_ONLY, normalizeTiming } from '@/domain/timing';
+import { bulkTimingForDate, sameSessionVersion, type BulkDetailsInput } from '@/domain/bulkDetails';
 
 export interface Deps {
   newId: () => string;
@@ -234,6 +239,8 @@ export interface SaveBatchInput {
   /** Per-date details, applied on top of `shared`. */
   perDate?: Record<LocalDate, SessionDetailsDraft>;
   origin?: 'manual' | 'import';
+  /** Consume only the exact draft saved by this request, in the same transaction. */
+  consumeDraftRequestId?: string;
 }
 
 export interface SessionPatch {
@@ -246,6 +253,13 @@ export interface SessionPatch {
 
 export function sessionsRepo(db: SqlDriver, deps: Deps) {
   const insert = (ex: SqlExecutor, s: Session) => ex.run(`INSERT INTO sessions (${SESSION_COLS}) VALUES (${SESSION_PLACEHOLDERS}) ON CONFLICT DO NOTHING`, sessionParams(s));
+  const write = async (ex: SqlExecutor, s: Session) => {
+    const p = sessionParams(s);
+    await ex.run(
+      `UPDATE sessions SET category_id = ?, date = ?, timing_state = ?, start_time = ?, end_time = ?, end_day_offset = ?, time_zone = ?, declared_sec = ?, duration_sec = ?, duration_source = ?, place_label = ?, place_address = ?, map_url = ?, lat = ?, lng = ?, place_resolution = ?, place_note = ?, notes = ?, updated_at = ? WHERE id = ?`,
+      [...p.slice(1, 19), s.updatedAt, s.id],
+    );
+  };
 
   return {
     async listAll(): Promise<Session[]> {
@@ -267,6 +281,7 @@ export function sessionsRepo(db: SqlDriver, deps: Deps) {
       if (!dates.length) throw new DomainError('no_dates');
       for (const d of dates) if (!isLocalDate(d)) throw new DomainError('invalid_date', d);
       if (!input.requestId) throw new DomainError('request_id_required');
+      if (input.consumeDraftRequestId && input.consumeDraftRequestId !== input.requestId) throw new DomainError('draft_request_mismatch');
       return db.transaction(async (tx) => {
         const cat = await tx.first('SELECT id FROM categories WHERE id = ?', [input.categoryId]);
         if (!cat) throw new DomainError('category_missing');
@@ -274,11 +289,15 @@ export function sessionsRepo(db: SqlDriver, deps: Deps) {
         const now = deps.now();
         for (const date of dates) {
           const d = { ...(input.shared ?? {}), ...(input.perDate?.[date] ?? {}) };
+          const timing = normalizeTiming(date, d.timing ?? DATE_ONLY);
+          // A draft may acquire another date after its details were applied.
+          // Do not silently drop the end/start on an incompatible DST date.
+          if (d.timing && timing.state !== d.timing.state) throw new DomainError('timing_invalid_for_date', date);
           const s: Session = {
             id: deps.newId(),
             categoryId: input.categoryId,
             date,
-            timing: normalizeTiming(date, d.timing ?? DATE_ONLY),
+            timing,
             place: normalizePlace(d.place),
             notes: clean(d.notes ?? null),
             origin: input.origin ?? 'manual',
@@ -293,6 +312,9 @@ export function sessionsRepo(db: SqlDriver, deps: Deps) {
           `SELECT * FROM sessions WHERE save_request_id = ? AND category_id = ? AND date IN (${dates.map(() => '?').join(',')}) ORDER BY date`,
           [input.requestId, input.categoryId, ...dates],
         );
+        if (input.consumeDraftRequestId) {
+          await tx.run('DELETE FROM category_drafts WHERE category_id = ? AND request_id = ?', [input.categoryId, input.consumeDraftRequestId]);
+        }
         return { sessions: rows.map(sessionFromRow), created };
       });
     },
@@ -331,12 +353,38 @@ export function sessionsRepo(db: SqlDriver, deps: Deps) {
           await tx.run('UPDATE sessions SET save_request_id = NULL WHERE id = ?', [id]);
           next.saveRequestId = null;
         }
-        const p = sessionParams(next);
-        await tx.run(
-          `UPDATE sessions SET category_id = ?, date = ?, timing_state = ?, start_time = ?, end_time = ?, end_day_offset = ?, time_zone = ?, declared_sec = ?, duration_sec = ?, duration_source = ?, place_label = ?, place_address = ?, map_url = ?, lat = ?, lng = ?, place_resolution = ?, place_note = ?, notes = ?, updated_at = ? WHERE id = ?`,
-          [...p.slice(1, 19), next.updatedAt, id],
-        );
+        await write(tx, next);
         return next;
+      });
+    },
+    /** Edit only the reviewed IDs, in one transaction. Drafts and calendar records stay intact. */
+    async updateDetailsBatch(input: BulkDetailsInput): Promise<{ sessions: Session[]; changed: number }> {
+      const expected = [...new Map(input.expected.map((session) => [session.id, session])).values()];
+      if (!expected.length) throw new DomainError('no_sessions');
+      if (Object.keys(input.patch).some((key) => !['notes', 'place', 'timing'].includes(key))) throw new DomainError('invalid_patch');
+      return db.transaction(async (tx) => {
+        const prepared: { current: Session; next: Session; changed: boolean }[] = [];
+        const now = deps.now();
+        for (const reviewed of expected) {
+          const row = await tx.first<SessionRow>('SELECT * FROM sessions WHERE id = ?', [reviewed.id]);
+          if (!row) throw new DomainError('session_missing', reviewed.id);
+          const current = sessionFromRow(row);
+          if (input.categoryId !== null && (current.categoryId !== input.categoryId || reviewed.categoryId !== input.categoryId)) throw new DomainError('bulk_category_changed');
+          if (!sameSessionVersion(current, reviewed)) throw new DomainError('session_changed', reviewed.id);
+          const timing = input.patch.timing === undefined ? current.timing : bulkTimingForDate(current.date, input.patch.timing);
+          if (!timing) throw new DomainError('timing_invalid_for_date', current.date);
+          const next = {
+            ...current, timing,
+            notes: input.patch.notes === undefined ? current.notes : clean(input.patch.notes),
+            place: input.patch.place === undefined ? current.place : normalizePlace(input.patch.place),
+          };
+          const changed = !sameSessionVersion(current, next);
+          if (changed) next.updatedAt = now;
+          prepared.push({ current, next, changed });
+        }
+        // Validate every target before the first write; SQL failures still roll the whole batch back.
+        for (const item of prepared) if (item.changed) await write(tx, item.next);
+        return { sessions: prepared.map((item) => item.next), changed: prepared.filter((item) => item.changed).length };
       });
     },
     /** Deletes the session. Calendar events are never touched; links keep their record. */
@@ -346,6 +394,179 @@ export function sessionsRepo(db: SqlDriver, deps: Deps) {
         const r = await tx.run(`DELETE FROM sessions WHERE id IN (${ids.map(() => '?').join(',')})`, ids);
         return r.changes;
       });
+    },
+  };
+}
+
+// ─── durable activity drafts ─────────────────────────────────────────────────
+
+interface DraftRow {
+  category_id: string;
+  dates: string;
+  details: string | null;
+  request_id: string;
+  updated_at: string;
+}
+
+const isRecord = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === 'object' && !Array.isArray(value);
+const stringOrNull = (value: unknown) => typeof value === 'string' ? value : null;
+const positiveNumberOrNull = (value: unknown) => typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : null;
+
+/** Shared draft input has no single session date. Revalidate it per date at save. */
+function timingFromDraft(value: unknown): Timing | undefined {
+  if (!isRecord(value)) return undefined;
+  const states: Timing['state'][] = ['date_only', 'start_only', 'interval', 'duration_only', 'start_duration'];
+  if (!states.includes(value.state as Timing['state'])) return undefined;
+  return {
+    state: value.state as Timing['state'],
+    start: stringOrNull(value.start),
+    end: stringOrNull(value.end),
+    endDayOffset: value.endDayOffset === 1 ? 1 : 0,
+    timeZone: stringOrNull(value.timeZone),
+    declaredSec: positiveNumberOrNull(value.declaredSec),
+    durationSec: positiveNumberOrNull(value.durationSec),
+    durationSource: value.durationSource === 'interval' || value.durationSource === 'declared' ? value.durationSource : null,
+  };
+}
+
+/** Stored JSON is untrusted at the boundary, including older or incomplete drafts. */
+function draftFromRow(row: DraftRow): CategoryDraft | null {
+  try {
+    const rawDates: unknown = JSON.parse(row.dates);
+    if (!Array.isArray(rawDates) || !row.request_id) return null;
+    const dates = [...new Set(rawDates.filter((date): date is string => typeof date === 'string' && isLocalDate(date)))].sort();
+    const raw: unknown = row.details ? JSON.parse(row.details) : null;
+    let details: SessionDetailsDraft | null = null;
+    if (isRecord(raw)) {
+      details = {};
+      if (raw.notes === null || typeof raw.notes === 'string') details.notes = raw.notes;
+      if (raw.place === null) details.place = null;
+      else if (isRecord(raw.place)) {
+        const place = raw.place;
+        const coords = isRecord(place.coords) && typeof place.coords.lat === 'number' && typeof place.coords.lng === 'number' ? { lat: place.coords.lat, lng: place.coords.lng } : null;
+        const resolutions = ['none', 'resolved', 'manual', 'pending', 'unresolved', 'unsupported'];
+        details.place = normalizePlace({
+          label: stringOrNull(place.label), address: stringOrNull(place.address), mapUrl: stringOrNull(place.mapUrl), coords,
+          resolution: resolutions.includes(String(place.resolution)) ? place.resolution as Place['resolution'] : 'none',
+          resolutionNote: stringOrNull(place.resolutionNote),
+        });
+      }
+      const timing = timingFromDraft(raw.timing);
+      if (timing) details.timing = timing;
+      if (!Object.keys(details).length) details = null;
+    }
+    return { categoryId: row.category_id, dates, details, requestId: row.request_id, updatedAt: row.updated_at };
+  } catch {
+    return null;
+  }
+}
+
+export function draftsRepo(db: SqlDriver) {
+  return {
+    async list(): Promise<CategoryDraft[]> {
+      const rows = await db.all<DraftRow>('SELECT * FROM category_drafts ORDER BY category_id');
+      return rows.map(draftFromRow).filter((draft): draft is CategoryDraft => draft !== null);
+    },
+    async get(categoryId: ID): Promise<CategoryDraft | null> {
+      const row = await db.first<DraftRow>('SELECT * FROM category_drafts WHERE category_id = ?', [categoryId]);
+      return row ? draftFromRow(row) : null;
+    },
+    async put(draft: CategoryDraft): Promise<void> {
+      if (!draft.requestId) throw new DomainError('request_id_required');
+      if (draft.dates.some((date) => !isLocalDate(date))) throw new DomainError('invalid_date');
+      if (!draft.dates.length && !draft.details) {
+        await db.run('DELETE FROM category_drafts WHERE category_id = ?', [draft.categoryId]);
+        return;
+      }
+      await db.run(
+        `INSERT INTO category_drafts (category_id, dates, details, request_id, updated_at) VALUES (?, ?, ?, ?, ?)
+         ON CONFLICT(category_id) DO UPDATE SET dates = excluded.dates, details = excluded.details, request_id = excluded.request_id, updated_at = excluded.updated_at`,
+        [draft.categoryId, JSON.stringify([...new Set(draft.dates)].sort()), draft.details ? JSON.stringify(draft.details) : null, draft.requestId, draft.updatedAt],
+      );
+    },
+    async remove(categoryId: ID): Promise<void> {
+      await db.run('DELETE FROM category_drafts WHERE category_id = ?', [categoryId]);
+    },
+  };
+}
+
+// ─── named date ranges ───────────────────────────────────────────────────────
+
+interface PeriodRow {
+  id: string;
+  name: string;
+  start_date: string;
+  end_date: string;
+  scope: NamedPeriod['scope'];
+  note: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+function periodFromRow(row: PeriodRow, categoryIds: ID[]): NamedPeriod {
+  return { id: row.id, name: row.name, startDate: row.start_date, endDate: row.end_date, scope: row.scope, categoryIds, note: row.note, createdAt: row.created_at, updatedAt: row.updated_at };
+}
+
+export function periodsRepo(db: SqlDriver, deps: Deps) {
+  async function categoriesFor(ex: SqlExecutor, id: ID): Promise<ID[]> {
+    const rows = await ex.all<{ category_id: string }>(
+      `SELECT pc.category_id FROM named_period_categories pc JOIN categories c ON c.id = pc.category_id
+       WHERE pc.period_id = ? ORDER BY c.sort_order, c.id`, [id],
+    );
+    return rows.map((row) => row.category_id);
+  }
+  async function validate(ex: SqlExecutor, input: NamedPeriodInput, requireSelected: boolean) {
+    const name = input.name.trim();
+    if (!name) throw new DomainError('name_required');
+    if (name.length > 80) throw new DomainError('name_too_long');
+    if (!isLocalDate(input.startDate) || !isLocalDate(input.endDate)) throw new DomainError('invalid_date');
+    if (input.endDate < input.startDate) throw new DomainError('invalid_range');
+    if (input.scope !== 'all' && input.scope !== 'selected') throw new DomainError('invalid_scope');
+    const categoryIds = input.scope === 'all' ? [] : [...new Set(input.categoryIds ?? [])];
+    if (input.scope === 'selected' && requireSelected && categoryIds.length === 0) throw new DomainError('categories_required');
+    for (const id of categoryIds) {
+      if (!await ex.first('SELECT id FROM categories WHERE id = ?', [id])) throw new DomainError('category_missing');
+    }
+    return { name, categoryIds, note: clean(input.note) };
+  }
+  async function writeCategories(ex: SqlExecutor, id: ID, categoryIds: ID[]) {
+    await ex.run('DELETE FROM named_period_categories WHERE period_id = ?', [id]);
+    for (const categoryId of categoryIds) await ex.run('INSERT INTO named_period_categories (period_id, category_id) VALUES (?, ?)', [id, categoryId]);
+  }
+  return {
+    async list(): Promise<NamedPeriod[]> {
+      return db.transaction(async (tx) => {
+        const rows = await tx.all<PeriodRow>('SELECT * FROM named_periods ORDER BY start_date DESC, created_at DESC, id');
+        const result: NamedPeriod[] = [];
+        for (const row of rows) result.push(periodFromRow(row, await categoriesFor(tx, row.id)));
+        return result;
+      });
+    },
+    async create(input: NamedPeriodInput): Promise<NamedPeriod> {
+      return db.transaction(async (tx) => {
+        const normalized = await validate(tx, input, true);
+        const now = deps.now();
+        const id = deps.newId();
+        await tx.run('INSERT INTO named_periods (id, name, start_date, end_date, scope, note, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', [id, normalized.name, input.startDate, input.endDate, input.scope, normalized.note, now, now]);
+        await writeCategories(tx, id, normalized.categoryIds);
+        return { id, name: normalized.name, startDate: input.startDate, endDate: input.endDate, scope: input.scope, categoryIds: await categoriesFor(tx, id), note: normalized.note, createdAt: now, updatedAt: now };
+      });
+    },
+    async update(id: ID, patch: NamedPeriodPatch): Promise<NamedPeriod> {
+      return db.transaction(async (tx) => {
+        const row = await tx.first<PeriodRow>('SELECT * FROM named_periods WHERE id = ?', [id]);
+        if (!row) throw new DomainError('period_missing');
+        const current = periodFromRow(row, await categoriesFor(tx, id));
+        const input = { ...current, ...patch };
+        const normalized = await validate(tx, input, patch.scope !== undefined || patch.categoryIds !== undefined);
+        const now = deps.now();
+        await tx.run('UPDATE named_periods SET name = ?, start_date = ?, end_date = ?, scope = ?, note = ?, updated_at = ? WHERE id = ?', [normalized.name, input.startDate, input.endDate, input.scope, normalized.note, now, id]);
+        await writeCategories(tx, id, normalized.categoryIds);
+        return { ...current, name: normalized.name, startDate: input.startDate, endDate: input.endDate, scope: input.scope, categoryIds: await categoriesFor(tx, id), note: normalized.note, updatedAt: now };
+      });
+    },
+    async remove(id: ID): Promise<void> {
+      await db.run('DELETE FROM named_periods WHERE id = ?', [id]);
     },
   };
 }
@@ -545,12 +766,14 @@ export const OPEN_JOB_STATUSES: ExportJobStatus[] = ['pending', 'running', 'fail
 export function exportJobsRepo(db: SqlDriver, deps: Deps) {
   return {
     /** Enqueue unless an open job for the same operation already exists (idempotent). */
-    async enqueue(job: { opId: string; sessionId: ID; provider: ProviderKind; accountId: string; calendarId: string; kind: 'auto' | 'manual'; payload?: unknown; status?: ExportJobStatus; reviewReason?: string | null }): Promise<ExportJobRecord> {
+    async enqueue(job: { opId: string; sessionId: ID; provider: ProviderKind; accountId: string; calendarId: string; kind: 'auto' | 'manual'; payload?: unknown; status?: ExportJobStatus; reviewReason?: string | null; nextAttemptAt?: string }): Promise<ExportJobRecord> {
       const now = deps.now();
+      if (job.nextAttemptAt !== undefined && !Number.isFinite(Date.parse(job.nextAttemptAt))) throw new DomainError('invalid_instant');
+      const nextAttemptAt = job.nextAttemptAt && Date.parse(job.nextAttemptAt) > Date.parse(now) ? new Date(job.nextAttemptAt).toISOString() : now;
       await db.run(
         `INSERT INTO export_jobs (id, op_id, session_id, provider, account_id, calendar_id, kind, status, attempts, last_error, review_reason, next_attempt_at, payload, created_at, updated_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, NULL, ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING`,
-        [deps.newId(), job.opId, job.sessionId, job.provider, job.accountId, job.calendarId, job.kind, job.status ?? 'pending', job.reviewReason ?? null, now, job.payload === undefined ? null : JSON.stringify(job.payload), now, now],
+        [deps.newId(), job.opId, job.sessionId, job.provider, job.accountId, job.calendarId, job.kind, job.status ?? 'pending', job.reviewReason ?? null, nextAttemptAt, job.payload === undefined ? null : JSON.stringify(job.payload), now, now],
       );
       const r = await db.first<JobRow>(`SELECT * FROM export_jobs WHERE op_id = ? ORDER BY created_at DESC LIMIT 1`, [job.opId]);
       return jobFromRow(r!);
@@ -607,6 +830,8 @@ export function createRepositories(db: SqlDriver, deps: Deps) {
     db,
     categories: categoriesRepo(db, deps),
     sessions: sessionsRepo(db, deps),
+    drafts: draftsRepo(db),
+    periods: periodsRepo(db, deps),
     settings: settingsRepo(db),
     provenance: provenanceRepo(db, deps),
     exportLinks: exportLinksRepo(db, deps),

@@ -2,13 +2,15 @@
 # Native smoke test on an iOS Simulator (macOS + Xcode; used by .github/workflows/ios-simulator.yml).
 #   tools/sim-smoke.sh <path/to/Serie.app> <output dir>
 # Boots an iPhone simulator, installs the Release simulator build, launches it once on its own,
-# then runs the Maestro flows in maestro/ while recording the screen. Leaves in <output dir>:
+# then runs the Maestro flows in maestro/. Set SERIE_SMOKE_VIDEO=0 to skip video recording/encoding.
+# Leaves in <output dir> (video is recorded by default):
 # serie-simulator.mp4, screens/*.png, app.log, maestro-*.xml, maestro/<flow>/ (Maestro logs), crashes/, summary.md.
 # Exit code is non-zero if the app did not stay up or a flow failed; the outputs are kept either way.
 set -uo pipefail
 cd "$(dirname "$0")/.."
 APP=$1
 OUT=$2
+SMOKE_VIDEO=${SERIE_SMOKE_VIDEO:-1}
 BUNDLE=app.serie.ios
 FLOWS=$PWD/maestro
 mkdir -p "$OUT/screens" "$OUT/crashes" "$OUT/maestro"
@@ -43,13 +45,20 @@ xcrun simctl install "$UDID" "$APP"
 # the calendar flow uses the simulator's own (empty) calendars; Maestro also grants permissions on launch
 xcrun simctl privacy "$UDID" grant calendar "$BUNDLE" 2>/dev/null || true
 
-xcrun simctl io "$UDID" recordVideo --codec=h264 --force "$OUT/serie-simulator.mp4" >"$OUT/recordVideo.log" 2>&1 &
-REC=$!
+REC=
+if [ "$SMOKE_VIDEO" != 0 ]; then
+  xcrun simctl io "$UDID" recordVideo --codec=h264 --force "$OUT/serie-simulator.mp4" >"$OUT/recordVideo.log" 2>&1 &
+  REC=$!
+else
+  say "- Video: disabled (SERIE_SMOKE_VIDEO=0; recording and encoding skipped)"
+fi
 xcrun simctl spawn "$UDID" log stream --style compact --level info --predicate 'process == "Serie"' >"$OUT/app.log" 2>&1 &
 LOGP=$!
 stop_capture() {
-  kill -INT "$REC" 2>/dev/null
-  for _ in $(seq 1 40); do kill -0 "$REC" 2>/dev/null || break; sleep 0.25; done
+  if [ -n "$REC" ]; then
+    kill -INT "$REC" 2>/dev/null
+    for _ in $(seq 1 40); do kill -0 "$REC" 2>/dev/null || break; sleep 0.25; done
+  fi
   kill "$LOGP" 2>/dev/null
 }
 trap stop_capture EXIT
@@ -68,19 +77,92 @@ else
 fi
 xcrun simctl terminate "$UDID" "$BUNDLE" 2>/dev/null || true
 
-# 2. Maestro flows (each one in its own run, so a failure does not hide the next ones)
+# 2. Maestro flows (separate runs; dependent fixtures must pass before use)
 PREV=$(python3 -c 'import datetime as d; print((d.date.today().replace(day=1) - d.timedelta(days=1)).strftime("%Y-%m"))')
+PREV_YEAR=${PREV:0:4}
+PREV_MONTH=$((10#${PREV:5:2}))
+
+# The fixture created by flow01 belongs only to this fresh simulator install.
+# Reconstruct v1 from the additive v2 schema, then let the ACTUAL native driver
+# migrate it on app boot. Compare every original table, including nulls and ids.
+native_upgrade() {
+  local upgrade_container upgraded=0
+  xcrun simctl terminate "$UDID" "$BUNDLE" >>"$OUT/native-upgrade.log" 2>&1 || return 1
+  upgrade_container=$(xcrun simctl get_app_container "$UDID" "$BUNDLE" data) || return 1
+  python3 tools/native-upgrade.py prepare --container "$upgrade_container" --out "$OUT" \
+    --previous-month "$PREV" --source-commit "$(git rev-parse HEAD)" --bundle "$BUNDLE" \
+    >>"$OUT/native-upgrade.log" 2>&1 || return 1
+  xcrun simctl launch "$UDID" "$BUNDLE" >>"$OUT/native-upgrade.log" 2>&1 || return 1
+  for _ in $(seq 1 60); do
+    if python3 tools/native-upgrade.py status --out "$OUT"; then upgraded=1; break; fi
+    sleep 0.5
+  done
+  [ "$upgraded" = 1 ] || { echo "Native migration did not reach v2 in 30 seconds" >>"$OUT/native-upgrade.log"; return 1; }
+  maestro --device "$UDID" test "$FLOWS/subflows/upgrade-ready.yaml" -e PREV="$PREV" -e PREV_YEAR="$PREV_YEAR" -e PREV_MONTH="$PREV_MONTH" \
+    --format junit --output "$OUT/maestro-native-upgrade.xml" \
+    --test-output-dir "$OUT/maestro/native-upgrade" --debug-output "$OUT/maestro/native-upgrade/debug" --flatten-debug-output \
+    >>"$OUT/native-upgrade.log" 2>&1 || return 1
+  xcrun simctl terminate "$UDID" "$BUNDLE" >>"$OUT/native-upgrade.log" 2>&1 || return 1
+  python3 tools/native-upgrade.py verify --out "$OUT" >>"$OUT/native-upgrade.log" 2>&1
+}
+
+LOG_FLOW_PASSED=0
 if command -v maestro >/dev/null; then
   say "- Maestro $(maestro --version 2>/dev/null | tail -1) · PREV=$PREV"
+  LOG_FIXTURE_READY=0
+  MAP_FIXTURE_READY=0
+  SETTINGS_FIXTURE_READY=0
   for flow in "$FLOWS"/[0-9]*.yaml; do
     name=$(basename "$flow" .yaml)
+    case "$name" in
+      02-details-map)
+        if [ "$LOG_FIXTURE_READY" != 1 ]; then
+          say "- $name: **NOT_RUN** (required 01-log fixture and native upgrade did not pass)"
+          FAIL=1
+          continue
+        fi
+        ;;
+      03-calendar|04-settings-periods|05-feedback-v13)
+        if [ "$LOG_FIXTURE_READY" != 1 ]; then
+          say "- $name: **NOT_RUN** (required 01-log fixture and native upgrade did not pass)"
+          FAIL=1
+          continue
+        fi
+        if [ "$MAP_FIXTURE_READY" != 1 ]; then
+          say "- $name: **NOT_RUN** (required 02-details-map fixture did not pass)"
+          FAIL=1
+          continue
+        fi
+        if [ "$name" = "05-feedback-v13" ] && [ "$SETTINGS_FIXTURE_READY" != 1 ]; then
+          say "- $name: **NOT_RUN** (required 04-settings-periods note/edit fixture did not pass)"
+          FAIL=1
+          continue
+        fi
+        ;;
+    esac
     t0=$(date +%s)
-    if maestro test "$flow" -e PREV="$PREV" --format junit --output "$OUT/maestro-$name.xml" \
+    if maestro --device "$UDID" test "$flow" -e PREV="$PREV" -e PREV_YEAR="$PREV_YEAR" -e PREV_MONTH="$PREV_MONTH" --format junit --output "$OUT/maestro-$name.xml" \
       --test-output-dir "$OUT/maestro/$name" --debug-output "$OUT/maestro/$name/debug" --flatten-debug-output; then
       say "- $name: passed ($(( $(date +%s) - t0 )) s)"
+      if [ "$name" = "01-log" ]; then
+        LOG_FLOW_PASSED=1
+        if native_upgrade; then
+          say "- Native upgrade v1 → v2: passed (all six original tables unchanged; SQLite integrity + foreign keys valid)"
+          LOG_FIXTURE_READY=1
+        else
+          say "- Native upgrade v1 → v2: **failed** (see native-upgrade.log and snapshots)"
+          FAIL=1
+          xcrun simctl io "$UDID" screenshot "$OUT/screens/fail-native-upgrade.png" >/dev/null 2>&1 || true
+        fi
+      elif [ "$name" = "02-details-map" ]; then
+        MAP_FIXTURE_READY=1
+      elif [ "$name" = "04-settings-periods" ]; then
+        SETTINGS_FIXTURE_READY=1
+      fi
     else
       say "- $name: **failed** ($(( $(date +%s) - t0 )) s)"
       FAIL=1
+      if [ "$name" = "01-log" ]; then say "- Native upgrade: **not run**, prerequisite fresh fixture failed"; fi
       xcrun simctl io "$UDID" screenshot "$OUT/screens/fail-$name.png" >/dev/null 2>&1 || true
     fi
   done
@@ -94,11 +176,39 @@ for d in "$OUT"/maestro/*/; do
   find "$d" -name '*.png' -print0 2>/dev/null | while IFS= read -r -d '' f; do cp "$f" "$OUT/screens/$(basename "$d")--$(basename "$f")"; done
 done
 
+# Text assertions cannot detect Reanimated retaining an old fill when a day
+# changes from one activity to two. Gate the real pixels before diagnostic
+# previews: the dock's activity colors must not satisfy the mixed-day check.
+# Normalize with the same sips operation as the logged previews, retaining both
+# the original and this real resized capture; this bounds scan time and encoding.
+NATIVE_COLOR_SCREEN=$OUT/screens/01-log--03-mixed-colors-native.png
+if [ "$LOG_FLOW_PASSED" = 1 ] || [ -f "$NATIVE_COLOR_SCREEN" ]; then
+  if sips -Z 960 "$NATIVE_COLOR_SCREEN" --out "$OUT/native-colors-preview.png" >"$OUT/native-colors-resize.log" 2>&1; then
+    if NATIVE_COLOR_REPORT=$(python3 tools/check-native-colors.py "$OUT/native-colors-preview.png" 2>&1); then
+      say "- $NATIVE_COLOR_REPORT"
+    else
+      say "- **$NATIVE_COLOR_REPORT**"
+      FAIL=1
+    fi
+  else
+    NATIVE_COLOR_REPORT="Native mixed-day colors: FAILED (normalizing 01-log--03-mixed-colors-native.png failed; see native-colors-resize.log)"
+    say "- **$NATIVE_COLOR_REPORT**"
+    FAIL=1
+  fi
+  printf '%s\n' "$NATIVE_COLOR_REPORT" >"$OUT/native-colors.log"
+else
+  say "- Native mixed-day colors: **NOT_RUN** (01-log did not pass)"
+fi
+
+# A bounded set of small previews is also available through the text logs API;
+# full PNGs and video remain in the artifact. Diagnostics cannot alter the gate.
+python3 tools/print-native-screens.py "$OUT/screens" || say "- Native previews unavailable"
+
 # the raw recording is ~1 MB/s at full resolution: stop it and keep a small copy (about 540 px wide)
 stop_capture
 trap - EXIT
 V=$OUT/serie-simulator.mp4
-if [ -s "$V" ]; then
+if [ "$SMOKE_VIDEO" != 0 ] && [ -s "$V" ]; then
   # macOS runners have no ffmpeg: a static build from PyPI (imageio-ffmpeg) in a throwaway venv
   FF=$(command -v ffmpeg || true)
   if [ -z "$FF" ] && python3 -m venv "$OUT/.ffvenv" >/dev/null 2>&1 && "$OUT/.ffvenv/bin/pip" -q install imageio-ffmpeg >/dev/null 2>&1; then

@@ -1,3 +1,4 @@
+import { useSurface, useThemedStyles } from '@/ui/useTheme';
 /**
  * All activities in their order: disc, name, truthful session count, the
  * active marker, and accessible move up / move down controls.
@@ -9,16 +10,16 @@ import type { Category, ID } from '@/domain/types';
 import { reorderCategories } from '@/state/actions';
 import { useMotionReduced } from '@/state/selectors';
 import { IdentityDisc } from '@/graphics/IdentityDisc';
-import { palette, surfaces } from '@/ui/theme';
+import { type Surface } from '@/ui/theme';
 import { T } from '@/ui/T';
 import { t } from '@/i18n/it';
 import { errorText, moveId } from './helpers';
 import { Caret, IconButton, Tag } from './parts';
 import { Note } from '@/ui/controls';
 
-const S = surfaces.night;
-
 export function ActivityList({ categories, counts, activeId, highlightId, onEdit }: { categories: Category[]; counts: Map<ID, number>; activeId: ID | null; highlightId?: ID | null; onEdit: (id: ID) => void }) {
+  const S = useSurface();
+  const styles = useThemedStyles(createStyles);
   const reduced = useMotionReduced();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -55,7 +56,7 @@ export function ActivityList({ categories, counts, activeId, highlightId, onEdit
               testID={`manage-activity-${c.name}`}
               style={({ pressed }) => [styles.main, pressed && { opacity: 0.7 }]}
             >
-              <IdentityDisc size={50} pattern={c.pattern} color={c.color} stripe={palette.foam} animated={false} />
+              <IdentityDisc size={50} pattern={c.pattern} color={c.color} stripe={S.fg} animated={false} />
               <View style={{ flex: 1, minWidth: 0, gap: 3 }}>
                 <T variant="title" color={S.fg} numberOfLines={1}>
                   {c.name}
@@ -64,17 +65,17 @@ export function ActivityList({ categories, counts, activeId, highlightId, onEdit
                   <T variant="label" color={S.mute}>
                     {t.sessions(n)}
                   </T>
-                  {active ? <Tag color={c.color}>{t.manage.activeTag}</Tag> : null}
-                  {highlightId === c.id && !active ? <Tag color={palette.foam}>{t.manage.newTag}</Tag> : null}
+                  {active ? <Tag color={S.fg}>{t.manage.activeTag}</Tag> : null}
+                  {highlightId === c.id && !active ? <Tag color={S.fg}>{t.manage.newTag}</Tag> : null}
                 </View>
               </View>
             </Pressable>
             <View style={styles.arrows}>
               <IconButton label={t.manage.moveUp(c.name)} onPress={() => move(c.id, -1)} disabled={i === 0 || busy} testID={`activity-up-${c.name}`}>
-                <Caret dir="up" color={palette.foam} />
+                <Caret dir="up" color={S.fg} />
               </IconButton>
               <IconButton label={t.manage.moveDown(c.name)} onPress={() => move(c.id, 1)} disabled={i === categories.length - 1 || busy} testID={`activity-down-${c.name}`}>
-                <Caret dir="down" color={palette.foam} />
+                <Caret dir="down" color={S.fg} />
               </IconButton>
             </View>
           </Animated.View>
@@ -89,7 +90,7 @@ export function ActivityList({ categories, counts, activeId, highlightId, onEdit
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (S: Surface) => StyleSheet.create({
   top: { height: StyleSheet.hairlineWidth, backgroundColor: S.faint },
   row: { flexDirection: 'row', alignItems: 'center', borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: S.faint },
   main: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 14, minHeight: 76, paddingVertical: 10 },

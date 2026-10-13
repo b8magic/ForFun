@@ -1,0 +1,50 @@
+{
+  "appVersion": "1.2.0",
+  "buildNumber": "3",
+  "bundleIdentifier": "app.serie.ios",
+  "minimumIOSVersion": "16.4",
+  "applicationSource": "dbfbbbfca27fc251c5eaaf6b429a0b4b80d3a47e",
+  "candidateSource": "3760f86b40e4690764a17b8458b98b82d0dbe760",
+  "buildRun": "https://github.com/b8magic/ForFun/actions/runs/38376497626",
+  "runAttempt": 2,
+  "buildJob": 115249602917,
+  "buildConclusion": "success",
+  "runner": "macos-26",
+  "xcode": "26.6",
+  "iphoneosSDK": "26.5",
+  "repositoryVisibility": "public",
+  "ipa": {
+    "url": "https://github.com/b8magic/ForFun/actions/runs/38376497626/artifacts/11806645205",
+    "artifactId": 11806645205,
+    "bytes": 16071215,
+    "sha256": "04b3075949046f434b3ceb0b9be9f3f5eb3e320ea725fba820a158c52124dcde",
+    "expiresAt": "2026-10-20T10:44:54Z"
+  },
+  "companionZip": {
+    "url": "https://github.com/b8magic/ForFun/actions/runs/38376497626/artifacts/11806400332",
+    "artifactId": 11806400332,
+    "bytes": 15942621,
+    "sha256": "8650d5be1bc37eb0ba373766e49eb5395c82bdb30e029f956f46c5cebb5e56de",
+    "expiresAt": "2026-10-20T10:44:51Z"
+  },
+  "verification": {
+    "builtPlist": true,
+    "packagedHash": true,
+    "uploadedHash": true,
+    "uploadSize": true,
+    "source": true,
+    "archiveSuccess": true,
+    "evidence": "Successful immutable workflow, built Info.plist output, packaging SHA-256, raw upload digest/size, GitHub artifact metadata. Independent local binary/ZIP-content inspection not performed.",
+    "embeddedBundle": "main.jsbundle presence required by successful packaging step",
+    "manifest": "Successful packaging creates Serie-build.json with candidate source, native app version, run URL and build number; three-file ZIP upload confirmed.",
+    "unitTests": 861,
+    "unitSuites": 48,
+    "browserChecks": 43,
+    "typecheck": "passed locally and on macOS",
+    "lint": "passed locally",
+    "nativeSimulatorExecutedFor12": false,
+    "physicalIPhoneInstallationVerified": false
+  },
+  "googleCalendarConfigured": false,
+  "publication": "Raw and companion ZIP Actions artifacts; prerelease job intentionally skipped for IPA-only run."
+}

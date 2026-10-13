@@ -1,103 +1,216 @@
-/**
- * Mese — continuous vertical scroller of months (newest first). Each month:
- * exact session count, active days, recorded hours with completeness, a
- * ridgeline, and an expandable mini calendar whose marked days reveal their
- * sessions. Empty months are shown, never skipped.
- */
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { FlatList, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
+/** The monthly archive shows recorded months, expanded on first consultation. */
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
+import { FlatList, Keyboard, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
 import Animated, { FadeIn, LinearTransition, ReduceMotion } from 'react-native-reanimated';
+import { useApp } from '@/state/store';
 import { useMotionReduced } from '@/state/selectors';
-import { router } from 'expo-router';
-import type { Category, LocalDate, Session } from '@/domain/types';
-import type { MonthGroup } from '@/domain/history';
-import { monthIndex } from '@/domain/history';
-import { summarize } from '@/domain/stats';
-import { formatDate, monthWeeks, parseDate } from '@/domain/dates';
-import { surfaces, palette, HIT, space } from '@/ui/theme';
+import type { Category, LocalDate } from '@/domain/types';
+import type { DaySummary } from '@/domain/daySummaries';
+import { monthIndex, type MonthGroup } from '@/domain/history';
+import { space, type Surface } from '@/ui/theme';
+import { useSurface } from '@/ui/useTheme';
+import { MonthCalendar } from '@/ui/calendar/MonthCalendar';
 import { T } from '@/ui/T';
 import { Chevron } from '@/ui/glyphs';
-import { WEEKDAYS_INITIAL, t } from '@/i18n/it';
+import { t } from '@/i18n/it';
+import { compareSessions } from '@/sheets/day/sessionOrder';
 import { Ridgeline } from './Ridgeline';
-import { countsLine, dateLabel, durationLine, monthTitle, timingSummary } from './format';
+import { InlineDayDetails } from './InlineDayDetails';
+import { countsLine, durationLine, monthTitle } from './format';
 
-const C = surfaces.calm;
-/** A jump request is handled once, even if Mese is mounted again later (re-entry, Anno → Mese). */
-let lastHandledNonce = 0;
-/** Height of a collapsed month row before it has been measured (title, ridgeline, two meta lines). */
-const ROW_ESTIMATE = 152;
+const ROW_ESTIMATE = 460;
+const VIEWABILITY = { itemVisiblePercentThreshold: 50 };
 
 interface Props {
   groups: MonthGroup[];
-  categories: Category[];
-  /** color per category id (for "all activities") */
+  days: Map<string, DaySummary>;
+  today: LocalDate;
+  filterId: string | null;
   accent: string;
   focus: { key: string; nonce: number } | null;
-  highlight: { key: string; days: number[] } | null;
+  /** Shared across scales during this consultation, consumed after visibility. */
+  handledFocusRef: RefObject<{ key: string; nonce: number } | null>;
+  highlight: { key: string; days: number[]; color: string } | null;
   header: React.ReactElement;
-  showActivity: boolean;
+  /** This state belongs to TimeBody so changing scale does not reset it. */
+  openMonths: Readonly<Record<string, boolean>>;
+  onToggle: (key: string) => void;
+  onExpand: (key: string) => void;
 }
 
-export function MonthMode({ groups, categories, accent, focus, highlight, header, showActivity }: Props) {
+export function MonthMode({ groups, days, today, filterId, accent, focus, handledFocusRef, highlight, header, openMonths, onToggle, onExpand }: Props) {
   const list = useRef<FlatList<MonthGroup>>(null);
-  const [open, setOpen] = useState<Record<string, boolean>>({});
-  const toggle = useCallback((key: string) => setOpen((o) => ({ ...o, [key]: !o[key] })), []);
-
-  // Measured row heights → exact offsets, so a jump to any month scrolls straight there
-  // (without getItemLayout, scrollToIndex fails for unrendered rows and crawls month by month).
-  const heights = useRef(new Map<string, number>());
+  const viewport = useRef<View>(null);
+  const scrollY = useRef(0);
+  const revealTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const revealRequest = useRef(0);
+  const categories = useApp((s) => s.categories);
+  const catById = useMemo(() => new Map(categories.map((c) => [c.id, c])), [categories]);
+  const reduced = useMotionReduced();
+  const { height: windowHeight } = useWindowDimensions();
+  const [selection, setSelection] = useState<{ date: LocalDate; filterId: string | null; focus: Props['focus'] } | null>(null);
   const headerH = useRef(0);
-  const onRowLayout = useCallback((key: string, h: number) => heights.current.set(key, h), []);
-  const getItemLayout = useCallback((data: ArrayLike<MonthGroup> | null | undefined, index: number) => {
-    let offset = headerH.current;
-    for (let k = 0; k < index; k++) offset += heights.current.get(data![k].key) ?? ROW_ESTIMATE;
-    const length = data && data[index] ? (heights.current.get(data[index].key) ?? ROW_ESTIMATE) : ROW_ESTIMATE;
-    return { length, offset, index };
+  const pendingKey = useRef<string | null>(null);
+  const pendingFocus = useRef<typeof focus>(null);
+  const visibleKeys = useRef(new Set<string>());
+  const retryCount = useRef(0);
+  const retry = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const recorded = useMemo(() => groups.filter((g) => g.summary.sessions > 0), [groups]);
+  const selectedDate = selection && selection.filterId === filterId && selection.focus === focus
+    && openMonths[selection.date.slice(0, 7)] !== false
+    && recorded.some((g) => g.key === selection.date.slice(0, 7)) ? selection.date : null;
+  // Discard stale selection in the same render as a filter, jump or month
+  // removal; returning to an old scope must not resurrect its open day.
+  if (selection && !selectedDate) setSelection(null);
+  const cancelReveal = useCallback(() => {
+    revealRequest.current++;
+    if (revealTimer.current) clearTimeout(revealTimer.current);
+    revealTimer.current = null;
   }, []);
+  const closeDay = useCallback(() => {
+    cancelReveal();
+    setSelection(null);
+  }, [cancelReveal]);
+  const selectDay = useCallback((date: LocalDate) => {
+    Keyboard.dismiss();
+    cancelReveal();
+    setSelection((current) => current?.date === date && current.filterId === filterId ? null : { date, filterId, focus });
+  }, [filterId, focus, cancelReveal]);
+  const toggleMonth = useCallback((key: string) => {
+    if (selectedDate?.startsWith(key)) closeDay();
+    onToggle(key);
+  }, [selectedDate, closeDay, onToggle]);
+
+  useEffect(() => cancelReveal, [cancelReveal, selectedDate]);
+
+  const revealDetails = useCallback((start: View, end: View = start) => {
+    cancelReveal();
+    const request = revealRequest.current;
+    // Wait for the expanded month to settle before measuring native coordinates.
+    revealTimer.current = setTimeout(() => {
+      revealTimer.current = null;
+      if (request !== revealRequest.current) return;
+      viewport.current?.measureInWindow((_x, top, _width, height) => {
+        if (request !== revealRequest.current || !height) return;
+        start.measureInWindow((_sx, startY, _sw, startHeight) => {
+          if (request !== revealRequest.current || !startHeight) return;
+          end.measureInWindow((_ex, endY, _ew, endHeight) => {
+            if (request !== revealRequest.current || !endHeight) return;
+            const visibleTop = top + 12;
+            const visibleBottom = Math.min(top + height, windowHeight) - 20;
+            const bottom = endY + endHeight;
+            // The first row is measured in full, including wrapped timing and
+            // notes; later sessions never push the selected date offscreen.
+            const below = Math.max(0, bottom - visibleBottom);
+            const fits = bottom - startY <= visibleBottom - visibleTop;
+            const delta = below || (fits ? Math.min(0, startY - visibleTop) : 0);
+            if (Math.abs(delta) > 1) list.current?.scrollToOffset({ offset: Math.max(0, scrollY.current + delta), animated: !reduced });
+          });
+        });
+      });
+    }, reduced ? 0 : 280);
+  }, [cancelReveal, windowHeight, reduced]);
+
+  const scrollToTarget = useCallback(() => {
+    const index = recorded.findIndex((g) => g.key === pendingKey.current);
+    if (index < 0) {
+      pendingKey.current = null;
+      return;
+    }
+    list.current?.scrollToIndex({ index, animated: true, viewOffset: 8 });
+  }, [recorded]);
 
   useEffect(() => {
-    if (!focus || focus.nonce === lastHandledNonce) return;
-    const i = monthIndex(groups, { y: +focus.key.slice(0, 4), m: +focus.key.slice(5, 7) });
-    if (i >= 0) {
-      lastHandledNonce = focus.nonce;
-      // a navigation request (Vai a… / year drill-down) opens that month and scrolls to it
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setOpen((o) => ({ ...o, [focus.key]: true }));
-      setTimeout(() => list.current?.scrollToIndex({ index: i, animated: true, viewOffset: 8 }), 60);
-    }
-  }, [focus?.nonce]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (!focus || focus === handledFocusRef.current) return;
+    const i = monthIndex(recorded, { y: +focus.key.slice(0, 4), m: +focus.key.slice(5, 7) });
+    if (i < 0) return;
+    onExpand(focus.key);
+    pendingKey.current = focus.key;
+    pendingFocus.current = focus;
+    if (visibleKeys.current.has(focus.key)) handledFocusRef.current = focus;
+    retryCount.current = 0;
+    if (retry.current) clearTimeout(retry.current);
+    retry.current = setTimeout(scrollToTarget, 80);
+  }, [focus, handledFocusRef, recorded, onExpand, scrollToTarget]);
 
-  const catById = useMemo(() => new Map(categories.map((c) => [c.id, c])), [categories]);
+  useEffect(() => () => {
+    if (retry.current) clearTimeout(retry.current);
+    pendingKey.current = null;
+    pendingFocus.current = null;
+  }, [recorded]);
+
+  // Native FlatList first measures the destination window, then aligns the
+  // actual row. Estimates are only for that first pass, never a final offset.
+  const onScrollToIndexFailed = useCallback((e: { index: number; averageItemLength: number }) => {
+    if (recorded[e.index]?.key !== pendingKey.current || retryCount.current >= 10) return;
+    retryCount.current++;
+    list.current?.scrollToOffset({ offset: headerH.current + (e.averageItemLength || ROW_ESTIMATE) * e.index, animated: false });
+    if (retry.current) clearTimeout(retry.current);
+    retry.current = setTimeout(scrollToTarget, 120);
+  }, [recorded, scrollToTarget]);
+
+  const onViewableItemsChanged = useCallback(({ viewableItems }: { viewableItems: { key: string; isViewable: boolean }[] }) => {
+    visibleKeys.current = new Set(viewableItems.filter((item) => item.isViewable).map((item) => item.key));
+    if (pendingKey.current && visibleKeys.current.has(pendingKey.current)) {
+      handledFocusRef.current = pendingFocus.current;
+      pendingKey.current = null;
+      pendingFocus.current = null;
+    }
+  }, [handledFocusRef]);
 
   return (
-    <FlatList
-      ref={list}
-      data={groups}
-      keyExtractor={(g) => g.key}
-      ListHeaderComponent={<View onLayout={(e) => (headerH.current = e.nativeEvent.layout.height)}>{header}</View>}
-      renderItem={({ item }) => (
-        <MonthRow g={item} open={!!open[item.key]} onToggle={toggle} onLayoutHeight={onRowLayout} accent={accent} highlight={highlight?.key === item.key ? highlight.days : undefined} catById={catById} showActivity={showActivity} />
-      )}
-      getItemLayout={getItemLayout}
-      initialNumToRender={6}
-      windowSize={9}
-      onScrollToIndexFailed={(e) => list.current?.scrollToOffset({ offset: getItemLayout(groups, e.index).offset, animated: false })}
-      contentContainerStyle={{ paddingBottom: 80 }}
-      testID="month-list"
-    />
+    <View ref={viewport} collapsable={false} style={{ flex: 1 }}>
+      <FlatList
+        ref={list}
+        data={recorded}
+        extraData={{ openMonths, selectedDate }}
+        keyExtractor={(g) => g.key}
+        ListHeaderComponent={<View onLayout={(e) => (headerH.current = e.nativeEvent.layout.height)}>{header}</View>}
+        renderItem={({ item }) => (
+          <MonthRow g={item} days={days} today={today} filterId={filterId} catById={catById} selectedDate={selectedDate?.startsWith(item.key) ? selectedDate : null} onSelectDay={selectDay} onCloseDay={closeDay} onRevealDetails={revealDetails} open={openMonths[item.key] !== false} onToggle={toggleMonth} accent={accent} highlight={highlight?.key === item.key ? highlight : undefined} />
+        )}
+        initialNumToRender={4}
+        windowSize={7}
+        onScrollToIndexFailed={onScrollToIndexFailed}
+        onViewableItemsChanged={onViewableItemsChanged}
+        viewabilityConfig={VIEWABILITY}
+        onScroll={(e) => { scrollY.current = e.nativeEvent.contentOffset.y; }}
+        scrollEventThrottle={16}
+        onScrollBeginDrag={cancelReveal}
+        keyboardDismissMode="on-drag"
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={{ paddingBottom: 90 }}
+        testID="month-list"
+      />
+    </View>
   );
 }
 
-const MonthRow = memo(function MonthRow({ g, open, onToggle, onLayoutHeight, accent, highlight, catById, showActivity }: { g: MonthGroup; open: boolean; onToggle: (k: string) => void; onLayoutHeight: (k: string, h: number) => void; accent: string; highlight?: number[]; catById: Map<string, Category>; showActivity: boolean }) {
+const MonthRow = memo(function MonthRow({ g, days, today, filterId, catById, selectedDate, onSelectDay, onCloseDay, onRevealDetails, open, onToggle, accent, highlight }: {
+  g: MonthGroup;
+  days: Map<string, DaySummary>;
+  today: LocalDate;
+  filterId: string | null;
+  catById: ReadonlyMap<string, Category>;
+  selectedDate: LocalDate | null;
+  onSelectDay: (date: LocalDate) => void;
+  onCloseDay: () => void;
+  onRevealDetails: (start: View, end?: View) => void;
+  open: boolean;
+  onToggle: (key: string) => void;
+  accent: string;
+  highlight?: { days: number[]; color: string };
+}) {
+  const C = useSurface();
+  const styles = useMemo(() => makeStyles(C), [C]);
   const { width } = useWindowDimensions();
   const reduced = useMotionReduced();
-  const [day, setDay] = useState<LocalDate | null>(null);
-  // the chosen day lost its last session (deleted or moved): close its panel
-  if (day && !g.sessions.some((s) => s.date === day)) setDay(null);
-  const empty = g.summary.sessions === 0;
   const dur = durationLine(g.summary.duration);
+  const selection = useMemo(() => new Set(selectedDate ? [selectedDate] : []), [selectedDate]);
+  const daySessions = useMemo(() => selectedDate ? g.sessions.filter((s) => s.date === selectedDate).sort(compareSessions) : [], [g.sessions, selectedDate]);
+
   return (
-    <Animated.View layout={reduced ? undefined : LinearTransition.duration(260).reduceMotion(ReduceMotion.Never)} style={styles.month} onLayout={(e) => onLayoutHeight(g.key, e.nativeEvent.layout.height)}>
+    <Animated.View layout={reduced ? undefined : LinearTransition.duration(260).reduceMotion(ReduceMotion.Never)} style={styles.month}>
       <Pressable
         onPress={() => onToggle(g.key)}
         accessibilityRole="button"
@@ -106,11 +219,11 @@ const MonthRow = memo(function MonthRow({ g, open, onToggle, onLayoutHeight, acc
         testID={`month-${g.key}`}
       >
         <View style={styles.monthHead}>
-          <T variant="heading" color={empty ? C.mute : C.fg}>
+          <T variant="heading" color={C.fg}>
             {monthTitle(g.month.y, g.month.m)}
           </T>
           <View style={styles.count}>
-            <T variant="heading" color={empty ? C.mute : C.fg} style={{ fontVariant: ['tabular-nums'] }}>
+            <T variant="heading" color={C.fg} style={{ fontVariant: ['tabular-nums'] }}>
               {g.summary.sessions}
             </T>
             <T variant="label" color={C.mute}>
@@ -118,130 +231,33 @@ const MonthRow = memo(function MonthRow({ g, open, onToggle, onLayoutHeight, acc
             </T>
           </View>
         </View>
-        <Ridgeline width={width - 2 * space.gutter} height={44} perDay={g.perDay} color={accent} ink={empty ? C.faint : C.line} highlight={highlight} />
+        <Ridgeline width={width - 2 * space.gutter} height={44} perDay={g.perDay} color={highlight?.color ?? accent} ink={C.line} highlight={highlight?.days} />
         <View style={styles.monthMeta}>
           <View style={{ flex: 1, gap: 2 }}>
-            {!empty ? (
-              <T variant="data" color={C.mute}>
-                {t.activeDays(g.summary.activeDays)}
-              </T>
-            ) : null}
             <T variant="data" color={C.mute}>
-              {empty ? t.emptyMonth : dur}
+              {t.activeDays(g.summary.activeDays)}
             </T>
+            {dur ? <T variant="data" color={C.mute}>{dur}</T> : null}
           </View>
           <Chevron dir={open ? 'up' : 'down'} color={C.mute} size={7} />
         </View>
       </Pressable>
       {open ? (
-        <Animated.View entering={reduced ? undefined : FadeIn.duration(200).reduceMotion(ReduceMotion.Never)}>
-          <MiniCalendar g={g} accent={accent} selected={day} onSelect={(d) => setDay(d === day ? null : d)} />
-          {day ? <DaySessions date={day} sessions={g.sessions.filter((s) => s.date === day)} catById={catById} showActivity={showActivity} /> : null}
+        <Animated.View entering={reduced ? undefined : FadeIn.duration(200).reduceMotion(ReduceMotion.Never)} style={styles.calendar}>
+          <MonthCalendar month={g.month} days={days} activeId={filterId} today={today} selection={selection} selectionLabel="selezionato, dettagli aperti" showAll preventFuture={false} onPressDay={onSelectDay} dayTestPrefix="mini-" testID={`history-calendar-${g.key}`} />
+          {selectedDate ? <InlineDayDetails key={`${filterId ?? 'all'}:${selectedDate}`} date={selectedDate} sessions={daySessions} catById={catById} filterId={filterId} onClose={onCloseDay} onReveal={onRevealDetails} /> : null}
         </Animated.View>
       ) : null}
     </Animated.View>
   );
 });
 
-function MiniCalendar({ g, accent, selected, onSelect }: { g: MonthGroup; accent: string; selected: LocalDate | null; onSelect: (d: LocalDate) => void }) {
-  const weeks = monthWeeks(g.month);
-  return (
-    <View style={styles.mini} accessibilityLabel={`Calendario di ${monthTitle(g.month.y, g.month.m)}`}>
-      <View style={styles.miniRow}>
-        {WEEKDAYS_INITIAL.map((d, i) => (
-          <View key={i} style={styles.miniCell}>
-            <T variant="label" color={C.mute}>
-              {d}
-            </T>
-          </View>
-        ))}
-      </View>
-      {weeks.map((wk, r) => (
-        <View key={r} style={styles.miniRow}>
-          {wk.map((d) => {
-            const p = parseDate(d);
-            const inMonth = p.m === g.month.m && p.y === g.month.y;
-            const n = inMonth ? g.perDay[p.d] : 0;
-            const sel = selected === d;
-            if (!inMonth) return <View key={d} style={styles.miniCell} />;
-            return (
-              <Pressable
-                key={d}
-                style={styles.miniCell}
-                disabled={!n}
-                onPress={() => onSelect(d)}
-                accessibilityRole="button"
-                accessibilityLabel={`${dateLabel(d)}${n ? `: ${t.sessions(n)}` : ''}`}
-                aria-selected={sel} aria-disabled={!n}
-                testID={`mini-${d}`}
-              >
-                <T variant={n ? 'dataStrong' : 'data'} color={n ? C.fg : C.mute} style={sel ? { textDecorationLine: 'underline' } : undefined}>
-                  {p.d}
-                </T>
-                <View style={styles.marks}>
-                  {Array.from({ length: Math.min(n, 3) }).map((_, k) => (
-                    <View key={k} style={[styles.mark, { backgroundColor: accent }]} />
-                  ))}
-                  {n > 3 ? (
-                    <T variant="label" color={C.mute} style={{ fontSize: 11, lineHeight: 12 }}>
-                      +{n - 3}
-                    </T>
-                  ) : null}
-                </View>
-              </Pressable>
-            );
-          })}
-        </View>
-      ))}
-    </View>
-  );
-}
-
-function DaySessions({ date, sessions, catById, showActivity }: { date: LocalDate; sessions: Session[]; catById: Map<string, Category>; showActivity: boolean }) {
-  const dayDur = durationLine(summarize(sessions).duration);
-  return (
-    <View style={styles.day}>
-      <T variant="label" color={C.mute}>
-        {t.sessionsOnDay(dateLabel(date))}
-      </T>
-      <T variant="data" color={C.fg} testID="day-total">
-        {[t.sessions(sessions.length), dayDur].filter(Boolean).join(' · ')}
-      </T>
-      {sessions.map((s, i) => {
-        const c = catById.get(s.categoryId);
-        const detail = [timingSummary(s), s.place?.label ?? s.place?.address ?? null, s.notes ? `“${s.notes.slice(0, 60)}${s.notes.length > 60 ? '…' : ''}”` : null].filter(Boolean).join('\n');
-        return (
-          <Pressable key={s.id} onPress={() => router.push(`/session/${s.id}`)} accessibilityRole="button" accessibilityLabel={`${showActivity && c ? c.name + ', ' : ''}sessione ${i + 1}: ${detail.replace(/\n/g, ', ')}. Apri dettagli`} style={styles.dayRow} testID={`session-${s.id}`}>
-            <View style={[styles.dayDot, { backgroundColor: c?.color ?? palette.flareDeep }]} />
-            <View style={{ flex: 1, gap: 2 }}>
-              <T variant="bodyStrong" color={C.fg}>
-                {showActivity && c ? c.name : `Sessione ${i + 1}`}
-              </T>
-              <T variant="small" color={C.mute}>
-                {detail}
-              </T>
-            </View>
-            <Chevron dir="right" color={C.mute} size={7} />
-          </Pressable>
-        );
-      })}
-    </View>
-  );
-}
-
-const styles = StyleSheet.create({
-  month: { paddingHorizontal: space.gutter, paddingTop: 22, paddingBottom: 14, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: C.faint },
+const makeStyles = (C: Surface) => StyleSheet.create({
+  month: { paddingHorizontal: space.gutter, paddingTop: 22, paddingBottom: 18, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: C.faint },
   monthHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 6 },
   count: { alignItems: 'flex-end' },
   monthMeta: { flexDirection: 'row', alignItems: 'center', marginTop: 8, gap: 8 },
-  mini: { marginTop: 14, gap: 2 },
-  miniRow: { flexDirection: 'row' },
-  miniCell: { flex: 1, minHeight: HIT, alignItems: 'center', justifyContent: 'center' },
-  marks: { flexDirection: 'row', gap: 2, height: 6, alignItems: 'center', marginTop: 2 },
-  mark: { width: 4, height: 4, borderRadius: 2 },
-  day: { marginTop: 12, gap: 4 },
-  dayRow: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 56, paddingVertical: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: C.faint },
-  dayDot: { width: 8, height: 8, borderRadius: 4 },
+  calendar: { marginTop: 16 },
 });
 
-export { formatDate };
+export { formatDate } from '@/domain/dates';

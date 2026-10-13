@@ -1,221 +1,161 @@
 # Serie
 
-**A motion-first activity log for iPhone.** Every week is a swell line, every session is a crest on it, and saving makes the lines break like a wave. Serie opens straight into the activity you used last (Surf on first launch): you tap the dates, tap **Salva**, and your personal history grows on the same lines.
+**A motion-first activity log for iPhone.** Choose an activity, select dates, then tap **Salva**. Tap that activity again to browse every color at full intensity. The calendar opens on a cream surface, remembers the chosen activity or neutral view, and keeps one shared date selection with optional details saved separately per activity. Italian is the application language.
 
-The visual identity, motion grammar, typography and palette come from the *corduroy* trailer in `../trailer` (rendered in `../deliverables`). App language: **Italian**.
+The identity, typography, patterns and motion come from the *corduroy* trailer in `../trailer`. The calendar evolution is developed on `codex/serie-calendar`, starting at commit `0f39ebd14b1f1157eb9d4cf89ba2cb0f57e2c655`. See [Codex handoff](docs/CODEX_HANDOFF.md) for provenance and final validation. Existing images in `docs/screens/` document the earlier interface; [historical 1.1 native captures](docs/screens-calendar-1.1/README.md) preserve that delivery's exact source provenance.
 
-| Lineup | Save → breaking wave | Switch activity | History (Mese) |
-|---|---|---|---|
-| ![Lineup](docs/screens/01-lineup.png) | ![Wave](docs/screens/02-wave.png) | ![Switcher](docs/screens/03-switcher.png) | ![History](docs/screens/04-history-month.png) |
+**Current delivery: [Serie 1.3.1, build 5 — unsigned IPA](https://github.com/b8magic/ForFun/actions/runs/38434726237/artifacts/11833217391)**, source `aaeab5c777ff3ea6db2279e6ea518b4c1b8360ac`. Install with SideStore/AltStore Classic; sign in to GitHub if the artifact download asks for it. The download is retained until **2026-10-20 17:14:43 UTC**. Packaging, raw upload and artifact metadata share the same SHA-256; [delivery receipt](docs/ipa-1.3.1.json) records the exact digest, size and provenance.
 
-| Year | Progress (Tutto) | Session details | Calendar import review |
-|---|---|---|---|
-| ![Year](docs/screens/05-history-year.png) | ![All](docs/screens/06-history-all.png) | ![Details](docs/screens/07-details.png) | ![Import](docs/screens/08-import-review.png) |
-
-Screens come from the web verification build (headless Chromium, 390 × 844 pt). They are not iPhone screenshots: see the [status matrix](#status).
-
----
+Verification: **949 tests in 56 suites**, **7/7 focused browser journeys**, clean typecheck/lint, and a successful native Release archive and IPA upload. This delivery uses one IPA-only build after local checks. Browser gestures and persisted SQLite records were checked; the 1.3.1 native simulator and physical iPhone gestures were not tested. [Verification receipt](docs/verification-1.3.1.json) · [Handoff](docs/CODEX_HANDOFF.md). Previous delivery evidence remains historical.
 
 ## What it does
 
-- **Immediate entry.** Launch → the living calendar of the remembered activity, ready for date selection. The remembered activity survives restarts. If it was deleted, Serie falls back safely and says so.
-- **Moment A — switching activity.** Tap the identity disc: the week-lines rise into an arc of activity discs. The chosen disc flows into the header and recolours the lines with its own pattern (swell, stride, pulse, drift, ripple, grain).
-- **Moment B — selecting dates.** Each tap lifts the week-line into a crest (spring water simulated on the UI thread), the liquid in Save rises, and future dates are refused. Months swipe like a passing swell.
-- **Moment C — saving.** One idempotent transaction, *then* the break: the lines curl into a wave, the dots ride the lip into the history handle, and the saved days settle as rings. **Annulla** undoes it for a few seconds. A double tap can't duplicate a save, while a deliberate second session on the same day is allowed.
-- **History.** *Mese* (multi-year scroll, collapsible mini calendars, several sessions per day, day totals), *Anno* (annual totals, month drill-down) and *Tutto* (totals, a summary for any period, trend, frequency over complete weeks/months, consistency, distribution, milestones), plus *Vai a…* jumps to any month and year.
-- **Honest numbers.** Session count, active days and recorded hours are kept separate. Unknown durations stay unknown: never 0, never 24 h. Duration coverage is always shown ("durata disponibile per 2 di 4 sessioni").
-- **Optional details per session.** Place, address, Google Maps link (parsed, short links resolved, map preview on iOS, manual pin) and notes. Four timing states: date only, start only, start–end (explicit next-day end), duration only, plus start + duration. DST-correct.
-- **Activities.** Create, rename, recolour, change pattern, reorder and delete, with safeguards: move sessions elsewhere, or delete them after two confirmations.
-- **Calendar exchange** (Google Calendar via OAuth, iPhone calendars via EventKit):
-  - **Import** into one activity. Source calendars, date range (complete multi-year paging), title-only "contiene" filter and Google colour labels. A review list shows statuses (new / already imported / possible match / cancelled), scoped select-all and accurate counts.
-  - **Export** one activity to Google, iPhone or both. "Both" is blocked when it would be the same calendar twice. Prefix/suffix previews, per-event outgoing edits, explicit "apply to session", and duplicate checks against the real calendar. Idempotent retries, with results per destination.
-  - **Automatic export** after saving: off by default. It waits until **Annulla** can no longer undo the save. Jobs persist, retry with backoff, and wait in "Da rivedere" when a decision is needed. They can be cancelled when automatic export is turned off. The **Esportazioni in sospeso** screen shows each job's real state.
-- **Offline first.** Everything is stored in SQLite on the device. Calendars are only touched when you use those features.
+Version **1.3.1** keeps Home dates selected across activity and Nuove/Modifica changes, supports editing across all activities in neutral view, and disables new-session saving until an activity is chosen. Explicit Elimina deletes immediately, and swiping a session no longer also opens its editor. Day previews show actual details without missing-time filler. The previous compact duration editor, inline history, session counts, arbitrary colors and timezone picker remain available.
 
-Architecture, motion grammar and integrity rules: [`ARCHITECTURE.md`](ARCHITECTURE.md). Full brief: [`docs/SPEC.md`](docs/SPEC.md).
+- **Immediate logging.** Surf is active on a fresh installation. The remembered activity opens directly on later launches. Visible activity chips switch the context; activity management has its own control. A deleted remembered activity falls back safely with a notice.
+- **Continuous calendar.** Scroll through months or tap the sticky month title to jump to a month/year. Each day shows up to four recorded activity colors and a +N overflow marker; accessible labels and day sheets include every actual activity. Settings choose all-activity markers or only the active activity. Future dates cannot enter a logging draft.
+- **Durable selection and details.** One date selection survives activity/mode changes and restarts, including neutral view. Applied optional details remain separate per activity. Upgrade preserves the union of legacy draft dates. A completed save clears only its captured working selection when it is still current; a later selection or activity change is preserved.
+- **Safe repeated logging.** A save is idempotent, so repeated taps cannot duplicate it. A deliberate later session on the same date is allowed. **Annulla** reverses a recent save.
+- **Day details and bulk editing.** A tap selects dates in both **Nuove** and **Modifica**, with or without an active activity. Long press opens saved day details. **Modifica** includes existing sessions for the focused activity, or all activities in neutral view; **Sessioni** opens the individual checklist. Notes/place/timing offer Keep/Set/Clear and commit atomically after checking every reviewed record. Dates remain selected after editing so they can also be used for new logging. Swiping reveals **Elimina**; pressing it deletes that session immediately.
+- **History.** *Mese* shows populated months with exact counts, active days and known durations; dates expand inline session previews and editors return to the same context. *Anno* displays twelve miniature calendars and focuses populated past/current months. Empty activity filters are explicit. *Progressi* shows actual totals, trends, frequency, consistency, distribution, milestones and an ad hoc period summary.
+- **Named periods.** Store a name, inclusive start/end dates, optional note and either all activities or selected stable activity identifiers. Previews and totals come from actual sessions. Periods can overlap and share a name. Editing or deleting a period changes its metadata; sessions remain intact. Future period endpoints are allowed even though future session logging is disabled.
+- **Honest durations.** Unknown values remain unknown. Totals sum known durations and disclose coverage, such as “durata disponibile per 2 di 4 sessioni.” Date-only and start-only sessions never add invented hours.
+- **Optional session details.** Notes, location, address, supported Google Maps links and map preview on iOS. Timing supports date only, start only, interval with explicit overnight end, duration only, and start + duration. Calculations use wall times and an IANA time zone, including DST transitions.
+- **Activities and settings.** Create, rename, recolor, change patterns, reorder and delete with session move/delete safeguards. Unsaved form changes require an explicit discard decision. Cream/dark appearance, home-calendar activity scope and motion preference persist and apply across sheets. Motion defaults to the system accessibility setting. Close/back controls remain available alongside native sheet gestures.
+- **Calendar exchange.** Google Calendar through OAuth and REST, iPhone calendars through EventKit. Import reviews title-only matching, source calendars, labels and duplicate statuses. Export reviews destination equivalence, titles, content, per-event edits and duplicate actions. Automatic export is off initially, waits for the undo window, persists jobs and exposes pending/review states. Local edits never silently rewrite calendar events.
+- **Offline persistence.** SQLite on iOS; sql.js with IndexedDB persistence in the web verification build. Basic logging never asks for calendar or location permissions.
 
----
+[Architecture](ARCHITECTURE.md) explains the data and UI boundaries. [Product specification](docs/SPEC.md) preserves the original brief and adds the approved calendar evolution.
 
 ## Run it
 
-Requirements: **Node 22.13+** and npm. For iOS builds, an Expo account (free) and an Apple Developer account. A Mac with **Xcode 26.4+** is needed only for local builds.
+Requirements: **Node 22.13+** and npm. The native application uses Expo SDK 57, React Native Skia, Reanimated, SQLite, EventKit and Apple Maps, so a development build is required instead of Expo Go.
 
 ```bash
 cd serie
-npm install            # also copies the web wasm runtimes into public/ (postinstall)
+npm ci
 ```
 
-### On an iPhone (development build — recommended)
+`postinstall` copies the web WASM runtimes into `public/`.
 
-Serie uses native modules (Skia, Reanimated worklets, SQLite, EventKit, Apple Maps, SecureStore), so it does **not** run in Expo Go. Build a development client once, then iterate with the bundler:
+### iPhone development build
+
+EAS development/TestFlight builds require an Expo account and the relevant Apple provisioning account. A Mac is needed only for local builds.
 
 ```bash
 npx eas-cli@latest login
-npx eas-cli@latest init                       # links the project (writes extra.eas.projectId)
-npx eas-cli@latest device:create              # register your iPhone (ad hoc provisioning)
+npx eas-cli@latest init
+npx eas-cli@latest device:create
 npx eas-cli@latest build --profile development --platform ios
-# install the build from the QR/link EAS prints, then:
 npx expo start --dev-client
 ```
 
-iOS Simulator instead of a device: `npx eas-cli@latest build --profile development-simulator --platform ios`.
+For an EAS simulator build, use `--profile development-simulator`. On a Mac with **Xcode 26.4+**, `npx expo run:ios` or `npx expo run:ios --device` generates native projects through Continuous Native Generation. Configure native behavior in `app.json` and config plugins; do not hand-edit generated native directories.
 
-Local alternative on a Mac: `npx expo run:ios` (simulator) or `npx expo run:ios --device`. This generates `ios/` with Continuous Native Generation; don't edit `ios/` by hand.
+`tools/open-in-xcode.sh` prepares the generated project and opens its workspace. `tools/live.sh` prepares **Serie Dev** (`app.serie.ios.dev`) for the simulator; `tools/live.sh --device` uses a connected iPhone. The development app can coexist with the release app.
 
-Open it in Xcode instead: `tools/open-in-xcode.sh` checks Xcode 26.4+, Node and CocoaPods, generates `ios/`, installs the pods, switches Run to Release (JS bundle embedded, no Metro needed) and opens the workspace. Pick a simulator and press Run.
+### Simulator and final IPA through GitHub Actions
 
-No local build at all: `.github/workflows/ios-simulator.yml` (**Actions → "iOS Simulator (build + smoke test)"**, about 15 macOS minutes) builds `Serie.app` for the Simulator and uploads it as an artifact; drag it onto the Simulator window. The same run executes the native smoke test in `maestro/` (launch, save, restart, history, activity switch, place + Apple Maps, export to the simulator's own iPhone calendar) through `tools/sim-smoke.sh`, with a screen recording, screenshots and the app log.
+The individual `ios-simulator.yml` and `ios-ipa.yml` workflows retain **Run workflow** support and accept an optional full candidate SHA. Manual IPA dispatch builds downloadable artifacts only. The publishing path is the coordinated **Serie candidate (checks → simulator → IPA)** workflow:
 
-### Live changes on a Mac (change → see it in seconds)
+1. Check out one immutable commit; run Jest, typecheck, lint and all five browser suites.
+2. Build the iOS Release simulator app from that commit and run the five Maestro flows, with video, screenshots, app log and crash evidence. After the fresh logging fixture, reconstruct v1 and verify the actual native SQLite upgrade preserves all six original tables. A native pixel check requires both actual activity colors to remain visible in the same day after adding a second activity.
+3. Build the unsigned IPA from the same commit only after both gates pass; optionally publish the prerelease.
 
-Once, because the repository is private: install the GitHub CLI and log in through the browser. Git then uses that login, with no password prompts.
+Normal development pushes do not trigger a build. On `codex/serie-calendar`, adding/updating `serie/tools/release-candidate.json` requests the candidate pipeline; create this marker only after local checks pass. Manual dispatch can specify a full 40-character SHA. Coordinated publication requires both Linux and native gates. The separate `ipa-build-request.json` marker builds downloadable IPA artifacts only; Codex returned to that path after the user's delay feedback for 1.3 and 1.3.1, with no prerelease publication or completed simulator gate.
 
-```bash
-brew install gh cocoapods       # Homebrew: https://brew.sh
-gh auth login                   # GitHub.com → HTTPS → "Authenticate Git" yes → login with a web browser
-gh repo clone b8magic/ForFun
-```
+If a candidate was published before final visual review found a defect, the replacement marker can name its exact `supersedesTag`. Only after the replacement is verified and published does the release job retain that intermediate prerelease as a draft. It does not alter original or unrelated releases.
 
-Then:
+Artifacts include `candidate-web-verification`, `Serie-simulator`, `smoke-test` and `Serie-ipa`. The IPA prerelease includes `Serie-unsigned.ipa`, its SHA-256 checksum and `Serie-build.json` identifying the source commit and build run.
 
-```bash
-cd ForFun/serie && tools/live.sh            # iOS Simulator
-cd ForFun/serie && tools/live.sh --device   # iPhone on the cable and on the same Wi-Fi as the Mac
-```
+### Sideload with SideStore / AltStore
 
-`tools/live.sh` sets up the development app **Serie Dev** (`APP_VARIANT=development`: bundle id `app.serie.ios.dev` and its own `exp+serie-dev` launch scheme, so it sits next to an installed release). On every launch it:
+The IPA is **unsigned**. SideStore or **AltStore Classic** re-signs it with your Apple ID. Download the verified IPA linked above, signing in to GitHub if the Actions artifact download asks for it, then share the IPA to SideStore/AltStore or select it from **My Apps → +**. The repository is public; a release asset, when available, can be downloaded without signing in.
 
-- generates the iOS project when native inputs changed (dependencies, `app.json`/`app.config.ts`, fonts, icon, splash). The first time this takes about 5–10 minutes.
-- builds incrementally and installs on the chosen Simulator or iPhone.
-- starts Metro.
-- pulls new commits of the current branch every 5 seconds, **fast-forward only**. Each pushed code change reaches the app through Fast Refresh, with a macOS notification naming the commit.
-
-Local edits, local commits and other branches are never touched. If one of them is in the way, updates pause and the script says why. A pushed native change asks for a restart of the script.
-
-First time on the iPhone:
-
-- Xcode → Settings → Accounts → your Apple ID → Manage Certificates → + Apple Development.
-- On the phone: Settings → Privacy & Security → Developer Mode on.
-- After the first install: General → VPN & Device Management → your Apple ID → Trust.
-- With a free Apple ID the dev app expires after 7 days. Run the script again to reinstall it.
+- iOS **16.4+** and Developer Mode are required. The place map needs iOS 17; iOS 16 shows a text readout.
+- A free Apple ID signs the app for 7 days; SideStore/AltStore can refresh it. Serie uses one of the three active app slots.
+- The re-signed bundle identifier changes. Google sign-in on that identifier requires compatible OAuth configuration; iPhone calendars use the app's native calendar permission.
 
 ### TestFlight / App Store
 
-1. Create the app in App Store Connect with bundle id **`app.serie.ios`** (or change `ios.bundleIdentifier` in `app.json`).
-2. `npx eas-cli@latest build --profile production --platform ios` (the build number auto-increments).
-3. `npx eas-cli@latest submit --platform ios --latest`, then add testers in TestFlight.
-
-Google Calendar uses sensitive scopes: users outside the OAuth test-user list need Google's app verification first (see below).
-
-### Sideload with SideStore / AltStore (no paid Apple account)
-
-The repository has a GitHub Actions workflow that builds an **unsigned** IPA on a macOS runner: `.github/workflows/ios-ipa.yml`. Start it from **Actions → "iOS IPA (unsigned, sideload)" → Run workflow**. It runs only on demand, because macOS minutes in a private repo are limited.
-
-- Build 1 took about 6 minutes (`macos-26`, Xcode 26.6). Output: prerelease `ipa-<n>` with `Serie-unsigned.ipa` and its `.sha256`, plus a 7-day artifact.
-- The IPA is unsigned. SideStore or **AltStore Classic** (not AltStore PAL) re-sign it with your Apple ID and change the bundle id to `app.serie.ios.<TEAMID>`.
-- iPhone with **iOS 16.4+** and Developer Mode on. The place map needs iOS 17; iOS 16 shows the text readout.
-- With a free Apple ID the app expires after 7 days (SideStore/AltStore refresh it) and uses 1 of 3 active app slots and 1 of 10 weekly App IDs.
-- The repository is private, so download the release asset in Safari while signed in to github.com, then share it to SideStore/AltStore.
-- Google Calendar is enabled only if the repository variable (or secret) `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID` is set before the build. On a re-signed app, Google sign-in is best-effort because the bundle id changes. iPhone calendars always work.
-
-### Web (verification build only)
+Create the app in App Store Connect with bundle id `app.serie.ios`, then build and submit:
 
 ```bash
-npm run web            # dev server; Skia runs on CanvasKit, SQLite on sql.js (IndexedDB)
-npm run build:web      # static bundle in dist-web/
+npx eas-cli@latest build --profile production --platform ios
+npx eas-cli@latest submit --platform ios --latest
 ```
 
-The web build exists to verify the UI and data layer in CI-like environments. Calendars are unavailable on web, because EventKit is iOS-only and the Google web client is optional.
+Google Calendar production users may require Google verification for its sensitive scopes.
 
----
+### Web verification
+
+```bash
+npm run web
+npm run build:web
+```
+
+The web build validates UI, CanvasKit graphics and persistence. Real EventKit is unavailable on web. Calendar integration tests use explicitly enabled in-memory test providers.
 
 ## Configuration
 
-| Variable | Needed for | Notes |
-|---|---|---|
-| `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID` | Google Calendar on iOS | An iOS OAuth client id (`NNNN-xxxx.apps.googleusercontent.com`). It is not a secret, and no client secret is used. `app.config.ts` registers its reversed form as a URL scheme. |
-| `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` | optional, web verification of Google | Web OAuth client with origin `http://localhost:8081`. |
-| `EXPO_PUBLIC_SERIE_E2E_CALENDAR` | **tests only** | `1` replaces both providers with in-memory test calendars (`src/calendar/memory.ts`). Never set it for real builds. |
+| Variable | Purpose |
+|---|---|
+| `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID` | iOS OAuth client id for Google Calendar. It is a public client identifier; no client secret is used. `app.config.ts` registers the reversed URL scheme. |
+| `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` | Optional Google web OAuth client for a configured web origin. |
+| `EXPO_PUBLIC_SERIE_E2E_CALENDAR` | **Tests only:** `1` uses in-memory providers from `src/calendar/memory.ts`. Never set it for a real native build. |
 
-Put them in `.env` (local) or in EAS environment variables (`npx eas-cli@latest env:create`), and rebuild after changing them.
+Set them in `.env`, EAS environment variables or the configured repository variable/secret, then rebuild. For Google, enable Calendar API, configure consent/test users and create the client for the matching bundle identifier. Details: [Google provider](src/calendar/google/README.md).
 
-**Google Cloud setup (once).** Enable the Google Calendar API, configure the consent screen (External, add test users while in *Testing*), and add the scopes `openid`, `userinfo.email`, `calendar.readonly` and `calendar.events`. Then create an **iOS** client for bundle id `app.serie.ios`. In *Testing*, refresh tokens expire after 7 days; production needs Google verification for the sensitive scopes. Details: [`src/calendar/google/README.md`](src/calendar/google/README.md).
-
-**iPhone calendars.** No setup beyond the development build. The `expo-calendar` config plugin writes the permission text. iOS 17+ asks for full access, which import and duplicate checks need. If the user grants write-only access, Serie says that it can't check duplicates or import. Details: [`src/calendar/apple/README.md`](src/calendar/apple/README.md).
-
-**Permissions** are requested only when the matching feature is used (calendar on *Collega*, clipboard on paste). Location is never requested.
-
----
+The `expo-calendar` plugin supplies native permission text. Import and duplicate checking require readable/full calendar access; write-only access is disclosed. Permissions are requested through **Collega**, never on basic logging. Location permission is never requested. Details: [Apple provider](src/calendar/apple/README.md).
 
 ## Verify
 
 ```bash
-npm run typecheck      # tsc --noEmit
-npm run lint           # expo lint (eslint-config-expo)
-npm test               # Jest: domain, data (sql.js), state, calendar engines, providers (fakes), maps, sheets helpers
-npm run e2e            # web builds + three headless-Chromium suites (Playwright, Chromium preinstalled)
+npm run typecheck
+npm run lint
+npm test -- --ci --runInBand
+npm run e2e
 ```
 
-The e2e suites drive the real UI and assert on what a user sees:
+The browser suites use **13 October 2026, 12:00 UTC** as the fixed date while leaving animation, undo and job timers live. Each suite fails on unexpected page errors or console errors. Browser-plugin availability is recorded in evidence; the implementation environment uses Playwright because the Browser plugin is unavailable. Installed system Chromium is used when present; otherwise install the matching Playwright Chromium with `npx playwright install chromium`.
 
-- `tools/e2e.mjs`: first launch in Surf, multi-date save, restart persistence, stale selections not reused, double-tap protection, same-day sessions, future dates, switching persistence, Month/Year/All history.
-- `tools/e2e-flows.mjs`: the **statistics acceptance test** (date-only, start-only 08:00, 09:00–11:00 and 1.5 h give 4 sessions, 3 h 30 min, 2 of 4), edit and delete updating totals, one duration applied to several dates, details not reused, activity create and duplicate name, deleting the remembered activity, month jump, reduced motion, Google Maps links (refused vs resolved, link kept verbatim), and the "unsaved edits" guard.
-- `tools/e2e-calendar.mjs` (against the in-memory test calendars): title-only filter, labels, recurring occurrences without the cancelled one, multi-day mapping, scoped selection, re-import recognition, the equivalent "both" destinations being blocked, export, idempotent re-export, differences offered as explicit updates, and automatic export after a save.
+- `tools/e2e.mjs`: meaningful first launch, multi-date save, separate durable drafts across activity switches/restart, repeat-save protection, intentional same-day sessions, disabled future dates, mixed activity calendar/day details, edit-return, long press, honest empty filters and omission of empty month rows, twelve-month year mosaic, drill-down, Progressi and direct history navigation to an older recorded year.
+- `tools/e2e-flows.mjs`: the four-session duration acceptance case, edit/delete recalculation, independent multi-date durations, activity management/discard guards/deleted drafts, cross-year month jump, settings/theme persistence, Maps resolution and unchanged links, session discard guard, named-period validation/preview/persistence/scoped edit/overlap/delete with sessions preserved.
+- `tools/e2e-calendar.mjs`: memory-provider import/export/automatic export, title-only matching, labels, recurrence/cancellation, re-import detection, equivalent destinations, idempotency and explicit change review.
+- `tools/e2e-v12.mjs`: neutral activity focus and persistence, per-activity session counts, confirmed swipe deletion, arbitrary colors and contrast, numeric hour/minute durations, searchable timezones and simplified navigation.
+- `tools/e2e-v13.mjs`: compact numeric typing/editing, exact saved-second preservation, real four-direction toast gestures with persisted-row checks, inline history context and bulk keep/set/clear with drafts and unselected sessions preserved.
+- `tools/e2e-v131.mjs`: seven focused journeys covering shared selection, neutral/scoped editing and individual exclusions, immediate deletion with real browser touch swipes, inline details and restart persistence.
+- `maestro/`: native logging/drafts/mixed-day/history, Apple Maps, EventKit export, settings and period/session integrity. A native v1 → v2 upgrade check compares original categories, sessions, settings and calendar-exchange tables after relaunch. `tools/sim-smoke.sh` derives fixture dates from the previous month so all test sessions are historical on the runner.
 
----
+The fifth native flow additionally checks actual UIKit status-bar taps, numeric keyboard editing, four-direction message dismissal, inline history and bulk editing. The older full browser/native scenarios retain historical per-activity draft and confirmation assumptions; they were not rerun as a 1.3.1 gate. Use the focused 1.3.1 suite for the changed selection/deletion behavior, and reconcile older expectations before a future full run.
+
+Evidence defaults to a temporary `serie-e2e/` directory. Set `E2E_SHOTS` to choose a base directory and `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` to select another Chromium executable. Results and screenshots are separated into `core`, `flows`, `calendar`, `v12`, `v13` and `v131` subdirectories.
 
 ## Status
 
-What was actually checked, and how. This repository was built in a Linux container without Xcode, a device or Google credentials. The native app was run on an **iOS Simulator** (iPhone 17 Pro, iOS 26.5, GitHub's macOS runner), never on a physical iPhone.
+The current **1.3.1, build 5** IPA was archived and uploaded successfully by [run 38434726237](https://github.com/b8magic/ForFun/actions/runs/38434726237), job `115425630971`. Prerelease publication was intentionally skipped. Application commit `89d0a4cdc45d45385ed926e26dfded4ac0f60f6f` passed 949 tests/56 suites, typecheck, lint and seven focused browser journeys with zero errors/warnings. The build source `aaeab5c777ff3ea6db2279e6ea518b4c1b8360ac` adds only the build request. No native simulator cycle was run for this update; compilation is distinct from device interaction testing. See the [1.3.1 delivery receipt](docs/ipa-1.3.1.json). Earlier [1.3](docs/ipa-1.3.json), [1.2](docs/ipa-1.2.json) and 1.1 evidence remains historical.
 
-### Implemented and verified
+Historical **1.1.0** verification passed **829 tests in 45 suites**, typecheck, lint, **34/34 browser checks** with zero runtime errors/warnings and **9/9 pixel-checker tests**. [Final run 38336957498](https://github.com/b8magic/ForFun/actions/runs/38336957498) also passed all four Maestro journeys on iPhone 17 Pro / iOS 26.5, actual six-table SQLite upgrade, same-day native color pixels, startup and crash checks, then built the unsigned IPA from that same commit. The historical 1.1 IPA and failed automatic prerelease startup are recorded in the handoff. Receipts and provenance are in [Codex handoff](docs/CODEX_HANDOFF.md). Baseline totals are not reused as validation of this branch.
 
-| Area | Verified by |
+| Area | Verification boundary |
 |---|---|
-| Domain rules: dates, DST-correct zoned time, the four timing states (plus start + duration), duration parsing (`1,5` · `1:30` · `90 min` · `1 ora e 30`), honest statistics, milestones, history grouping | Jest (`src/domain`), including the statistics acceptance test |
-| Persistence: migrations, repositories, idempotent saves (double tap ≠ duplicate, deliberate same-day session allowed), category delete/move safeguards, fallback when the remembered activity is deleted | Jest on sql.js (same SQL as the device), plus a native-driver test with a fake `expo-sqlite`: one connection, foreign keys on, serialised `BEGIN IMMEDIATE` transactions |
-| Signature journey on the web build: launch in Surf, multi-date save, persistence after restart, switching activity, Month/Year/All history, details, edit/delete updating totals, reduced motion | `tools/e2e.mjs` (10 checks) and `tools/e2e-flows.mjs` (11 checks), headless Chromium |
-| Calendar import, export and automatic export: UI, engines and the local database together | `tools/e2e-calendar.mjs` (9 checks) against the in-memory **test** calendars, plus Jest for the engines and both providers (with a fetch mock for Google and a fake EventKit for Apple) |
-| Native configuration: Italian localization, dark UI, calendar permission text (iOS 16 + 17), no location permission, encryption flag, Google URL scheme, registered fonts, splash | `expo prebuild --platform ios` in a scratch copy (generated `Info.plist` inspected) and `expo-doctor` (21/21) |
-| The native iOS app, Release build: launch, multi-date save, persistence in native SQLite across restarts, Month/Year/All history, activity switch remembered across restarts, the form sheets' layout, the details sheet with a Google Maps link resolved to Apple Maps (expo-maps), the session page with its map, iPhone calendars through EventKit (full access, calendar list, export of one session: "1 creati") | `.github/workflows/ios-simulator.yml`: `tools/sim-smoke.sh` plus the Maestro flows in `maestro/` on an iOS Simulator, with screen recording, screenshots and app log reviewed. This run found three bugs, now fixed: sheet content under the header/footer (Fabric view flattening plus react-native-screens' form-sheet ScrollView correction), and two calendar loads dropped by their own effect re-run |
-| Type safety and lint | `tsc --noEmit` and `expo lint`: 0 errors |
-| Adversarial review | 5 independent review dimensions, each checked by a skeptic: 67 confirmed findings, all fixed and re-verified by the suites above |
+| Model, migrations, durable drafts, periods, stats and calendar engines | Jest uses the same SQL through sql.js and fake native/provider adapters. |
+| Actual calendar/day/history/settings/period UI | Seven focused 1.3.1 browser journeys drive changed flows and persisted rows. Previous full-suite evidence remains historical. |
+| Native Release app, maps and EventKit export | 1.3.1 native compilation succeeded. No simulator interactions were run for this update; earlier native passes are separate evidence. |
+| Installable unsigned IPA | 1.3.1 uses locally verified app inputs followed by IPA-only compilation, with a source manifest and matching package/upload/artifact checksum. Physical iPhone installation remains a device check. |
+| Google OAuth and real REST traffic | Requires real OAuth credentials and a test account. Memory providers and fetch mocks do not prove this. |
 
-Totals at the last run: **777 unit tests in 38 suites**, **30 e2e checks**, 0 type errors, 0 lint problems.
+Physical-device frame rate, thermal/battery behavior, haptics, VoiceOver, Dynamic Type and iOS 16/17 behavior need device testing. The simulator cannot establish those results. Real Google OAuth/calendar writes and the Apple permission prompt itself are outside the browser suite; simulator calendar permission is pre-granted.
 
-### Implemented, not verified on a physical iPhone
-
-- Skia and Reanimated on a real iPhone GPU: frame rate and memory were **not measured** (the Simulator renders on the Mac and says nothing about iPhone performance).
-- Haptics, VoiceOver announcements and Dynamic Type; iOS 16 and 17 (the Simulator run used iOS 26.5).
-- iPhone calendars on a real device with the user's own calendars, the permission prompt itself (the Simulator run pre-granted access), and import from iPhone calendars (export only was driven natively).
-- Google Calendar: OAuth and the REST calls. Tested against a fetch mock only; **no real calendar was read or written**.
-- The `serie://export?m=…` link opening the exported session from Apple Calendar (unit-tested redirect only).
-
-### Needs external setup (not possible in this environment)
-
-- **iOS builds:** an Expo account plus an Apple Developer account for EAS Build/TestFlight, or a Mac with Xcode 26.4+.
-- **Google Calendar:** a Google Cloud project with an iOS OAuth client (`EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID`), test users, and Google verification of the sensitive scopes before a public release.
-
-### Known limitations (documented, not hidden)
-
-- EventKit reports an event's time zone only as an abbreviation, so imported iPhone events show wall times in the device zone. The instant is still correct.
-- Google: if Google's search index lags right after an uncertain write, the reconciliation may not find Serie's event. It is then recognised later through its metadata ("Evento riconosciuto"), but a duplicate is possible in that narrow window.
-- For start-only sessions, the event metadata cannot distinguish an approved scheduling span from a calendar-only time, so re-import keeps the event's start time.
-- Re-importing an event whose session was deleted keeps the original title and span from the first import.
-- A place name read from a resolved short Maps link survives a later link change; the user can still edit it.
-- Automatic export runs while the app is open (after the undo window, on foreground, on network return, every minute). There is no background task. Jobs persist and resume on the next launch.
-- Turning automatic export off with "Mantienile" lets already-queued jobs finish (the UI says so); "Annulla quelle in sospeso" cancels them.
-- Calendars are unavailable in the web verification build. Android is not a target (if Android builds are ever made, block the calendar permissions the expo-calendar plugin adds).
-
----
+Known integration limits: EventKit time-zone abbreviations are displayed in the device zone; Google reconciliation can lag its search index after an uncertain write; start-only export spans are scheduling choices rather than recorded hours; automatic export runs while the app is open and resumes persisted jobs on later launches. Local session deletion leaves external calendar events intact by default. Android is not a supported target.
 
 ## Project layout
 
-```
-src/app/        Expo Router routes (thin)          src/domain/   pure model: dates, timing, duration, stats, history
-src/places/     Lineup (Registra) and Time (Storia) src/data/     SQLite drivers, migrations, repositories
-src/sheets/     session, activities, calendar flows src/calendar/ providers + import/export/auto engines
-src/motion/     motion grammar (worklets)           src/maps/     Google Maps link parsing/resolution
-src/graphics/   Skia identity discs                 src/state/    zustand store + actions
-src/ui/         theme, type, controls               tools/        web build, e2e suites
+```text
+src/app/       Expo Router routes              src/domain/   dates, timing, stats, day summaries, named periods
+src/places/    logging and history             src/data/     SQLite drivers, migrations, repositories
+src/sheets/    day, period, session, management src/calendar/ provider and import/export/automatic engines
+src/ui/        theme, shared calendars, controls src/graphics/ Skia identity graphics
+src/state/     zustand store and actions        tools/        browser tests, builds, simulator runner
+maestro/       native smoke flows              docs/         specification and Codex provenance
 ```

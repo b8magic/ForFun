@@ -10,8 +10,6 @@ import type { ID } from '@/domain/types';
 import { useApp } from '@/state/store';
 import { showToast } from '@/state/actions';
 import { Button, Note, Sheet } from '@/ui/controls';
-import { surfaces } from '@/ui/theme';
-import { T } from '@/ui/T';
 import { t } from '@/i18n/it';
 import { countByCategory } from '@/sheets/manage/helpers';
 import { ActivityList } from '@/sheets/manage/ActivityList';
@@ -135,7 +133,6 @@ export default function ActivitiesSheet() {
   return (
     <Sheet
       title={t.activities}
-      eyebrow={t.manageActivities}
       testID="activities-sheet"
       footer={<Button label={t.newActivity} onPress={() => open({ kind: 'create', first: false })} testID="activity-new" />}
     >
@@ -147,9 +144,6 @@ export default function ActivitiesSheet() {
       ) : null}
       <View style={{ gap: 12 }}>
         <ActivityList categories={categories} counts={counts} activeId={activeId} highlightId={highlight} onEdit={(id) => open({ kind: 'edit', id })} />
-        <T variant="small" color={surfaces.night.mute}>
-          {t.manage.orderHint}
-        </T>
       </View>
     </Sheet>
   );

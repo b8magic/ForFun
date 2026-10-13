@@ -1,3 +1,4 @@
+import { useSurface } from '@/ui/useTheme';
 /**
  * Esportazioni in sospeso — every export job with its real state. "Salvata sul
  * dispositivo", "Accettato dal calendario" and cloud sync are different
@@ -17,7 +18,6 @@ import { useApp } from '@/state/store';
 import { refreshAll } from '@/state/actions';
 import { Sheet, Section, Button, Note, Segmented } from '@/ui/controls';
 import { T } from '@/ui/T';
-import { surfaces } from '@/ui/theme';
 import { t } from '@/i18n/it';
 import { errorText } from '@/sheets/manage/helpers';
 import { timingSummary } from '@/places/time/format';
@@ -26,7 +26,6 @@ import { useCalendars } from './useCalendars';
 import { longDateIt, Pill, PROVIDER_NAMES } from './parts';
 import { SPAN_CHOICES } from './exportModel';
 
-const S = surfaces.night;
 type Filter = 'open' | 'review' | 'done' | 'cancelled';
 const FILTERS: Record<Filter, (s: ExportJobStatus) => boolean> = {
   open: (s) => OPEN_JOB_STATUSES.includes(s) && s !== 'needs_review',
@@ -52,6 +51,7 @@ function when(iso: string | null): string | null {
 }
 
 export function JobsScreen() {
+  const S = useSurface();
   const sessions = useApp((s) => s.sessions);
   const categories = useApp((s) => s.categories);
   const conn = useConnections();
@@ -162,7 +162,7 @@ export function JobsScreen() {
                   </T>
                 ) : null}
                 {j.reviewReason ? (
-                  <T variant="small" color="#F3C46E">
+                  <T variant="small" color={S.warning}>
                     {j.reviewReason}
                   </T>
                 ) : null}

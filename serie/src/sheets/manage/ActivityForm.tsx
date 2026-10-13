@@ -1,20 +1,23 @@
+import { useSurface } from '@/ui/useTheme';
 /**
  * Create or edit an activity: name (required, ≤40, unique), colour and motion
  * pattern with a live identity-disc preview. Writes only through actions.
  */
 import { useState } from 'react';
-import { AccessibilityInfo, View } from 'react-native';
+import { AccessibilityInfo, Keyboard, View } from 'react-native';
 import type { Category, ID, PatternKind } from '@/domain/types';
 import { createCategory, switchActivity, updateCategory } from '@/state/actions';
 import { Button, Field, Note, Rule, Section, Sheet } from '@/ui/controls';
-import { activityColors, palette, surfaces } from '@/ui/theme';
+import { activityColors } from '@/ui/theme';
 import { T } from '@/ui/T';
 import { t } from '@/i18n/it';
 import { NAME_MAX, errorCode, errorText, isNameCode, nameIssue, suggestLook, type NameIssue } from './helpers';
-import { ColorSwatches, LookPreview, PatternChoices } from './Look';
+import { LookPreview, PatternChoices } from './Look';
+import { ActivityColorPicker } from './ActivityColorPicker';
 import { FooterPair, KeyboardSafe, closeSheet } from './parts';
+import { confirmDiscard, useConfirmDiscard } from '../session/useConfirmDiscard';
 
-const S = surfaces.night;
+const discardCopy = { title: t.discardTitle, body: 'Le modifiche a questa attività non sono state salvate.' };
 
 const nameMessage = (code: NameIssue) => (code === 'name_required' ? t.nameRequired : code === 'name_taken' ? t.nameTaken : t.manage.nameTooLong);
 
@@ -31,10 +34,12 @@ interface Props {
 }
 
 export function ActivityForm({ category, categories, isActive, first, onCancel, onSaved, onDelete }: Props) {
+  const S = useSurface();
   const editing = !!category;
   const [initial] = useState(() => (category ? { color: category.color, pattern: category.pattern } : suggestLook(categories, activityColors)));
   const [name, setName] = useState(category?.name ?? '');
   const [color, setColor] = useState(initial.color);
+  const [colorValid, setColorValid] = useState(true);
   const [pattern, setPattern] = useState<PatternKind>(initial.pattern);
   const [tried, setTried] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -47,8 +52,17 @@ export function ActivityForm({ category, categories, isActive, first, onCancel, 
   // While a write is in flight the store already holds the new row, so live checks pause.
   const shown: NameIssue | null = busy ? null : serverName ?? (issue === 'name_required' ? (tried ? issue : null) : issue);
   const renamed = editing && trimmed !== category!.name;
+  const dirty = name !== (category?.name ?? '') || color !== initial.color || pattern !== initial.pattern;
+  const allowLeave = useConfirmDiscard(dirty, { ...discardCopy, blocked: busy });
+  const leaveStep = (leave: () => void) => {
+    if (busy) return;
+    if (dirty) confirmDiscard(leave, discardCopy);
+    else leave();
+  };
+  const cancel = onCancel ? () => leaveStep(onCancel) : undefined;
 
   async function submit() {
+    if (!colorValid) return;
     setTried(true);
     setError(null);
     if (issue) {
@@ -56,6 +70,7 @@ export function ActivityForm({ category, categories, isActive, first, onCancel, 
       AccessibilityInfo.announceForAccessibility(nameMessage(issue));
       return;
     }
+    Keyboard.dismiss();
     setBusy(true);
     try {
       if (editing && category) {
@@ -63,11 +78,16 @@ export function ActivityForm({ category, categories, isActive, first, onCancel, 
         if (renamed) patch.name = trimmed;
         if (color !== category.color) patch.color = color;
         if (pattern !== category.pattern) patch.pattern = pattern;
-        if (!Object.keys(patch).length) return onSaved(category.id, 'unchanged');
+        if (!Object.keys(patch).length) {
+          allowLeave();
+          return onSaved(category.id, 'unchanged');
+        }
         await updateCategory(category.id, patch);
+        allowLeave();
         onSaved(category.id, 'updated');
       } else {
         const c = await createCategory({ name: trimmed, color, pattern });
+        allowLeave();
         onSaved(c.id, 'created');
       }
     } catch (e) {
@@ -84,6 +104,7 @@ export function ActivityForm({ category, categories, isActive, first, onCancel, 
       label={editing ? t.manage.saveChanges : t.createActivity}
       onPress={submit}
       busy={busy}
+      disabled={!colorValid}
       color={color}
       testID="activity-submit"
     />
@@ -94,9 +115,11 @@ export function ActivityForm({ category, categories, isActive, first, onCancel, 
       <Sheet
         keyboardInsets={false}
         title={editing ? t.manage.editTitle : first ? t.createActivity : t.newActivity}
-        eyebrow={t.activities}
+        onBack={cancel}
+        backLabel="Torna alle attività"
+        onClose={() => { if (!busy) closeSheet(); }}
         testID="activity-form"
-        footer={<FooterPair secondary={onCancel ? <Button kind="secondary" label={t.cancel} onPress={onCancel} testID="activity-cancel" /> : undefined} primary={primary} />}
+        footer={<FooterPair secondary={cancel ? <Button kind="secondary" label={t.cancel} onPress={cancel} disabled={busy} testID="activity-cancel" /> : undefined} primary={primary} />}
       >
         {first ? <Note>{t.noActivitiesBody}</Note> : null}
 
@@ -105,7 +128,7 @@ export function ActivityForm({ category, categories, isActive, first, onCancel, 
         <Section
           label={t.activityName}
           right={
-            <T variant="label" color={trimmed.length > NAME_MAX ? palette.danger : S.mute} accessibilityLabel={t.manage.nameCountA11y(trimmed.length, NAME_MAX)}>
+            <T variant="label" color={trimmed.length > NAME_MAX ? S.danger : S.mute} accessibilityLabel={t.manage.nameCountA11y(trimmed.length, NAME_MAX)}>
               {t.manage.nameCount(trimmed.length, NAME_MAX)}
             </T>
           }
@@ -128,7 +151,7 @@ export function ActivityForm({ category, categories, isActive, first, onCancel, 
         </Section>
 
         <Section label={t.activityColor}>
-          <ColorSwatches value={color} onChange={setColor} />
+          <ActivityColorPicker value={color} onChange={setColor} onValidityChange={setColorValid} />
         </Section>
 
         <Section label={t.activityPattern}>
@@ -145,14 +168,24 @@ export function ActivityForm({ category, categories, isActive, first, onCancel, 
                 kind="quiet"
                 label={t.manage.useActivity(category.name)}
                 onPress={() => {
-                  void switchActivity(category.id).then(closeSheet);
+                  leaveStep(() => {
+                    setBusy(true);
+                    void switchActivity(category.id).then(() => {
+                      allowLeave();
+                      closeSheet();
+                    }).catch((e) => {
+                      setBusy(false);
+                      setError(errorText(e));
+                    });
+                  });
                 }}
+                disabled={busy}
                 testID="activity-use"
               />
             ) : null}
             {onDelete ? (
               <View style={{ marginTop: 8 }}>
-                <Button kind="danger" label={t.deleteActivity} onPress={onDelete} testID="activity-delete" />
+                <Button kind="danger" label={t.deleteActivity} onPress={() => leaveStep(onDelete)} disabled={busy} testID="activity-delete" />
               </View>
             ) : null}
           </View>

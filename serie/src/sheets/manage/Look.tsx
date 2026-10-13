@@ -1,3 +1,4 @@
+import { useSurface } from '@/ui/useTheme';
 /**
  * An activity's look: colour swatches, motion patterns and the live preview
  * (identity disc + the crest a selected date takes in that colour).
@@ -7,18 +8,17 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { Canvas, Circle, Path, Skia } from '@shopify/react-native-skia';
 import type { PatternKind } from '@/domain/types';
 import { IdentityDisc } from '@/graphics/IdentityDisc';
-import { activityColors, palette, surfaces, HIT } from '@/ui/theme';
+import { activityColors, foregroundOn, HIT } from '@/ui/theme';
 import { T } from '@/ui/T';
 import { t } from '@/i18n/it';
 import { PATTERNS } from './helpers';
 
-const S = surfaces.night;
-
 export const colorName = (hex: string) => activityColors.find((c) => c.hex.toLowerCase() === hex.toLowerCase())?.name ?? hex.toUpperCase();
 
 export function ColorSwatches({ value, onChange }: { value: string; onChange: (hex: string) => void }) {
+  const S = useSurface();
   return (
-    <View style={styles.grid} accessibilityRole="radiogroup" accessibilityLabel={t.activityColor}>
+    <View style={styles.grid} accessibilityRole="radiogroup" accessibilityLabel={t.activityColor} testID="color-presets">
       {activityColors.map((c) => {
         const on = c.hex.toLowerCase() === value.toLowerCase();
         return (
@@ -31,12 +31,11 @@ export function ColorSwatches({ value, onChange }: { value: string; onChange: (h
             testID={`color-${c.id}`}
             style={({ pressed }) => [styles.swatchCell, pressed && { opacity: 0.7 }]}
           >
-            <View style={[styles.swatchRing, { borderColor: on ? palette.foam : 'transparent' }]}>
-              <View style={[styles.swatch, { backgroundColor: c.hex }]} />
+            <View style={[styles.swatchRing, { borderColor: on ? S.fg : 'transparent' }]}>
+              <View style={[styles.swatch, { backgroundColor: c.hex, borderColor: S.mute }]}>
+                {on ? <View style={[styles.check, { borderColor: foregroundOn(c.hex) }]} /> : null}
+              </View>
             </View>
-            <T variant={on ? 'labelStrong' : 'label'} color={on ? S.fg : S.mute} numberOfLines={1}>
-              {c.name}
-            </T>
           </Pressable>
         );
       })}
@@ -45,6 +44,7 @@ export function ColorSwatches({ value, onChange }: { value: string; onChange: (h
 }
 
 export function PatternChoices({ value, color, onChange }: { value: PatternKind; color: string; onChange: (p: PatternKind) => void }) {
+  const S = useSurface();
   return (
     <View style={styles.grid} accessibilityRole="radiogroup" accessibilityLabel={t.activityPattern}>
       {PATTERNS.map((p) => {
@@ -59,7 +59,7 @@ export function PatternChoices({ value, color, onChange }: { value: PatternKind;
             testID={`pattern-${p}`}
             style={({ pressed }) => [styles.patternCell, pressed && { opacity: 0.7 }]}
           >
-            <IdentityDisc size={58} pattern={p} color={on ? color : 'rgba(238,232,218,0.0)'} stripe={on ? palette.foam : 'rgba(238,232,218,0.5)'} animated={false} selected={on} ringColor={palette.foam} />
+            <IdentityDisc size={58} pattern={p} color={on ? color : 'transparent'} stripe={on ? S.fg : S.mute} animated={false} selected={on} ringColor={S.fg} />
             <T variant={on ? 'labelStrong' : 'label'} color={on ? S.fg : S.mute}>
               {t.patterns[p]}
             </T>
@@ -72,6 +72,7 @@ export function PatternChoices({ value, color, onChange }: { value: PatternKind;
 
 /** A short week-line lifting into a crest with a dot: how a selected date looks in this colour. */
 const Crest = memo(function Crest({ color, width = 168, height = 40 }: { color: string; width?: number; height?: number }) {
+  const S = useSurface();
   const { path, cx, cy } = useMemo(() => {
     const base = height - 8;
     const peak = width * 0.64;
@@ -88,13 +89,14 @@ const Crest = memo(function Crest({ color, width = 168, height = 40 }: { color: 
   }, [width, height]);
   return (
     <Canvas style={{ width, height }} pointerEvents="none">
-      <Path path={path} style="stroke" strokeWidth={1.6} color={palette.foam} strokeCap="round" />
+      <Path path={path} style="stroke" strokeWidth={1.6} color={S.fg} strokeCap="round" />
       <Circle cx={cx} cy={cy} r={4.2} color={color} />
     </Canvas>
   );
 });
 
 export function LookPreview({ name, color, pattern }: { name: string; color: string; pattern: PatternKind }) {
+  const S = useSurface();
   const shown = name.trim();
   return (
     <View
@@ -104,11 +106,9 @@ export function LookPreview({ name, color, pattern }: { name: string; color: str
       accessibilityLabel={`${t.manage.preview}: ${shown || t.newActivity}, ${t.patterns[pattern]}, ${colorName(color)}`}
       testID="look-preview"
     >
-      <IdentityDisc size={104} pattern={pattern} color={color} stripe={palette.foam} />
+      <IdentityDisc size={104} pattern={pattern} color={color} stripe={S.fg} />
       <View style={{ flex: 1, minWidth: 0, gap: 6 }}>
-        <T variant="heading" color={shown ? S.fg : S.mute} numberOfLines={2}>
-          {shown || t.newActivity}
-        </T>
+        {shown ? <T variant="heading" color={S.fg} numberOfLines={2}>{shown}</T> : null}
         <T variant="label" color={S.mute} numberOfLines={1}>
           {`${t.patterns[pattern]} · ${colorName(color)}`}
         </T>
@@ -120,9 +120,10 @@ export function LookPreview({ name, color, pattern }: { name: string; color: str
 
 const styles = StyleSheet.create({
   grid: { flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -4 },
-  swatchCell: { width: '25%', minHeight: 72, alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 6 },
+  swatchCell: { width: '16.666%', minWidth: HIT, minHeight: 50, alignItems: 'center', justifyContent: 'center' },
   swatchRing: { width: HIT, height: HIT, borderRadius: HIT / 2, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
-  swatch: { width: 30, height: 30, borderRadius: 15 },
+  swatch: { width: 30, height: 30, borderRadius: 15, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  check: { width: 12, height: 7, borderLeftWidth: 2, borderBottomWidth: 2, transform: [{ rotate: '-45deg' }], marginTop: -2 },
   patternCell: { width: '33.333%', minHeight: 92, alignItems: 'center', justifyContent: 'center', gap: 4, paddingVertical: 6 },
   preview: { flexDirection: 'row', alignItems: 'center', gap: 16, paddingVertical: 4 },
 });

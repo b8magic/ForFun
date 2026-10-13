@@ -1,0 +1,20 @@
+name: Stop the superseded native retry
+
+on:
+  push:
+    branches: [codex/serie-calendar]
+    paths: [.github/workflows/serie-stop-native.yml]
+
+# Supersede the waiting native cycle without starting another simulator.
+concurrency:
+  group: serie-candidate-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions: {}
+
+jobs:
+  stop:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - run: echo 'Native retry superseded; delivery uses the separate IPA-only workflow.'

@@ -1,6 +1,9 @@
+import initSqlJs from 'sql.js';
 import { ProviderError, type CalendarProvider, type Connection, type EventDraft, type EventTime, type ExternalCalendar, type ExternalEvent, type ListEventsQuery } from '../types';
 import type { ProviderKind, Session } from '@/domain/types';
-import type { Repositories } from '@/data/repositories';
+import { createRepositories, type Repositories } from '@/data/repositories';
+import { createSqlJsDriver } from '@/data/sqljs';
+import { migrate } from '@/data/migrations';
 import { buildTiming, type TimingInput } from '@/domain/timing';
 import { zonedToEpoch } from '@/domain/zoned';
 import { summarize } from '@/domain/stats';
@@ -31,6 +34,7 @@ import {
   validateConfig,
   withBothResolved,
   type AutoExportConfig,
+  type ReviewAction,
 } from '../autoExport';
 
 // ─── fixtures ────────────────────────────────────────────────────────────────
@@ -393,6 +397,116 @@ describe('enqueue', () => {
     await resolveReviewJob(repos, q.jobs[0].id, { kind: 'skip' });
     const again2 = await enqueueForSessions(repos, [s2], categories, cfg);
     expect(again2.skipped).toEqual([expect.objectContaining({ code: 'already_queued' })]);
+  });
+
+  it('persists the Undo deadline and keeps it unchanged when the same operation is queued again', async () => {
+    const { repos, categories, surf, providers, google } = await setup();
+    const cfg = enabled();
+    const s = await save(repos, surf.id, INTERVAL);
+    const notBefore = plus(NOW, 14_000).toISOString();
+    const first = await enqueueForSessions(repos, [s], categories, cfg, { notBefore });
+    expect(first.jobs[0]).toMatchObject({ status: 'pending', attempts: 0, nextAttemptAt: notBefore, opId: exportOpId(s.id, ref(G_SPORT)) });
+
+    for (const options of [{}, { notBefore: NOW.toISOString() }, { notBefore: plus(NOW, 30_000).toISOString() }]) {
+      const again = await enqueueForSessions(repos, [s], categories, cfg, options);
+      expect(again.created).toBe(0);
+      expect(again.jobs).toEqual(first.jobs);
+    }
+    expect(await repos.exportJobs.list()).toHaveLength(1);
+
+    for (const elapsed of [0, 6000, 12000, 13999]) {
+      const now = plus(NOW, elapsed);
+      expect(await repos.exportJobs.due(now.toISOString())).toEqual([]);
+      expect((await runJobs({ repos, providers, now })).processed).toBe(0);
+    }
+    expect(google.calls.createEvent).toBe(0);
+    const due = await repos.exportJobs.due(notBefore);
+    expect(due.map((job) => job.id)).toEqual([first.jobs[0].id]);
+    expect((await runJobs({ repos, providers, now: plus(NOW, 14_000) })).outcomes[0].status).toBe('succeeded');
+    expect(google.calls.createEvent).toBe(1);
+  });
+
+  it.each(['retry', 'approve_span'] as const)('preserves the deadline after %s and a database restart, without exporting a deleted session', async (kind) => {
+    const SQL = await initSqlJs();
+    let bytes: Uint8Array | null = null;
+    let id = 0;
+    const deps = { newId: () => `restart-${++id}`, now: () => NOW.toISOString() };
+    const db = createSqlJsDriver(SQL, null, { load: async () => bytes, save: async (snapshot) => { bytes = snapshot; } });
+    await migrate(db);
+    const repos = createRepositories(db, deps);
+    const surf = await repos.categories.create({ name: 'Surf', color: '#2E7D9A', pattern: 'swell' });
+    const kept = await save(repos, surf.id, kind === 'approve_span' ? START_ONLY : INTERVAL);
+    const undone = await save(repos, surf.id, INTERVAL);
+    const cfg = await saveConfig(repos, enabled());
+    const notBefore = plus(NOW, 14_000).toISOString();
+    const queued = await enqueueForSessions(repos, [kept, undone], [surf], cfg, { notBefore });
+    const resumed = await resolveReviewJob(repos, queued.jobs[0].id, kind === 'retry' ? { kind } : { kind, minutes: 60 }, { now: () => plus(NOW, 3000) });
+    expect(resumed.nextAttemptAt).toBe(notBefore);
+    expect(parsePayload(resumed.payload)?.notBefore).toBe(notBefore);
+    await repos.sessions.remove([undone.id]);
+    await db.close();
+    expect(bytes).not.toBeNull();
+
+    const reopened = createRepositories(createSqlJsDriver(SQL, bytes), deps);
+    const google = new FakeProvider('google', [...GOOGLE_CALS]);
+    try {
+      expect(await reopened.sessions.get(undone.id)).toBeNull();
+      expect(await reopened.exportJobs.list()).toEqual([resumed]);
+      expect(await reopened.exportJobs.due(plus(NOW, 12_000).toISOString())).toEqual([]);
+      expect((await runJobs({ repos: reopened, providers: { google }, now: plus(NOW, 12_000) })).processed).toBe(0);
+      expect(google.calls.createEvent).toBe(0);
+      expect((await runJobs({ repos: reopened, providers: { google }, now: plus(NOW, 14_000) })).outcomes).toEqual([
+        expect.objectContaining({ sessionId: kept.id, opId: queued.jobs[0].opId, status: 'succeeded' }),
+      ]);
+      expect(google.written).toHaveLength(1);
+      expect(google.written[0].appMeta?.sessionId).toBe(kept.id);
+    } finally {
+      await reopened.db.close();
+    }
+  });
+
+  it.each<ReviewAction>([
+    { kind: 'retry' },
+    { kind: 'retry', config: enabled({ title: { prefix: 'Nuovo · ', suffix: '' } }) },
+    { kind: 'approve_span', minutes: 60 },
+    { kind: 'create_separate' },
+  ])('keeps the original Undo deadline when review action $kind requests an immediate run', async (action) => {
+    const { repos, categories, surf, providers, google } = await setup();
+    const session = await save(repos, surf.id, action.kind === 'approve_span' ? START_ONLY : INTERVAL);
+    const notBefore = plus(NOW, 14_000).toISOString();
+    const { jobs } = await enqueueForSessions(repos, [session], categories, enabled(), { notBefore });
+    if (action.kind === 'create_separate') {
+      await repos.exportJobs.update(jobs[0].id, { status: 'needs_review', payload: { ...parsePayload(jobs[0].payload), review: { code: 'possible_duplicate', eventIds: [] } } });
+    }
+    const resumed = await resolveReviewJob(repos, jobs[0].id, action, { now: () => plus(NOW, 3000) });
+    expect(resumed).toMatchObject({ id: jobs[0].id, status: 'pending', nextAttemptAt: notBefore });
+    expect(parsePayload(resumed.payload)?.notBefore).toBe(notBefore);
+    for (const elapsed of [3000, 6000, 12000, 13999]) {
+      const now = plus(NOW, elapsed);
+      expect(await repos.exportJobs.due(now.toISOString())).toEqual([]);
+      expect((await runJobs({ repos, providers, now })).processed).toBe(0);
+    }
+    expect(google.calls.createEvent).toBe(0);
+    expect((await runJobs({ repos, providers, now: plus(NOW, 14_000) })).outcomes[0].status).toBe('succeeded');
+    expect(google.calls.createEvent).toBe(1);
+  });
+
+  it.each(['cleared retry schedule', 'offline reconnect', 'reclaimed running job'] as const)('enforces the persisted Undo deadline independently of %s', async (mode) => {
+    const { repos, categories, surf, providers, google } = await setup();
+    const session = await save(repos, surf.id, INTERVAL);
+    const notBefore = plus(NOW, 14_000).toISOString();
+    const { jobs } = await enqueueForSessions(repos, [session], categories, enabled(), { notBefore });
+    await repos.exportJobs.update(jobs[0].id, {
+      status: mode === 'reclaimed running job' ? 'running' : 'pending',
+      nextAttemptAt: mode === 'offline reconnect' ? plus(NOW, MIN).toISOString() : null,
+      payload: { ...parsePayload(jobs[0].payload), deferred: mode === 'offline reconnect' ? 'offline' : null },
+    });
+    for (const elapsed of [3000, 12000, 13999]) {
+      expect((await runJobs({ repos, providers, now: plus(NOW, elapsed), isOnline: true })).processed).toBe(0);
+    }
+    expect(google.calls.createEvent).toBe(0);
+    expect((await runJobs({ repos, providers, now: plus(NOW, 14_000), isOnline: true })).outcomes[0].status).toBe('succeeded');
+    expect(google.calls.createEvent).toBe(1);
   });
 
   it('excludes imported sessions unless forwarding is on, and never targets their source calendar', async () => {

@@ -1,0 +1,16 @@
+{
+  "version": "1.3.1",
+  "applicationSource": "89d0a4cdc45d45385ed926e26dfded4ac0f60f6f",
+  "reason": "Shared Home date selection, neutral bulk editing, swipe/tap separation, immediate explicit deletion and clean day previews",
+  "verifiedLocally": {
+    "unitTests": 949,
+    "unitSuites": 56,
+    "focusedBrowserChecks": 7,
+    "browserErrors": 0,
+    "browserWarnings": 0,
+    "typecheck": true,
+    "lint": true
+  },
+  "nativeStatus": "No simulator cycle for this update; native archive and packaging required. Physical iPhone gestures remain device verification.",
+  "buildPolicy": "Single unsigned IPA job only; no simulator, video or repeated browser workflow"
+}

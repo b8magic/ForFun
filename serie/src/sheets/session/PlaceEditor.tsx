@@ -1,3 +1,4 @@
+import { useSurface, useThemedStyles } from '@/ui/useTheme';
 /**
  * Place editor: name, address, Google Maps link (with Paste), resolution
  * status, map preview, "Apri in Mappe" (the original link, verbatim) and
@@ -10,7 +11,7 @@ import { AccessibilityInfo, Linking, Pressable, StyleSheet, View } from 'react-n
 import * as Clipboard from 'expo-clipboard';
 import type { Place } from '@/domain/types';
 import { Field, Note } from '@/ui/controls';
-import { HIT, palette, surfaces } from '@/ui/theme';
+import { HIT, type Surface } from '@/ui/theme';
 import { T } from '@/ui/T';
 import { t } from '@/i18n/it';
 import { MapPreview } from './MapPreview';
@@ -18,9 +19,7 @@ import { mapsTarget, placeWithLink, resolvePending } from './mapsAdapter';
 import { APPLE_MAPS_OK } from './mapsAvailable';
 import { emptyPlace, placeStatus, placeTitle, withManualPin } from './placeForm';
 
-const S = surfaces.night;
 const s = t.sessionSheets;
-const WARN = '#F3C46E';
 
 interface Props {
   value: Place | null;
@@ -29,7 +28,10 @@ interface Props {
   testID?: string;
 }
 
-export function PlaceEditor({ value, onChange, accent = palette.flare, testID = 'place' }: Props) {
+export function PlaceEditor({ value, onChange, accent: accentProp, testID = 'place' }: Props) {
+  const S = useSurface();
+  const accent = accentProp ?? S.accent;
+  const styles = useThemedStyles(createStyles);
   const [linkFocused, setLinkFocused] = useState(false);
   const [pasteMsg, setPasteMsgState] = useState<string | null>(null);
   const setPasteMsg = (m: string | null) => {
@@ -130,7 +132,7 @@ export function PlaceEditor({ value, onChange, accent = palette.flare, testID = 
             />
           </View>
           <Pressable onPress={paste} accessibilityRole="button" accessibilityLabel={s.pasteA11y} style={styles.paste} testID={`${testID}-paste`}>
-            <T variant="labelStrong" color={accent}>
+            <T variant="labelStrong" color={S.fg}>
               {t.paste}
             </T>
           </Pressable>
@@ -142,8 +144,8 @@ export function PlaceEditor({ value, onChange, accent = palette.flare, testID = 
         ) : null}
         {showStatus && status ? (
           <View style={styles.status} accessibilityLiveRegion="polite" testID={`${testID}-status-${p.resolution}`}>
-            <View style={[styles.statusDot, status.tone === 'ok' ? { backgroundColor: accent } : status.tone === 'warn' ? { backgroundColor: WARN } : styles.statusPending]} />
-            <T variant="small" color={status.tone === 'warn' ? WARN : status.tone === 'ok' ? S.fg : S.mute} style={{ flex: 1 }}>
+            <View style={[styles.statusDot, status.tone === 'ok' ? { backgroundColor: accent } : status.tone === 'warn' ? { backgroundColor: S.warning } : styles.statusPending]} />
+            <T variant="small" color={status.tone === 'warn' ? S.warning : status.tone === 'ok' ? S.fg : S.mute} style={{ flex: 1 }}>
               {status.text}
             </T>
           </View>
@@ -207,7 +209,7 @@ export function PlaceEditor({ value, onChange, accent = palette.flare, testID = 
               style={styles.quiet}
               testID={`${testID}-remove`}
             >
-              <T variant="labelStrong" color={palette.danger}>
+              <T variant="labelStrong" color={S.danger}>
                 {t.removePlace}
               </T>
             </Pressable>
@@ -218,7 +220,7 @@ export function PlaceEditor({ value, onChange, accent = palette.flare, testID = 
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (S: Surface) => StyleSheet.create({
   linkRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 14 },
   paste: { minHeight: HIT, minWidth: HIT, justifyContent: 'center', alignItems: 'flex-end' },
   status: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingTop: 4 },

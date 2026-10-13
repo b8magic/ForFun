@@ -24,6 +24,14 @@ describe('bootstrap & active activity', () => {
     await r.settings.set(KEYS.lastActive, corsa.id);
     expect((await bootstrap(r)).activeId).toBe(corsa.id);
   });
+  it('distinguishes an explicitly deselected activity from a missing preference', async () => {
+    const r = await testRepos();
+    const b = await bootstrap(r);
+    await r.settings.set(KEYS.lastActive, null);
+    expect(await bootstrap(r)).toMatchObject({ activeId: null, changed: false });
+    await r.settings.remove(KEYS.lastActive);
+    expect((await bootstrap(r)).activeId).toBe(b.categories[0].id);
+  });
   it('falls back visibly when the remembered activity was deleted, and to an empty state when none remain', async () => {
     const r = await testRepos();
     const b = await bootstrap(r);

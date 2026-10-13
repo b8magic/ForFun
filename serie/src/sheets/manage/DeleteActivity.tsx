@@ -1,3 +1,4 @@
+import { useSurface } from '@/ui/useTheme';
 /**
  * Deleting an activity, with explicit safeguards:
  *  - no sessions → one confirmation;
@@ -11,13 +12,10 @@ import type { DeleteStrategy } from '@/data/repositories';
 import { deleteCategory } from '@/state/actions';
 import { IdentityDisc } from '@/graphics/IdentityDisc';
 import { Button, Note, Section, Sheet } from '@/ui/controls';
-import { palette, surfaces } from '@/ui/theme';
 import { T } from '@/ui/T';
 import { t } from '@/i18n/it';
 import { errorText, moveTargets } from './helpers';
 import { FooterPair, RadioRow } from './parts';
-
-const S = surfaces.night;
 
 type Choice = 'move' | 'delete' | null;
 
@@ -30,6 +28,7 @@ interface Props {
 }
 
 export function DeleteActivity({ category, categories, counts, onCancel, onDeleted }: Props) {
+  const S = useSurface();
   const n = counts.get(category.id) ?? 0;
   const targets = moveTargets(categories, category.id);
   const [choice, setChoice] = useState<Choice>(null);
@@ -70,14 +69,14 @@ export function DeleteActivity({ category, categories, counts, onCancel, onDelet
 
   let primary;
   if (n === 0) {
-    primary = <Button label={t.delete} color={palette.danger} onPress={() => run()} busy={busy} testID="delete-confirm" />;
+    primary = <Button label={t.delete} color={S.danger} onPress={() => run()} busy={busy} testID="delete-confirm" />;
   } else if (confirming) {
-    primary = <Button label={t.manage.deleteForever} color={palette.danger} onPress={() => armed && run({ kind: 'delete_sessions' })} disabled={!armed} busy={busy} testID="delete-forever" />;
+    primary = <Button label={t.manage.deleteForever} color={S.danger} onPress={() => armed && run({ kind: 'delete_sessions' })} disabled={!armed} busy={busy} testID="delete-forever" />;
   } else if (choice === 'delete') {
-    primary = <Button label={t.deleteWithSessions(n)} color={palette.danger} onPress={() => setConfirming(true)} testID="delete-with-sessions" />;
+    primary = <Button label={t.deleteWithSessions(n)} color={S.danger} onPress={() => setConfirming(true)} testID="delete-with-sessions" />;
   } else if (choice === null) {
     // Nothing chosen yet: the action stays visibly unavailable until the user picks what happens to the sessions.
-    primary = <Button label={t.deleteActivity} color={palette.danger} onPress={() => undefined} disabled testID="delete-pending-choice" />;
+    primary = <Button label={t.deleteActivity} color={S.danger} onPress={() => undefined} disabled testID="delete-pending-choice" />;
   } else {
     primary = (
       <Button
@@ -94,7 +93,7 @@ export function DeleteActivity({ category, categories, counts, onCancel, onDelet
   return (
     <Sheet title={t.deleteActivity} eyebrow={category.name} testID="activity-delete-sheet" footer={<FooterPair secondary={cancel} primary={primary} stacked={stacked} />}>
       <View style={styles.head}>
-        <IdentityDisc size={64} pattern={category.pattern} color={category.color} stripe={palette.foam} animated={false} />
+        <IdentityDisc size={64} pattern={category.pattern} color={category.color} stripe={S.fg} animated={false} />
         <View style={{ flex: 1, minWidth: 0, gap: 4 }}>
           <T variant="title" color={S.fg} numberOfLines={2}>
             {category.name}
@@ -111,7 +110,7 @@ export function DeleteActivity({ category, categories, counts, onCancel, onDelet
         </T>
       ) : confirming ? (
         <View style={{ gap: 14 }} accessibilityLiveRegion="assertive" testID="delete-second-confirm">
-          <T variant="labelStrong" color={palette.danger}>
+          <T variant="labelStrong" color={S.danger}>
             {t.manage.secondConfirm}
           </T>
           <T variant="bodyStrong" color={S.fg}>
@@ -146,7 +145,7 @@ export function DeleteActivity({ category, categories, counts, onCancel, onDelet
                         on={c.id === targetId}
                         onPress={() => setTargetId(c.id)}
                         accent={c.color}
-                        left={<IdentityDisc size={36} pattern={c.pattern} color={c.color} stripe={palette.foam} animated={false} />}
+                        left={<IdentityDisc size={36} pattern={c.pattern} color={c.color} stripe={S.fg} animated={false} />}
                         testID={`delete-target-${c.name}`}
                       />
                     ))}
@@ -154,7 +153,7 @@ export function DeleteActivity({ category, categories, counts, onCancel, onDelet
                 </Section>
               </View>
             ) : null}
-            <RadioRow title={t.deleteWithSessions(n)} on={choice === 'delete'} onPress={() => setChoice('delete')} accent={palette.danger} testID="delete-choice-delete" />
+            <RadioRow title={t.deleteWithSessions(n)} on={choice === 'delete'} onPress={() => setChoice('delete')} accent={S.danger} testID="delete-choice-delete" />
           </View>
           {choice === 'move' && target ? <Note>{t.manage.moveSummary(n, category.name, target.name)}</Note> : null}
         </View>

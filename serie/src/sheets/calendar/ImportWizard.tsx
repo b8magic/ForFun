@@ -1,3 +1,4 @@
+import { useSurface, useThemedStyles } from '@/ui/useTheme';
 /**
  * Importa — one activity per operation:
  *   activity → connection + source calendars → range + filters → review → confirm.
@@ -36,7 +37,7 @@ import { afterCommit } from '@/state/hooks';
 import { createCategory, focusHistoryMonth, refreshAll, switchActivity } from '@/state/actions';
 import { Sheet, Section, Button, Field, Note, Segmented } from '@/ui/controls';
 import { T } from '@/ui/T';
-import { activityColors, palette, surfaces } from '@/ui/theme';
+import { activityColors, type Surface } from '@/ui/theme';
 import { t } from '@/i18n/it';
 import { ActivityPicker } from '@/sheets/session/ActivityPicker';
 import { nameIssue, suggestLook, errorText } from '@/sheets/manage/helpers';
@@ -46,7 +47,6 @@ import { useConnections } from './useConnections';
 import { CalendarList, Check, checkRange, DateText, Footer, LabelChips, longDateIt, Pill, presetRange, ProviderChoice, PROVIDER_NAMES, RANGE_PRESETS, Steps, usable, type RangePreset } from './parts';
 import { useMountedRef } from './useMountedRef';
 
-const S = surfaces.night;
 const STEPS = 4;
 
 type Scope = 'all' | 'new' | 'review' | 'excluded';
@@ -84,6 +84,8 @@ function providerMessage(e: unknown): string {
 }
 
 export function ImportWizard() {
+  const S = useSurface();
+  const styles = useThemedStyles(createStyles);
   const categories = useApp((s) => s.categories);
   const activeId = useApp((s) => s.activeId);
   const sessions = useApp((s) => s.sessions);
@@ -361,7 +363,7 @@ export function ImportWizard() {
               style={styles.linkBtn}
               testID="import-select-all"
             >
-              <T variant="label" color={counts.selectable ? palette.flare : S.faint}>
+              <T variant="label" color={counts.selectable ? S.accent : S.faint}>
                 {allSelected ? `DESELEZIONA ${scopeName.toUpperCase()}` : `SELEZIONA ${scopeName.toUpperCase()}`} ({counts.selectable})
               </T>
             </Pressable>
@@ -382,7 +384,7 @@ export function ImportWizard() {
               item={item}
               on={selection.has(item.key)}
               open={expanded === item.key}
-              color={category?.color ?? palette.flare}
+              color={category?.color ?? S.accent}
               matched={item.matchedSessionId ? (sessionById.get(item.matchedSessionId) ?? null) : null}
               onToggle={() => setSelection((s) => toggleSelected(items, s, item.key))}
               onExpand={() => setExpanded((k) => (k === item.key ? null : item.key))}
@@ -479,7 +481,7 @@ export function ImportWizard() {
             right={
               readable.length > 1 ? (
                 <Pressable onPress={() => setCalSel(calSel.size === readable.length ? new Set() : new Set(readable.map((c) => c.calendarId)))} accessibilityRole="button" style={styles.linkBtn} testID="import-cal-all">
-                  <T variant="label" color={palette.flare}>
+                  <T variant="label" color={S.accent}>
                     {calSel.size === readable.length ? 'NESSUNO' : 'TUTTI'}
                   </T>
                 </Pressable>
@@ -548,6 +550,8 @@ function ReviewRow({
   onToggle: () => void;
   onExpand: () => void;
 }) {
+  const S = useSurface();
+  const styles = useThemedStyles(createStyles);
   const pr = item.proposed;
   const when = [longDateIt(pr.date), pr.timeLabel].filter(Boolean).join(' · ');
   const a11y = [item.event.title || 'Senza titolo', item.statusLabel, when, pr.durationLabel, item.sourceLabel, `destinazione ${item.destinationLabel}`, item.selectable ? (on ? 'selezionato' : 'non selezionato') : 'non selezionabile'].join(', ');
@@ -574,7 +578,7 @@ function ReviewRow({
             </T>
           ) : null}
           {pr.mappingNote ? (
-            <T variant="small" color="#F3C46E">
+            <T variant="small" color={S.warning}>
               {pr.mappingNote}
             </T>
           ) : null}
@@ -592,7 +596,7 @@ function ReviewRow({
             {`${item.sourceLabel.toUpperCase()}  →  ${item.destinationLabel.toUpperCase()}`}
           </T>
           {item.status !== 'new' ? (
-            <T variant="small" color={item.status === 'possible_match' ? '#F3C46E' : S.mute}>
+            <T variant="small" color={item.status === 'possible_match' ? S.warning : S.mute}>
               {item.reason}
             </T>
           ) : null}
@@ -600,7 +604,7 @@ function ReviewRow({
       </Pressable>
       {item.status === 'possible_match' || pr.place || (pr.notes && pr.notes.length > 120) ? (
         <Pressable onPress={onExpand} accessibilityRole="button" accessibilityLabel={open ? 'Nascondi dettagli' : 'Mostra dettagli'} style={styles.expand} testID={`import-expand-${item.key}`}>
-          <T variant="label" color={palette.flare}>
+          <T variant="label" color={S.accent}>
             {open ? 'MENO' : 'DETTAGLI'}
           </T>
         </Pressable>
@@ -636,12 +640,12 @@ function ReviewRow({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (S: Surface) => StyleSheet.create({
   countRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap' },
   linkBtn: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 4 },
   item: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: S.faint, paddingVertical: 12, gap: 6 },
   itemMain: { flexDirection: 'row', gap: 14, alignItems: 'flex-start' },
-  dash: { width: 22, height: 22, alignItems: 'center', justifyContent: 'center', borderTopWidth: 1.2, borderTopColor: 'rgba(238,232,218,0.25)', marginTop: 10 },
+  dash: { width: 22, height: 22, alignItems: 'center', justifyContent: 'center', borderTopWidth: 1.2, borderTopColor: S.faint, marginTop: 10 },
   expand: { alignSelf: 'flex-start', marginLeft: 36, minHeight: 44, justifyContent: 'center' },
   detail: { marginLeft: 36, gap: 8, paddingTop: 2 },
 });

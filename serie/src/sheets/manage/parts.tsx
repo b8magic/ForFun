@@ -1,3 +1,4 @@
+import { useSurface } from '@/ui/useTheme';
 /**
  * Small building blocks shared by the activities, menu and jump sheets.
  * Everything follows the identity: hairlines, mono labels, foam on ink,
@@ -7,11 +8,9 @@ import { type ReactNode, useEffect, useState } from 'react';
 import { Keyboard, LayoutAnimation, Platform, Pressable, StyleSheet, View, type KeyboardEvent } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import { palette, surfaces, HIT } from '@/ui/theme';
+import { HIT } from '@/ui/theme';
 import { T } from '@/ui/T';
 import { useMotionReduced } from '@/state/selectors';
-
-const S = surfaces.night;
 
 /** Dismiss the current sheet (falls back to the composition when opened directly by URL). */
 export function closeSheet() {
@@ -21,8 +20,9 @@ export function closeSheet() {
 
 /**
  * Keeps a sheet's footer (the primary action) above the software keyboard.
- * Sheets here are bottom-anchored (iOS form sheet on iPhone, full-screen modal
- * elsewhere), so the overlap is the keyboard height. RN's KeyboardAvoidingView
+ * iPhone form sheets here are bottom-anchored, so the overlap is the keyboard
+ * height. Android already resizes the window (Expo's default adjustResize), and
+ * must not reserve that space again. RN's KeyboardAvoidingView
  * measures its frame relative to its parent, which under-reports the overlap
  * inside a form sheet that does not start at the top of the window.
  */
@@ -32,8 +32,7 @@ export function KeyboardSafe({ children }: { children: ReactNode }) {
   const [inset, setInset] = useState(0);
   const bottomPad = Math.max(insets.bottom, 12); // what Sheet already reserves below its footer
   useEffect(() => {
-    if (Platform.OS === 'web') return;
-    const ios = Platform.OS === 'ios';
+    if (Platform.OS !== 'ios') return;
     const follow = (e: KeyboardEvent) => {
       // Move with the keyboard's own curve; under reduced motion just settle.
       if (!reduced && e.duration && e.easing) {
@@ -41,11 +40,11 @@ export function KeyboardSafe({ children }: { children: ReactNode }) {
         LayoutAnimation.configureNext({ duration, update: { duration, type: LayoutAnimation.Types[e.easing] ?? LayoutAnimation.Types.keyboard } });
       }
     };
-    const show = Keyboard.addListener(ios ? 'keyboardWillShow' : 'keyboardDidShow', (e) => {
+    const show = Keyboard.addListener('keyboardWillShow', (e) => {
       follow(e);
       setInset(Math.max(0, Math.round(e.endCoordinates.height + 12 - bottomPad)));
     });
-    const hide = Keyboard.addListener(ios ? 'keyboardWillHide' : 'keyboardDidHide', (e) => {
+    const hide = Keyboard.addListener('keyboardWillHide', (e) => {
       follow(e);
       setInset(0);
     });
@@ -81,9 +80,11 @@ export function FooterPair({ secondary, primary, stacked }: { secondary?: ReactN
 }
 
 /** The ring used by every one-of-many choice: hollow, or holding a dot in the accent colour. */
-export function ChoiceRing({ on, accent = palette.flare }: { on: boolean; accent?: string }) {
+export function ChoiceRing({ on, accent: accentProp }: { on: boolean; accent?: string }) {
+  const S = useSurface();
+  const accent = accentProp ?? S.accent;
   return (
-    <View style={[styles.ring, { borderColor: on ? palette.foam : 'rgba(238,232,218,0.42)' }]}>
+    <View style={[styles.ring, { borderColor: on ? S.fg : S.faint }]}>
       {on ? <View style={[styles.ringDot, { backgroundColor: accent }]} /> : null}
     </View>
   );
@@ -111,6 +112,7 @@ export function RadioRow({
   testID?: string;
   accessibilityLabel?: string;
 }) {
+  const S = useSurface();
   return (
     <Pressable
       onPress={onPress}
@@ -124,7 +126,7 @@ export function RadioRow({
       <ChoiceRing on={on} accent={accent} />
       {left}
       <View style={{ flex: 1, gap: 2, minWidth: 0 }}>
-        <T variant="body" color={on ? S.fg : 'rgba(238,232,218,0.86)'}>
+        <T variant="body" color={S.fg}>
           {title}
         </T>
         {detail ? (

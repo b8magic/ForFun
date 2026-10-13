@@ -1,3 +1,4 @@
+import { useSurface, useThemedStyles } from '@/ui/useTheme';
 /**
  * Building blocks shared by the calendar exchange tools (import, export,
  * automatic export, jobs). Provider, account, calendar and label are always
@@ -8,26 +9,30 @@ import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 import type { Connection, ExternalCalendar, LabelOption, ProviderKind } from '@/calendar/types';
 import type { LocalDate } from '@/domain/types';
 import { parseDate } from '@/domain/dates';
-import { fonts, HIT, palette, surfaces } from '@/ui/theme';
+import { fonts, foregroundOn, HIT, type Surface } from '@/ui/theme';
 import { T } from '@/ui/T';
 import { Button, Note } from '@/ui/controls';
 import { t, MONTHS } from '@/i18n/it';
 
-const S = surfaces.night;
 export const PROVIDER_NAMES: Record<ProviderKind, string> = { google: t.google, apple: t.apple };
 
 // ─── atoms ───────────────────────────────────────────────────────────────────
 
-export function Check({ on, color = palette.flare, disabled }: { on: boolean; color?: string; disabled?: boolean }) {
+export function Check({ on, color, disabled }: { on: boolean; color?: string; disabled?: boolean }) {
+  const S = useSurface();
+  const fill = color ?? S.accent;
+  const styles = useThemedStyles(createStyles);
   return (
-    <View style={[styles.check, on && { backgroundColor: color, borderColor: color }, disabled && { opacity: 0.35 }]}>
-      {on ? <View style={styles.checkMark} /> : null}
+    <View style={[styles.check, on && { backgroundColor: fill, borderColor: fill }, disabled && { opacity: 0.35 }]}>
+      {on ? <View style={[styles.checkMark, { borderColor: foregroundOn(fill) }]} /> : null}
     </View>
   );
 }
 
 export function Pill({ text, tone = 'neutral' }: { text: string; tone?: 'neutral' | 'good' | 'warn' | 'bad' | 'accent' }) {
-  const c = tone === 'good' ? '#9FD9A0' : tone === 'warn' ? '#F3C46E' : tone === 'bad' ? palette.danger : tone === 'accent' ? palette.flare : S.mute;
+  const S = useSurface();
+  const styles = useThemedStyles(createStyles);
+  const c = tone === 'good' ? S.success : tone === 'warn' ? S.warning : tone === 'bad' ? S.danger : tone === 'accent' ? S.accent : S.mute;
   return (
     <View style={[styles.pill, { borderColor: c }]}>
       <T variant="label" color={c} numberOfLines={1}>
@@ -38,11 +43,13 @@ export function Pill({ text, tone = 'neutral' }: { text: string; tone?: 'neutral
 }
 
 export function Steps({ at, of, title }: { at: number; of: number; title: string }) {
+  const S = useSurface();
+  const styles = useThemedStyles(createStyles);
   return (
     <View style={{ gap: 8 }} accessible accessibilityLabel={`${t.step(at, of)}: ${title}`}>
       <View style={{ flexDirection: 'row', gap: 4 }}>
         {Array.from({ length: of }, (_, i) => (
-          <View key={i} style={[styles.stepBar, i < at && { backgroundColor: i === at - 1 ? palette.flare : S.fg }]} />
+          <View key={i} style={[styles.stepBar, i < at && { backgroundColor: i === at - 1 ? S.accent : S.fg }]} />
         ))}
       </View>
       <T variant="label" color={S.mute}>
@@ -91,6 +98,8 @@ export function ChoiceRow({
   testID?: string;
   accessibilityLabel?: string;
 }) {
+  const S = useSurface();
+  const styles = useThemedStyles(createStyles);
   return (
     <Pressable
       onPress={onPress}
@@ -101,7 +110,7 @@ export function ChoiceRow({
       style={({ pressed }) => [styles.choice, pressed && { opacity: 0.7 }]}
       testID={testID}
     >
-      {single ? <View style={[styles.radio, on && { borderColor: color ?? palette.flare }]}>{on ? <View style={[styles.radioDot, { backgroundColor: color ?? palette.flare }]} /> : null}</View> : <Check on={on} color={color} disabled={disabled} />}
+      {single ? <View style={[styles.radio, on && { borderColor: color ?? S.accent }]}>{on ? <View style={[styles.radioDot, { backgroundColor: color ?? S.accent }]} /> : null}</View> : <Check on={on} color={color} disabled={disabled} />}
       {left}
       <View style={{ flex: 1, gap: 2, minWidth: 0 }}>
         <T variant="body" color={disabled ? S.mute : S.fg} numberOfLines={2}>
@@ -166,6 +175,7 @@ export function ProviderChoice({
   busy: ProviderKind | null;
   onConnect: (k: ProviderKind) => void;
 }) {
+  const styles = useThemedStyles(createStyles);
   return (
     <View>
       {(['google', 'apple'] as ProviderKind[]).map((k) => {
@@ -198,6 +208,8 @@ export function ProviderChoice({
 
 /** Connection status rows (not a choice): provider, account, access, and Collega when useful. */
 export function ConnectionList({ connections, need, busy, onConnect }: { connections: Partial<Record<ProviderKind, Connection>>; need: 'read' | 'write'; busy: ProviderKind | null; onConnect: (k: ProviderKind) => void }) {
+  const S = useSurface();
+  const styles = useThemedStyles(createStyles);
   return (
     <View>
       {(['google', 'apple'] as ProviderKind[]).map((k) => {
@@ -248,6 +260,8 @@ export function CalendarList({
   need: 'read' | 'write';
   testPrefix?: string;
 }) {
+  const S = useSurface();
+  const styles = useThemedStyles(createStyles);
   const groups = useMemo(() => {
     const m = new Map<string, { label: string; items: ExternalCalendar[] }>();
     for (const c of calendars) {
@@ -293,6 +307,8 @@ export function CalendarList({
 // ─── labels ──────────────────────────────────────────────────────────────────
 
 export function LabelChips({ labels, selected, onToggle, single, testPrefix = 'label' }: { labels: LabelOption[]; selected: ReadonlySet<string>; onToggle: (id: string) => void; single?: boolean; testPrefix?: string }) {
+  const S = useSurface();
+  const styles = useThemedStyles(createStyles);
   return (
     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }} accessibilityRole={single ? 'radiogroup' : undefined}>
       {labels.map((l) => {
@@ -304,7 +320,7 @@ export function LabelChips({ labels, selected, onToggle, single, testPrefix = 'l
             accessibilityRole={single ? 'radio' : 'checkbox'}
             aria-checked={on}
             accessibilityLabel={`Etichetta ${l.name}`}
-            style={[styles.chip, on && { borderColor: S.fg, backgroundColor: 'rgba(238,232,218,0.08)' }]}
+            style={[styles.chip, on && { borderColor: S.fg, backgroundColor: S.raised }]}
             testID={`${testPrefix}-${l.id}`}
           >
             <View style={[styles.chipDot, { backgroundColor: l.color }]} />
@@ -328,6 +344,8 @@ export function longDateIt(d: LocalDate): string {
 export { checkRange, presetRange, RANGE_PRESETS, type RangeCheck, type RangePreset } from './rangeHelpers';
 
 export function DateText({ label, value, onChange, testID }: { label: string; value: string; onChange: (v: string) => void; testID?: string }) {
+  const S = useSurface();
+  const styles = useThemedStyles(createStyles);
   return (
     <View style={{ flex: 1, gap: 4 }}>
       <T variant="label" color={S.mute}>
@@ -338,6 +356,7 @@ export function DateText({ label, value, onChange, testID }: { label: string; va
         onChangeText={onChange}
         placeholder="AAAA-MM-GG"
         placeholderTextColor={S.mute}
+        keyboardAppearance={S.name === 'night' ? 'dark' : 'light'}
         autoCapitalize="none"
         autoCorrect={false}
         keyboardType="numbers-and-punctuation"
@@ -350,10 +369,10 @@ export function DateText({ label, value, onChange, testID }: { label: string; va
   );
 }
 
-const styles = StyleSheet.create({
-  check: { width: 22, height: 22, borderRadius: 5, borderWidth: 1.2, borderColor: 'rgba(238,232,218,0.45)', alignItems: 'center', justifyContent: 'center' },
-  checkMark: { width: 10, height: 5, borderLeftWidth: 2, borderBottomWidth: 2, borderColor: palette.ink, transform: [{ rotate: '-45deg' }], marginTop: -2 },
-  radio: { width: 22, height: 22, borderRadius: 11, borderWidth: 1.2, borderColor: 'rgba(238,232,218,0.45)', alignItems: 'center', justifyContent: 'center' },
+const createStyles = (S: Surface) => StyleSheet.create({
+  check: { width: 22, height: 22, borderRadius: 5, borderWidth: 1.2, borderColor: S.faint, alignItems: 'center', justifyContent: 'center' },
+  checkMark: { width: 10, height: 5, borderLeftWidth: 2, borderBottomWidth: 2, transform: [{ rotate: '-45deg' }], marginTop: -2 },
+  radio: { width: 22, height: 22, borderRadius: 11, borderWidth: 1.2, borderColor: S.faint, alignItems: 'center', justifyContent: 'center' },
   radioDot: { width: 10, height: 10, borderRadius: 5 },
   pill: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3, alignSelf: 'flex-start' },
   stepBar: { flex: 1, height: 2, backgroundColor: S.faint, borderRadius: 1 },
@@ -362,5 +381,5 @@ const styles = StyleSheet.create({
   swatch: { width: 8, height: 28, borderRadius: 4 },
   chip: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: HIT, paddingHorizontal: 12, borderRadius: 22, borderWidth: 1, borderColor: S.faint },
   chipDot: { width: 10, height: 10, borderRadius: 5 },
-  dateInput: { fontFamily: fonts.mono, fontSize: 16, color: palette.foam, paddingVertical: 10, borderBottomWidth: 1.2, borderBottomColor: 'rgba(238,232,218,0.3)', minHeight: HIT },
+  dateInput: { fontFamily: fonts.mono, fontSize: 16, color: S.fg, paddingVertical: 10, borderBottomWidth: 1.2, borderBottomColor: S.faint, minHeight: HIT },
 });
