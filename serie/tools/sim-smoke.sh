@@ -2,13 +2,15 @@
 # Native smoke test on an iOS Simulator (macOS + Xcode; used by .github/workflows/ios-simulator.yml).
 #   tools/sim-smoke.sh <path/to/Serie.app> <output dir>
 # Boots an iPhone simulator, installs the Release simulator build, launches it once on its own,
-# then runs the Maestro flows in maestro/ while recording the screen. Leaves in <output dir>:
+# then runs the Maestro flows in maestro/. Set SERIE_SMOKE_VIDEO=0 to skip video recording/encoding.
+# Leaves in <output dir> (video is recorded by default):
 # serie-simulator.mp4, screens/*.png, app.log, maestro-*.xml, maestro/<flow>/ (Maestro logs), crashes/, summary.md.
 # Exit code is non-zero if the app did not stay up or a flow failed; the outputs are kept either way.
 set -uo pipefail
 cd "$(dirname "$0")/.."
 APP=$1
 OUT=$2
+SMOKE_VIDEO=${SERIE_SMOKE_VIDEO:-1}
 BUNDLE=app.serie.ios
 FLOWS=$PWD/maestro
 mkdir -p "$OUT/screens" "$OUT/crashes" "$OUT/maestro"
@@ -43,13 +45,20 @@ xcrun simctl install "$UDID" "$APP"
 # the calendar flow uses the simulator's own (empty) calendars; Maestro also grants permissions on launch
 xcrun simctl privacy "$UDID" grant calendar "$BUNDLE" 2>/dev/null || true
 
-xcrun simctl io "$UDID" recordVideo --codec=h264 --force "$OUT/serie-simulator.mp4" >"$OUT/recordVideo.log" 2>&1 &
-REC=$!
+REC=
+if [ "$SMOKE_VIDEO" != 0 ]; then
+  xcrun simctl io "$UDID" recordVideo --codec=h264 --force "$OUT/serie-simulator.mp4" >"$OUT/recordVideo.log" 2>&1 &
+  REC=$!
+else
+  say "- Video: disabled (SERIE_SMOKE_VIDEO=0; recording and encoding skipped)"
+fi
 xcrun simctl spawn "$UDID" log stream --style compact --level info --predicate 'process == "Serie"' >"$OUT/app.log" 2>&1 &
 LOGP=$!
 stop_capture() {
-  kill -INT "$REC" 2>/dev/null
-  for _ in $(seq 1 40); do kill -0 "$REC" 2>/dev/null || break; sleep 0.25; done
+  if [ -n "$REC" ]; then
+    kill -INT "$REC" 2>/dev/null
+    for _ in $(seq 1 40); do kill -0 "$REC" 2>/dev/null || break; sleep 0.25; done
+  fi
   kill "$LOGP" 2>/dev/null
 }
 trap stop_capture EXIT
@@ -199,7 +208,7 @@ python3 tools/print-native-screens.py "$OUT/screens" || say "- Native previews u
 stop_capture
 trap - EXIT
 V=$OUT/serie-simulator.mp4
-if [ -s "$V" ]; then
+if [ "$SMOKE_VIDEO" != 0 ] && [ -s "$V" ]; then
   # macOS runners have no ffmpeg: a static build from PyPI (imageio-ffmpeg) in a throwaway venv
   FF=$(command -v ffmpeg || true)
   if [ -z "$FF" ] && python3 -m venv "$OUT/.ffvenv" >/dev/null 2>&1 && "$OUT/.ffvenv/bin/pip" -q install imageio-ffmpeg >/dev/null 2>&1; then

@@ -166,11 +166,14 @@ name: 02 dettagli, luogo e mappa
     visible:
       id: session-editor
     timeout: 10000
+# Native map settling exceeded the old 15 s budget during one successful
+# swipe. Leave time for Maestro to recheck the fully visible caption.
 - scrollUntilVisible:
     element:
       id: map-caption
     direction: DOWN
-    timeout: 15000
+    timeout: 60000
+    waitToSettleTimeoutMs: 1500
 - takeScreenshot: 11-session-map
 # The saved duration reopens unchanged, after the place map.
 - swipe:
