@@ -67,11 +67,20 @@ name: 02 dettagli, luogo e mappa
     from:
       id: map-caption
     direction: UP
+# Bring the horizontal mode rail into view, then reveal its fourth choice.
+# Vertical scrolling cannot expose an offscreen child of this horizontal rail.
 - scrollUntilVisible:
     element:
-      id: details-timing-mode-duration_only
+      id: details-timing-mode
     direction: DOWN
     timeout: 15000
+- swipe:
+    from:
+      id: details-timing-mode
+    direction: LEFT
+    duration: 400
+- assertVisible:
+    id: details-timing-mode-duration_only
 - tapOn:
     id: details-timing-mode-duration_only
 - scrollUntilVisible:

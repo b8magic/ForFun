@@ -1,7 +1,8 @@
 # Serie — iOS Simulator build + native smoke test.
 #
 # On demand (Run workflow), or called by serie-candidate.yml after its web gates.
-# Normal development pushes do not run this macOS job. About 15 minutes.
+# Normal development pushes do not run this macOS job. The full five-flow suite
+# includes native compilation, simulator boot and persisted-data/upgrade checks.
 #
 # Produces (artifacts, 7 days):
 #   - "Serie-simulator": Serie.app for the iOS Simulator (zip). On a Mac with Xcode: unzip and drag
@@ -44,7 +45,8 @@ jobs:
   sim:
     name: Simulator build and smoke test
     runs-on: macos-26
-    timeout-minutes: 60
+    # A clean Release build and all five native UI flows can exceed one hour.
+    timeout-minutes: 90
     defaults:
       run:
         shell: bash # explicit → bash -eo pipefail, so `cmd | tee` fails when cmd fails

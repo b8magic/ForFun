@@ -1,7 +1,7 @@
 {
   "appVersion": "1.3.0",
   "applicationSource": "23485a3438d16ea6221dc9c67677523e96c3f660",
-  "requestedAt": "2026-10-13T12:10:17.319229Z",
+  "requestedAt": "2026-10-13T13:04:01Z",
   "supersedesTag": "ipa-38333430020",
-  "reason": "Final Serie 1.3 candidate after all local gates: 927 tests/53 suites, typecheck/lint, 57 browser journeys with zero errors/warnings, nine native pixel-tool checks. Includes compact duration, actual first-row inline history reveal, four-direction toast dismissal, smaller activity chips, native status-bar correction and atomic bulk editing. Run all five native flows and the six-table upgrade before one unsigned IPA. Supersede only the known intermediate 1.1 build after verified publication."
+  "reason": "Retry the complete Serie 1.3 native gate after run 38395345885 exposed a Maestro navigation error: Solo durata is offscreen in the horizontal timing-mode rail. Flows 02 and 05 now reveal the rail vertically, swipe it horizontally, then assert and select the duration mode. Application source, assets, dependencies and configuration are unchanged from the previously verified candidate; 927 unit tests and 57 browser journeys passed locally and remotely. The first native run passed logging/restarts, six-table migration and native mixed colors with no crashes; later flows were correctly blocked. Repeat all five native flows before producing the one final unsigned IPA. Native job ceiling accommodates the expanded suite."
 }

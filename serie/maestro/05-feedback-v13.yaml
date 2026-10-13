@@ -55,11 +55,20 @@ name: 05 durata compatta, barra iOS, messaggi, storia inline
     timeout: 10000
 - tapOn:
     id: details-link
+# Bring the horizontal mode rail into view, then reveal its fourth choice.
+# Vertical scrolling cannot expose an offscreen child of this horizontal rail.
 - scrollUntilVisible:
     element:
-      id: details-timing-mode-duration_only
+      id: details-timing-mode
     direction: DOWN
     timeout: 15000
+- swipe:
+    from:
+      id: details-timing-mode
+    direction: LEFT
+    duration: 400
+- assertVisible:
+    id: details-timing-mode-duration_only
 - tapOn:
     id: details-timing-mode-duration_only
 - scrollUntilVisible:
