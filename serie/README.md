@@ -2,7 +2,9 @@
 
 **A motion-first activity log for iPhone.** Open in the last-used activity, select dates, then tap **Salva**. The calendar opens on a cream surface, shows the colors of the activities actually recorded on each day, and keeps an independent draft for each activity. Italian is the application language.
 
-The identity, typography, patterns and motion come from the *corduroy* trailer in `../trailer`. The calendar evolution is developed on `codex/serie-calendar`, starting at commit `0f39ebd14b1f1157eb9d4cf89ba2cb0f57e2c655`. See [Codex handoff](docs/CODEX_HANDOFF.md) for provenance and current validation results. Existing images in `docs/screens/` document the earlier interface; current browser and simulator evidence comes from the candidate workflow artifacts.
+The identity, typography, patterns and motion come from the *corduroy* trailer in `../trailer`. The calendar evolution is developed on `codex/serie-calendar`, starting at commit `0f39ebd14b1f1157eb9d4cf89ba2cb0f57e2c655`. See [Codex handoff](docs/CODEX_HANDOFF.md) for provenance and final validation. Existing images in `docs/screens/` document the earlier interface; [final native captures](docs/screens-calendar-1.1/README.md) preserve the evolved interface and exact source provenance.
+
+**Ready for iPhone testing: [Serie 1.1.0, build 7 — unsigned IPA](https://github.com/b8magic/ForFun/actions/runs/38336957498/artifacts/11786327415)**, source `429a8a4a18971e1f4f1b69e86033f3c4933164cd`. Log in to GitHub and install with SideStore/AltStore Classic. The download is retained until **20 October 2026 at 02:58 UTC**. All application/native/packaging gates passed; the separate automatic prerelease job could not start, so delivery uses this verified raw artifact. Intermediate release build 6 is excluded from delivery. See the handoff for the checksum and release-only follow-up.
 
 ## What it does
 
@@ -122,7 +124,7 @@ Evidence defaults to a temporary `serie-e2e/` directory. Set `E2E_SHOTS` to choo
 
 ## Status
 
-Local 1.1.0 verification passed **829 tests in 45 suites**, typecheck, lint and **34/34 browser checks**, with zero runtime errors or warnings. Native simulator/upgrade execution and IPA publication are pending the candidate workflow. Current results and provenance are recorded in [Codex handoff](docs/CODEX_HANDOFF.md). Do not reuse baseline test totals as validation of this branch. Earlier native simulator evidence belongs to the original implementation at `0f39ebd`; the evolved interface requires a new candidate run.
+Final 1.1.0 verification passed **829 tests in 45 suites**, typecheck, lint, **34/34 browser checks** with zero runtime errors/warnings and **9/9 pixel-checker tests**. [Final run 38336957498](https://github.com/b8magic/ForFun/actions/runs/38336957498) also passed all four Maestro journeys on iPhone 17 Pro / iOS 26.5, actual six-table SQLite upgrade, same-day native color pixels, startup and crash checks, then built the unsigned IPA from that same commit. The raw IPA artifact is ready above; automatic prerelease startup failed separately. Receipts and provenance are in [Codex handoff](docs/CODEX_HANDOFF.md). Baseline totals are not reused as validation of this branch.
 
 | Area | Verification boundary |
 |---|---|

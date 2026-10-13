@@ -7,6 +7,17 @@
 - Contribution author/tool: Codex. Final implementation commits use subjects beginning `Codex: …` so a future Claude/Codex reviewer can identify the work through Git history.
 - User-approved scope: complete the calendar/appearance/draft/day/history/named-period evolution, preserve existing data and integrations, run meaningful tests, and deliver one final verified GitHub IPA. No release marker is added before local candidate checks pass.
 
+## Delivered build
+
+- **Serie 1.1.0, build 7**, bundle `app.serie.ios`, minimum iOS **16.4**.
+- Binary source: **`429a8a4a18971e1f4f1b69e86033f3c4933164cd`**. Later documentation commits add receipts and captured screens only; the delivered application code remains this immutable candidate.
+- [Download the final unsigned IPA on GitHub](https://github.com/b8magic/ForFun/actions/runs/38336957498/artifacts/11786327415): `Serie-unsigned.ipa`, **16,042,804 bytes**, retained until **2026-10-20 02:58:06 UTC**. Log in to GitHub; the repository is private. Install through SideStore or AltStore Classic using the same Apple ID as the existing app.
+- IPA SHA-256: `8554cc6be74a30aacadbd9bdd049618cc36551b4787d63dd84eeca7cb5b2757a`. The actual archive packaging log, raw upload digest and GitHub artifact metadata all match.
+- [Companion ZIP](https://github.com/b8magic/ForFun/actions/runs/38336957498/artifacts/11785817991) includes the same IPA, checksum and `Serie-build.json`; the raw IPA link above avoids unzipping on iPhone. The manifest's expected exact JSON hash is `6f57673b056b203468e20d773421938c891cb2374349bd49516a7663525b4249`, derived from the successful immutable packaging step. Workspace access to the File Service ZIP was denied, so independent ZIP-content inspection is not claimed.
+- [Final native captures and provenance](screens-calendar-1.1/README.md) preserve the exact logged preview bytes from the successful simulator run.
+
+The GitHub **Publish prerelease** job failed before runner startup in both the original attempt (`115106859812`) and one release-only retry (`115108068309`): no steps ran, no log blob exists, and two failure annotations are inaccessible through the available API tools. The cause is unknown; billing or policy explanations are not inferred. Unit/browser/native/IPA jobs succeeded, and the final IPA is published as the raw downloadable artifact above. No app rebuild or speculative code change was made for this release-only failure. The intended durable tag `ipa-38336957498` was not created, and intermediate build 6 (`ipa-38333430020`) remains published and **must not be used as the final build**. Original Claude releases/tags are unchanged. After diagnosing the startup annotations, retry only publication against these verified artifacts while their retention lasts; do not rebuild or change the app to resolve an undiagnosed runner failure.
+
 ## Main decisions
 
 The user-facing Italian decision register is [DECISIONI.md](DECISIONI.md). It records the recommended choices that can be revisited after device testing, without blocking the single-version delivery.
@@ -25,7 +36,7 @@ Calendar providers/engines remain intact. A separate memory-provider web bundle 
 
 ## Validation commands and observed results
 
-Final local verification of the **1.1.0** implementation passed after the far-month navigation fix (`1ed7b00`), native keyboard/footer correction (`8a1896f`), activity-dock reveal correction (`21e9164`) and explicit animated segment-paint reset:
+Final local verification of the **1.1.0** implementation passed after the far-month navigation fix (`1ed7b00`), native keyboard/footer correction (`8a1896f`), activity-dock reveal correction (`21e9164`) and explicit animated segment-paint reset (`4c02038`):
 
 - **829 unit tests in 45 suites**, including the original-data upgrade fixture; the final normal Jest run has no pending timer warning.
 - **Typecheck and lint passed** after the implementation changes.
@@ -34,7 +45,7 @@ Final local verification of the **1.1.0** implementation passed after the far-mo
 
 Final local browser evidence: `/tmp/serie-mosaic-final-e2e/core/`, `/tmp/serie-mosaic-final-e2e/flows/`, `/tmp/serie-mosaic-final-e2e/calendar/` (each contains `results.json` and PNGs). The strengthened mixed-day check verifies actual transparent triangle paint and both activity colors after a mounted one-to-two transition and each focus change. All 34 checks passed with zero browser errors/warnings against regenerated static bundles. Focused probes passed **4/4** forms at 375×500, preserving multiline notes and direct footer taps (`/tmp/serie-keyboard-fix/focused-forms/`), and **4/4** activity-dock checks for draft switches/restart, offscreen activity reveal, resizing and preserved manual scrolling (`/tmp/serie-native-third-review/dock-fixed/`). The earlier `/tmp/serie-keyboard-confirmed-e2e/`, `/tmp/serie-final-e2e/` and `/tmp/serie-prefar-e2e/` directories document older snapshots; the interrupted `/tmp/serie-keyboard-prefinal-e2e/` run was deliberately stopped when the final web-focus correction arrived and is not final-candidate evidence.
 
-**The corrected final native gate and IPA publication remain pending.** Candidate six passed all four native flows and actual six-table upgrade, but its final visual review revealed a stale animated color fill, recorded below. The replacement must repeat the complete native gate and pass the new screenshot color check from the corrected source. Build 6 is intermediate and excluded from delivery; do not infer final-native success from earlier passes or local browser/SQL tests.
+**The corrected native gate and IPA packaging passed on final source `429a8a4a18971e1f4f1b69e86033f3c4933164cd`; the raw IPA artifact is ready to download.** [Candidate seven, run `38336957498`](https://github.com/b8magic/ForFun/actions/runs/38336957498) passed 829 tests/45 suites, typecheck, lint, all 34 browser journeys and nine pixel-checker tests. Its Release app on iPhone 17 Pro / iOS 26.5 passed startup, all four Maestro flows, the actual six-table v1 → v2 SQLite upgrade and crash checks. The native screenshot proves red=1832 and muted-lime=636 pixels, with both colors in the same day (577/636 pixels in bounds 198,320–243,365). Build 6 is intermediate and excluded from delivery.
 
 The first candidate run (`38320706064`, source `6d60f7c`) passed all Linux gates and the native Release build. Startup remained running, no crash reports were found, and native EventKit export passed. The notes journey stopped because Maestro's generic `hideKeyboard` could not dismiss a multiline input; dependent map/period journeys then lacked their fixtures. The automation now submits those notes through the existing keyboard-safe Apply/Save footer and uses Enter for single-line period fields. Assertions and inputs are preserved. Dependent native journeys explicitly report `NOT_RUN` and fail the gate if their fixtures are unavailable. Small native PNG previews are included in logs as well as full artifact originals because workspace access to the connector's File Service ZIP URL returned HTTP 403. This is diagnostic output only and cannot change test outcomes.
 
@@ -55,7 +66,7 @@ Completed static checks:
 - Native pixel checker: nine Python tests passed; the actual faulty native PNG is rejected, and the corrected same-day browser screenshot passes. Separate-date colors, dock/header colors, tiny/transparent patches, corrupt PNGs and unsupported encodings cannot satisfy the guard.
 - PyYAML parsing of all three workflow files and Bash syntax validation of each embedded `run` step: passed.
 - PyYAML parsing of six Maestro flow files and local `runFlow` reference checks: passed.
-- Native-upgrade helper exercised with the actual repository migrations in a temporary Python SQLite fixture: v1 reconstruction preserved the six original tables, v2 detection/equality checks passed, and a deliberately changed session row was rejected. Actual native driver execution also passed on candidate four; the final candidate repeats that same check.
+- Native-upgrade helper exercised with the actual repository migrations in a temporary Python SQLite fixture: v1 reconstruction preserved the six original tables, v2 detection/equality checks passed, and a deliberately changed session row was rejected. Actual native driver execution also passed on final candidate seven, preserving every original row/identifier with valid foreign keys and SQLite integrity.
 
 Final candidate commands:
 
@@ -69,7 +80,7 @@ python3 -m unittest discover -s tools -p test_native_colors.py -v
 
 The browser suites use fixed **2026-10-13 12:00 UTC**, system Chromium when installed, strict unexpected pageerror/console.error failure and separate `core`, `flows`, `calendar` evidence directories under `E2E_SHOTS` or the system temporary `serie-e2e/` directory. Browser plugin unavailable in the implementation environment; Playwright is the recorded fallback.
 
-Native execution requires the GitHub macOS runner or a Mac with Xcode ≥26.4 and Maestro. The candidate workflow captures startup, four native flows, the actual v1 → v2 native driver migration check, crash checks and an installable unsigned IPA from the same SHA. Upgrade mutation is restricted to the three-session database generated by native flow01, in that simulator app’s own container; original row snapshots and native-upgrade logs are kept as evidence. Its run/release URLs and actual final test totals must be recorded here when they exist.
+Native execution requires the GitHub macOS runner or a Mac with Xcode ≥26.4 and Maestro. The candidate workflow captures startup, four native flows, the actual v1 → v2 native driver migration check, crash checks and an installable unsigned IPA from the same SHA. Upgrade mutation is restricted to the three-session database generated by native flow01, in that simulator app’s own container; original row snapshots and native-upgrade logs are kept as evidence. Final run, download URLs and actual totals are recorded above. GitHub release-job startup remains a separate infrastructure follow-up; it does not invalidate the successful application gates or verified IPA artifact.
 
 ## Remaining limits
 
