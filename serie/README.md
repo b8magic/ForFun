@@ -6,6 +6,8 @@ The identity, typography, patterns and motion come from the *corduroy* trailer i
 
 **Previous delivered build: [Serie 1.1.0, build 7 — unsigned IPA](https://github.com/b8magic/ForFun/actions/runs/38336957498/artifacts/11786327415)**, source `429a8a4a18971e1f4f1b69e86033f3c4933164cd`. Log in to GitHub and install with SideStore/AltStore Classic. The download is retained until **20 October 2026 at 02:58 UTC**. All application/native/packaging gates passed; the separate automatic prerelease job could not start, so delivery uses this verified raw artifact. Intermediate release build 6 is excluded from delivery. See the handoff for the checksum and release-only follow-up.
 
+**Serie 1.2.0: implemented and locally verified, but no new IPA yet.** The [single IPA-only build](https://github.com/b8magic/ForFun/actions/runs/38376497626) failed before runner startup, consistent with the reported exhausted Actions allowance. Resume that failed job after capacity is restored; the old IPA above contains only 1.1. Verification: 861 tests/48 suites, 43 browser checks, clean types/lint. See [current handoff](docs/CODEX_HANDOFF.md) and [new interface captures](docs/screens-feedback-1.2/README.md).
+
 ## What it does
 
 Version **1.2.0** adds neutral calendar viewing, per-activity `×N` session badges, confirmed swipe deletion in day details, 24 color presets plus a continuous HSV/HEX picker, separate hour/minute controls and searchable IANA timezone selection. Home names the year; history/progress use the direct Home entry instead of duplicate menu items. The preceding 1.1 IPA does not contain these changes; current build status is recorded in the handoff.
