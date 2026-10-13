@@ -44,22 +44,22 @@ function select(ids: string[]) {
   for (const id of ids) A.toggleBulkSession(id);
 }
 
-it('keeps new-session dates/details durable through edit mode and blocks accidental creation', async () => {
+it('keeps shared dates and durable details through edit mode and blocks accidental creation', async () => {
   const { categoryId, sessions } = await existing();
   A.toggleDate('2026-10-03');
   A.setPendingDetails({ notes: 'Bozza nuova' });
   await A.flushDrafts();
   const draft = await mockRepos.drafts.get(categoryId);
   select(sessions.map((session) => session.id));
-  expect(A.toggleDate('2026-10-04')).toBe(false);
+  expect(A.toggleDate('2026-10-04')).toBe(true);
   expect(await A.save()).toBe(false);
   const result = await A.updateSelectedSessions({ categoryId, expected: sessions, patch: { notes: 'Modificate' } });
   expect(result.changed).toBe(2);
-  expect(useApp.getState()).toMatchObject({ homeSessionMode: 'edit', bulkSelection: [], selection: ['2026-10-03'], pendingDetails: { notes: 'Bozza nuova' }, bulkSaving: false });
+  expect(useApp.getState()).toMatchObject({ homeSessionMode: 'edit', bulkSelection: [], selection: ['2026-10-01', '2026-10-02', '2026-10-03', '2026-10-04'], pendingDetails: { notes: 'Bozza nuova' }, bulkSaving: false });
   expect(await mockRepos.drafts.get(categoryId)).toEqual(draft);
   A.setHomeSessionMode('new');
   expect(await A.save()).toBe(true);
-  expect(await mockRepos.sessions.listAll()).toHaveLength(3);
+  expect(await mockRepos.sessions.listAll()).toHaveLength(6);
 });
 
 it('selects same-day records independently and limits select-all to the active activity and date', async () => {
@@ -76,19 +76,60 @@ it('selects same-day records independently and limits select-all to the active a
   expect(useApp.getState().bulkSelection).toEqual([sessions[1].id]);
 });
 
-it('exits edit mode on activity switch without consuming either activity draft', async () => {
+it('keeps edit mode and shared dates on activity switch without consuming either activity details', async () => {
   const { categoryId, sessions } = await existing();
   const other = useApp.getState().categories.find((category) => category.id !== categoryId)!;
   A.toggleDate('2026-10-03');
   A.setPendingDetails({ notes: 'A' });
   select([sessions[0].id]);
   await A.switchActivity(other.id);
-  expect(useApp.getState()).toMatchObject({ homeSessionMode: 'new', bulkSelection: [] });
+  expect(useApp.getState()).toMatchObject({ homeSessionMode: 'edit', bulkSelection: [sessions[0].id], selection: ['2026-10-01', '2026-10-03'] });
   A.toggleDate('2026-10-04');
   A.setPendingDetails({ notes: 'B' });
   await A.switchActivity(categoryId);
-  expect(useApp.getState()).toMatchObject({ selection: ['2026-10-03'], pendingDetails: { notes: 'A' } });
+  expect(useApp.getState()).toMatchObject({ selection: ['2026-10-01', '2026-10-03', '2026-10-04'], pendingDetails: { notes: 'A' } });
   expect((await mockRepos.drafts.get(other.id))?.details?.notes).toBe('B');
+});
+
+it('keeps neutral and empty dates through both modes and preserves duplicate exclusions across activity scopes', async () => {
+  const { categoryId, sessions } = await existing();
+  const otherId = useApp.getState().categories.find((category) => category.id !== categoryId)!.id;
+  const duplicate = (await mockRepos.sessions.saveBatch({ categoryId, dates: ['2026-10-01'], requestId: 'duplicate' })).sessions[0];
+  const other = (await mockRepos.sessions.saveBatch({ categoryId: otherId, dates: ['2026-10-01'], requestId: 'other' })).sessions[0];
+  await A.refreshAll();
+  await A.switchActivity(null);
+  A.toggleDate('2026-10-01');
+  A.toggleDate('2026-10-02');
+  A.setHomeSessionMode('edit');
+  A.toggleDate('2026-10-03'); // Empty days remain working dates for a later New choice.
+  A.toggleBulkSession(duplicate.id);
+  const chosenIds = useApp.getState().bulkSelection;
+  expect(new Set(chosenIds)).toEqual(new Set([...sessions.map((session) => session.id), other.id]));
+  A.setHomeSessionMode('new');
+  await A.switchActivity(categoryId);
+  A.setHomeSessionMode('edit');
+  await A.switchActivity(otherId);
+  expect(useApp.getState()).toMatchObject({ homeSessionMode: 'edit', selection: ['2026-10-01', '2026-10-02', '2026-10-03'], bulkSelection: chosenIds });
+  expect((await A.updateSelectedSessions({ categoryId: otherId, expected: [other], patch: { notes: 'Only other activity' } })).changed).toBe(1);
+  expect(await mockRepos.sessions.get(sessions[0].id)).toEqual(sessions[0]);
+  await A.switchActivity(null);
+  expect((await A.updateSelectedSessions({ categoryId: null, expected: sessions, patch: { notes: 'Remaining neutral targets' } })).changed).toBe(2);
+  expect(await mockRepos.sessions.get(duplicate.id)).toEqual(duplicate);
+  expect(useApp.getState().selection).toEqual(['2026-10-01', '2026-10-02', '2026-10-03']);
+});
+
+it('edits neutral targets from different activities in one reviewed batch', async () => {
+  const { categoryId, sessions } = await existing();
+  const otherId = useApp.getState().categories.find((category) => category.id !== categoryId)!.id;
+  const other = (await mockRepos.sessions.saveBatch({ categoryId: otherId, dates: ['2026-10-01'], requestId: 'other' })).sessions[0];
+  await A.refreshAll();
+  await A.switchActivity(null);
+  A.toggleDate('2026-10-01');
+  A.setHomeSessionMode('edit');
+  expect((await A.updateSelectedSessions({ categoryId: null, expected: [sessions[0], other], patch: { notes: 'Both activities' } })).changed).toBe(2);
+  expect(await mockRepos.sessions.get(sessions[1].id)).toEqual(sessions[1]);
+  expect((await mockRepos.sessions.listAll()).filter((session) => session.notes === 'Both activities').map((session) => session.categoryId).sort()).toEqual([categoryId, otherId].sort());
+  expect(useApp.getState().selection).toEqual(['2026-10-01']);
 });
 
 it('rejects a changed selection or activity before writing any row', async () => {

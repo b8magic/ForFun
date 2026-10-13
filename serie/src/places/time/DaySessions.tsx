@@ -7,7 +7,7 @@ import { summarize } from '@/domain/stats';
 import { useSurface } from '@/ui/useTheme';
 import { T } from '@/ui/T';
 import { t } from '@/i18n/it';
-import { compactDurationLine, dateLabel, durationLine, placeSummary, sessionPreview, timingSummary } from './format';
+import { compactDurationLine, dateLabel, durationLine, placeSummary, recordedTimingSummary, sessionPreview } from './format';
 import { DaySessionRow } from './DaySessionRow';
 
 interface Props {
@@ -44,7 +44,7 @@ export function DaySessions({ date, sessions, catById, showActivity, showDate = 
           {t.sessionsOnDay(dateLabel(date))}
         </T>
       ) : null}
-      <T variant="data" color={C.fg} accessibilityLabel={preview ? fullTotal : undefined} testID="day-total">
+      <T variant="data" color={C.fg} accessibilityLabel={preview ? total : undefined} testID="day-total">
         {total}
       </T>
       {sessions.map((s, i) => {
@@ -52,7 +52,7 @@ export function DaySessions({ date, sessions, catById, showActivity, showDate = 
         const compact = preview ? sessionPreview(s) : undefined;
         const detail = (compact
           ? [compact.timing, compact.place, compact.notes]
-          : [timingSummary(s), placeSummary(s.place), s.notes ? `“${s.notes}”` : null]).filter(Boolean).join('\n');
+          : [recordedTimingSummary(s), placeSummary(s.place), s.notes?.trim() ? `“${s.notes}”` : null]).filter(Boolean).join('\n');
         return (
           <DaySessionRow
             key={s.id}
@@ -62,7 +62,7 @@ export function DaySessions({ date, sessions, catById, showActivity, showDate = 
             preview={compact}
             color={c?.color ?? C.mute}
             interactive={interactive}
-            accessibilityLabel={`${showActivity && c ? c.name + ', ' : ''}sessione ${i + 1}: ${detail.replace(/\n/g, ', ')}${interactive ? '. Apri dettagli' : ''}`}
+            accessibilityLabel={`${showActivity && c ? c.name + ', ' : ''}sessione ${i + 1}${detail ? `: ${detail.replace(/\n/g, ', ')}` : ''}${interactive ? '. Apri dettagli' : ''}`}
             deleteLabel={`Elimina ${showActivity && c ? c.name + ', ' : ''}sessione ${i + 1}`}
             onDelete={onDelete ? () => onDelete(s) : undefined}
             onOpen={openRow}

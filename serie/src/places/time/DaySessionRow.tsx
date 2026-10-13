@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { Pressable } from 'react-native-gesture-handler';
 import Swipeable, { type SwipeableMethods } from 'react-native-gesture-handler/ReanimatedSwipeable';
 import { router } from 'expo-router';
 import { T } from '@/ui/T';
@@ -26,9 +27,15 @@ export function DaySessionRow({ id, title, detail, preview, color, interactive, 
   const C = useSurface();
   const row = useRef<View>(null);
   const swipeable = useRef<SwipeableMethods>(null);
+  const dragged = useRef(false);
   const [open, setOpen] = useState(false);
   const canDelete = interactive && !!onDelete;
-  const askDelete = () => {
+  // A cancelled native pan can still deliver a trailing press callback. Keep
+  // that pointer sequence blocked until a fresh press begins.
+  const beginPress = () => { dragged.current = false; };
+  const beginDrag = () => { dragged.current = true; };
+  const remove = () => {
+    if (!canDelete) return;
     swipeable.current?.close();
     onDelete?.();
   };
@@ -40,12 +47,14 @@ export function DaySessionRow({ id, title, detail, preview, color, interactive, 
       style={[styles.row, { backgroundColor: C.bg, borderTopColor: C.faint }]}
     >
       <Pressable
-        onPress={() => router.push(`/session/${id}`)}
+        cancelable
+        onPressIn={beginPress}
+        onPress={() => { if (interactive && !dragged.current) router.push(`/session/${id}`); }}
         disabled={!interactive}
         accessibilityRole={interactive ? 'button' : undefined}
         accessibilityLabel={accessibilityLabel}
         accessibilityActions={canDelete ? [{ name: 'delete', label: deleteLabel }] : undefined}
-        onAccessibilityAction={(event) => { if (canDelete && event.nativeEvent.actionName === 'delete') askDelete(); }}
+        onAccessibilityAction={(event) => { if (event.nativeEvent.actionName === 'delete') remove(); }}
         style={styles.details}
         testID={`session-${id}`}
       >
@@ -54,20 +63,22 @@ export function DaySessionRow({ id, title, detail, preview, color, interactive, 
           <T variant="bodyStrong" color={C.fg}>{title}</T>
           {preview ? (
             <>
-              <T variant="small" color={C.fg}>{preview.timing}</T>
+              {preview.timing ? <T variant="small" color={C.fg}>{preview.timing}</T> : null}
               {preview.place ? <T variant="small" color={C.mute} numberOfLines={1} testID={`session-place-preview-${id}`}>{preview.place}</T> : null}
               {preview.notes ? <T variant="small" color={C.mute} numberOfLines={1} testID={`session-notes-preview-${id}`}>{preview.notes}</T> : null}
             </>
-          ) : <T variant="small" color={C.mute}>{detail}</T>}
+          ) : detail ? <T variant="small" color={C.mute}>{detail}</T> : null}
         </View>
         {interactive ? <Chevron dir="right" color={C.mute} size={7} /> : null}
       </Pressable>
       {canDelete ? (
         <Pressable
-          onPress={askDelete}
+          cancelable
+          onPressIn={beginPress}
+          onPress={() => { if (!dragged.current) remove(); }}
           accessibilityRole="button"
           accessibilityLabel={deleteLabel}
-          accessibilityHint="Chiede conferma prima di eliminare"
+          accessibilityHint="Elimina questa sessione"
           style={styles.deleteButton}
           testID={`day-delete-${id}`}
         >
@@ -86,6 +97,8 @@ export function DaySessionRow({ id, title, detail, preview, color, interactive, 
       overshootLeft={false}
       overshootRight={false}
       enableTrackpadTwoFingerGesture
+      onSwipeableOpenStartDrag={beginDrag}
+      onSwipeableCloseStartDrag={beginDrag}
       onSwipeableWillOpen={() => {
         if (swipeable.current) onOpen(swipeable.current);
         setOpen(true);
@@ -93,10 +106,12 @@ export function DaySessionRow({ id, title, detail, preview, color, interactive, 
       onSwipeableWillClose={() => setOpen(false)}
       renderRightActions={() => (
         <Pressable
-          onPress={askDelete}
+          cancelable
+          onPressIn={beginPress}
+          onPress={() => { if (!dragged.current) remove(); }}
           accessibilityRole="button"
           accessibilityLabel={deleteLabel}
-          accessibilityHint="Chiede conferma prima di eliminare"
+          accessibilityHint="Elimina questa sessione"
           accessibilityElementsHidden={!open}
           importantForAccessibility={open ? 'auto' : 'no-hide-descendants'}
           aria-hidden={!open}

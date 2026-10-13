@@ -59,7 +59,7 @@ export interface AppState {
   namedPeriods: NamedPeriod[];
   /** Persistent per-activity values; saving/error are isolated runtime state. */
   drafts: Record<ID, ActivityDraft>;
-  /** Active draft projection, retained for calendar/UI consumers. */
+  /** Shared working dates, retained across activity and New/Edit switches. */
   selection: LocalDate[];
   /** Optional details the user explicitly chose to apply to every selected date. */
   pendingDetails: SessionDetailsDraft | null;
@@ -82,7 +82,7 @@ export interface AppState {
   motionPref: MotionPref;
   themePref: ThemePref;
   homeActivitiesMode: HomeActivitiesMode;
-  /** Existing-session selection is transient and never consumes the logging draft. */
+  /** Record choices across the working dates; the active activity only scopes them. */
   homeSessionMode: HomeSessionMode;
   bulkSelection: ID[];
   bulkSaving: boolean;

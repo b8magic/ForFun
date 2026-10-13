@@ -11,7 +11,7 @@ import { t } from '@/i18n/it';
 interface Props {
   count: number;
   color: string;
-  activityName: string;
+  activityName: string | null;
   busy: boolean;
   error: string | null;
   reduced: boolean;
@@ -29,9 +29,9 @@ export function SaveCapsule({ count, color, activityName, busy, error, reduced, 
   const phase = useSharedValue(0);
   const frame = useFrameCallback((info) => phase.set(phase.value + (info.timeSincePreviousFrame ?? 16) / 1000), false);
   useEffect(() => {
-    frame.setActive(visible && !reduced && count > 0);
-  }, [count, reduced, visible, frame]);
-  useEffect(() => level.set(withTiming(count ? Math.min(0.94, 0.3 + count * 0.09) : 0, { duration: reduced ? 0 : 260 })), [count, reduced, level]);
+    frame.setActive(visible && !reduced && count > 0 && !!activityName);
+  }, [count, reduced, visible, frame, activityName]);
+  useEffect(() => level.set(withTiming(count && activityName ? Math.min(0.94, 0.3 + count * 0.09) : 0, { duration: reduced ? 0 : 260 })), [count, reduced, level, activityName]);
   useEffect(() => {
     if (celebration !== null) level.set(reduced ? 0 : withSequence(withTiming(1, { duration: 180 }), withTiming(0, { duration: 720 })));
   }, [celebration, reduced, level]);
@@ -48,9 +48,9 @@ export function SaveCapsule({ count, color, activityName, busy, error, reduced, 
   }, [width, reduced]);
   const clip = Skia.RRectXY(Skia.XYWHRect(0, 0, width, height), height / 2, height / 2);
   return (
-    <Pressable onLayout={(event) => setWidth(event.nativeEvent.layout.width)} onPress={onSave} disabled={!count || busy} accessibilityRole="button" accessibilityLabel={count ? `${busy ? t.saving : error ? t.retry : t.save(count)} · ${activityName}` : `Salva · ${activityName}. Nessuna data selezionata`} accessibilityState={{ disabled: !count || busy, busy }} testID="save" style={({ pressed }) => [styles.root, { backgroundColor: count ? softenColor(color, palette.cream, 0.32) : surface.bg, borderColor: count ? color : surface.faint, opacity: pressed ? 0.8 : 1 }]}>
+    <Pressable onLayout={(event) => setWidth(event.nativeEvent.layout.width)} onPress={onSave} disabled={!count || busy || !activityName} accessibilityRole="button" accessibilityLabel={!activityName ? 'Salva. Scegli un’attività' : count ? `${busy ? t.saving : error ? t.retry : t.save(count)} · ${activityName}` : `Salva · ${activityName}. Nessuna data selezionata`} accessibilityState={{ disabled: !count || busy || !activityName, busy }} testID="save" style={({ pressed }) => [styles.root, { backgroundColor: count && activityName ? softenColor(color, palette.cream, 0.32) : surface.bg, borderColor: count && activityName ? color : surface.faint, opacity: pressed ? 0.8 : 1 }]}>
       <Canvas pointerEvents="none" style={StyleSheet.absoluteFill}><Group clip={clip}><Path path={path} color={color} /></Group></Canvas>
-      {count ? <T variant="button" color={palette.ink} numberOfLines={1} style={{ backgroundColor: softenColor(color, palette.cream, 0.1), borderRadius: 12, paddingHorizontal: 10, paddingVertical: 3 }}>{busy ? t.saving : error ? t.retry : t.save(count)}</T> : null}
+      {!activityName ? count ? <T variant="button" color={surface.mute} numberOfLines={1}>{t.save(count)}</T> : null : count ? <T variant="button" color={palette.ink} numberOfLines={1} style={{ backgroundColor: softenColor(color, palette.cream, 0.1), borderRadius: 12, paddingHorizontal: 10, paddingVertical: 3 }}>{busy ? t.saving : error ? t.retry : t.save(count)}</T> : null}
     </Pressable>
   );
 }

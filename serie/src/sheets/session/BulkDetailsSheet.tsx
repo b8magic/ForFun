@@ -67,7 +67,7 @@ export function BulkDetailsSheet() {
     return {
       categoryId: state.activeId,
       category: state.categories.find((category) => category.id === state.activeId),
-      sessions: state.sessions.filter((session) => ids.has(session.id) && session.categoryId === state.activeId).sort(compareSessions),
+      sessions: state.sessions.filter((session) => ids.has(session.id) && (!state.activeId || session.categoryId === state.activeId)).sort(compareSessions),
     };
   });
   const activeId = useApp((state) => state.activeId);
@@ -86,13 +86,14 @@ export function BulkDetailsSheet() {
   const evaluation = useMemo(() => evaluateBulkDetails(review.sessions, { operations, notes, place, timing }, deviceZone), [review.sessions, operations, notes, place, timing, deviceZone]);
   const stale = useMemo(() => {
     const current = new Map(currentSessions.map((session) => [session.id, session]));
-    const selected = new Set(selection);
+    const ids = new Set(selection);
+    const selected = new Set(currentSessions.filter((session) => ids.has(session.id) && (!activeId || session.categoryId === activeId)).map((session) => session.id));
     return activeId !== review.categoryId || selected.size !== review.sessions.length || review.sessions.some((session) => !selected.has(session.id) || !current.has(session.id) || !sameSessionVersion(session, current.get(session.id)!));
   }, [activeId, currentSessions, selection, review]);
   const allowLeave = useConfirmDiscard(evaluation.dirty && !completed, { blocked: busy });
   const changeOperation = (field: BulkField, operation: BulkOperation) => { setOperations((current) => ({ ...current, [field]: operation })); setError(null); };
   const save = async () => {
-    if (committing.current || !review.categoryId || stale) return;
+    if (committing.current || stale) return;
     setAttempted(true);
     if (!evaluation.ok || !evaluation.dirty) { AccessibilityInfo.announceForAccessibility('Controlla i dettagli da modificare.'); return; }
     committing.current = true;
@@ -119,10 +120,10 @@ export function BulkDetailsSheet() {
     place: common.mixed.place ? 'Valori diversi' : placeSummary(common.place) ?? 'Nessun luogo',
     timing: common.mixed.timing ? 'Valori diversi' : first ? timingSummary(first) : 'Nessun orario',
   };
-  if (!first || !review.categoryId) return <Sheet title="Nessuna sessione selezionata" testID="bulk-empty"><Button label="Torna al calendario" onPress={close} /></Sheet>;
+  if (!first) return <Sheet title="Nessuna sessione selezionata" testID="bulk-empty"><Button label="Torna al calendario" onPress={close} /></Sheet>;
   return (
     <KeyboardSafe>
-      <Sheet title={`Modifica ${review.sessions.length} ${review.sessions.length === 1 ? 'sessione' : 'sessioni'}`} eyebrow={`${review.category?.name ?? ''} · ${datesSummary(dates)}`} scroll={false} testID="bulk-details-sheet" footer={
+      <Sheet title={`Modifica ${review.sessions.length} ${review.sessions.length === 1 ? 'sessione' : 'sessioni'}`} eyebrow={`${review.category?.name ?? 'Tutte le attività'} · ${datesSummary(dates)}`} scroll={false} testID="bulk-details-sheet" footer={
         <View style={{ gap: 8 }}>
           {error ? <Note tone="error">{error}</Note> : null}
           {stale && !completed && !busy ? <Note tone="error">La selezione è cambiata. Chiudi e seleziona di nuovo le sessioni.</Note> : null}

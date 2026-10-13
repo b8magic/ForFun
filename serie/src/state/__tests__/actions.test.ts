@@ -114,11 +114,11 @@ describe('save', () => {
 });
 
 describe('activity context', () => {
-  it('switching persists the remembered activity and projects its own empty draft', async () => {
+  it('switching persists the remembered activity and keeps the shared dates', async () => {
     const corsa = useApp.getState().categories.find((c) => c.name === 'Corsa')!;
     A.toggleDate('2026-10-01');
     await A.switchActivity(corsa.id);
-    expect(useApp.getState().selection).toEqual([]);
+    expect(useApp.getState().selection).toEqual(['2026-10-01']);
     expect(await mockRepos.settings.get('lastActiveCategoryId', null)).toBe(corsa.id);
   });
 

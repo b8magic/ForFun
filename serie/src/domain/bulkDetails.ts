@@ -11,7 +11,8 @@ export interface BulkDetailsPatch {
 }
 
 export interface BulkDetailsInput {
-  categoryId: ID;
+  /** Null reviews sessions across all activities; an ID restricts the batch. */
+  categoryId: ID | null;
   /** The exact records reviewed by the user, including same-day sessions. */
   expected: readonly Session[];
   patch: BulkDetailsPatch;

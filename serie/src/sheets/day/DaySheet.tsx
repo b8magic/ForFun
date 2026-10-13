@@ -6,7 +6,7 @@ import { useApp } from '@/state/store';
 import { deleteSession, setHomeSessionMode, showToast, toggleDate } from '@/state/actions';
 import { useActive } from '@/state/selectors';
 import { DaySessions } from '@/places/time/DaySessions';
-import { dateLabel, timingSummary } from '@/places/time/format';
+import { dateLabel } from '@/places/time/format';
 import { Button, Sheet } from '@/ui/controls';
 import { useSurface } from '@/ui/useTheme';
 import { T } from '@/ui/T';
@@ -23,7 +23,6 @@ export function DaySheet({ date }: { date: string }) {
   const today = useApp((s) => s.today);
   const saving = useApp((s) => s.saving);
   const active = useActive();
-  const [deleteId, setDeleteId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const deletionInFlight = useRef(false);
@@ -31,23 +30,13 @@ export function DaySheet({ date }: { date: string }) {
   const sessions = useMemo(() => allSessions.filter((s) => s.date === date).sort(compareSessions), [allSessions, date]);
   const catById = useMemo(() => new Map(categories.map((c) => [c.id, c])), [categories]);
   const alreadySelected = selection.includes(date);
-  const deleteTarget = sessions.find((session) => session.id === deleteId);
-
-  const askDelete = (id: string) => {
+  const remove = async (id: string) => {
     if (deletionInFlight.current) return;
-    setDeleteError(null);
-    setDeleteId(id);
-    AccessibilityInfo.announceForAccessibility(t.deleteSessionConfirm);
-  };
-
-  const remove = async () => {
-    if (!deleteTarget || deletionInFlight.current) return;
     deletionInFlight.current = true;
     setDeleting(true);
     setDeleteError(null);
     try {
-      await deleteSession(deleteTarget.id);
-      setDeleteId(null);
+      await deleteSession(id);
       showToast(t.sessionSheets.sessionDeleted);
     } catch {
       setDeleteError(t.errorGeneric);
@@ -61,7 +50,7 @@ export function DaySheet({ date }: { date: string }) {
   const selectForLogging = () => {
     // A tap here adds to the current draft. It never unselects a day or writes a session.
     const state = useApp.getState();
-    if (!valid || !state.activeId || state.saving || state.bulkSaving || date > state.today) return;
+    if (!valid || state.saving || state.bulkSaving || deletionInFlight.current || date > state.today) return;
     setHomeSessionMode('new');
     if (!state.selection.includes(date) && !toggleDate(date)) return;
     close();
@@ -80,29 +69,17 @@ export function DaySheet({ date }: { date: string }) {
     <Sheet
       title={dateLabel(date)}
       testID="day-sheet"
-      footer={deleteTarget ? (
-        <View style={{ gap: 12 }} accessibilityLiveRegion="polite" testID="day-delete-confirm">
-          <T variant="bodyStrong" color={C.fg}>
-            {[catById.get(deleteTarget.categoryId)?.name, timingSummary(deleteTarget)].filter(Boolean).join(' · ')}
-          </T>
-          <T variant="small" color={C.mute}>{t.deleteSessionConfirm}</T>
-          {deleteError ? <T variant="small" color={C.danger} accessibilityLiveRegion="assertive">{deleteError}</T> : null}
-          <View style={{ flexDirection: 'row', gap: 10 }}>
-            <View style={{ flex: 1 }}>
-              <Button label={t.cancel} kind="secondary" onPress={() => setDeleteId(null)} disabled={deleting} testID="day-delete-cancel" />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Button label={t.delete} kind="danger" onPress={() => void remove()} busy={deleting} testID="day-delete-yes" />
-            </View>
-          </View>
-        </View>
-      ) : (
+      footer={(
         <View style={{ gap: 8 }}>
+          {deleting ? <T variant="small" color={C.mute} accessibilityLiveRegion="polite" testID="day-delete-busy">Eliminazione…</T> : null}
+          {deleteError ? <T variant="small" color={C.danger} accessibilityLiveRegion="assertive" testID="day-delete-error">{deleteError}</T> : null}
           <T variant="small" color={C.mute}>
             {date > today
               ? 'Puoi registrare sessioni fino a oggi.'
               : !active
-                ? categories.length ? 'Seleziona un’attività per registrare una sessione.' : 'Crea un’attività per registrare una sessione.'
+                ? alreadySelected
+                  ? 'La data è già selezionata. Potrai scegliere un’attività da Home.'
+                  : 'La data verrà selezionata. Potrai scegliere un’attività da Home.'
                 : alreadySelected
                   ? `La data è già selezionata per ${active.name}. Potrai salvarla da Home.`
                   : `La data verrà selezionata per ${active.name}. Potrai salvarla da Home.`}
@@ -110,15 +87,15 @@ export function DaySheet({ date }: { date: string }) {
           <Button
             label={alreadySelected ? 'Torna alla selezione' : 'Nuova sessione'}
             onPress={selectForLogging}
-            disabled={!active || saving || date > today}
+            disabled={saving || deleting || date > today}
             testID="day-new-session"
-            accessibilityHint={active ? `Aggiungi questa data alla selezione di ${active.name} e chiudi il giorno` : undefined}
+            accessibilityHint={`Aggiungi questa data alla selezione${active ? ` di ${active.name}` : ''} e chiudi il giorno`}
           />
         </View>
       )}
     >
       {sessions.length ? (
-        <DaySessions date={date} sessions={sessions} catById={catById} showActivity showDate={false} interactive={!deleteTarget} onDelete={(session) => askDelete(session.id)} />
+        <DaySessions date={date} sessions={sessions} catById={catById} showActivity showDate={false} interactive={!deleting} onDelete={(session) => void remove(session.id)} />
       ) : (
         <View style={{ gap: 8, paddingVertical: 22 }} testID="day-empty">
           <T variant="title" color={C.fg}>Nessuna sessione registrata</T>

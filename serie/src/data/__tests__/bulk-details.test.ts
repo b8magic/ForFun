@@ -61,6 +61,23 @@ it('rejects date/activity reassignment through the details-only API', async () =
   expect(await repos.sessions.listAll()).toEqual(sessions);
 });
 
+it('allows neutral batches across activities while preserving category and record identity', async () => {
+  const { repos, categoryId, otherId, sessions } = await fixture();
+  const other = (await repos.sessions.saveBatch({ categoryId: otherId, dates: ['2026-10-01'], requestId: 'other' })).sessions[0];
+  const result = await repos.sessions.updateDetailsBatch({ categoryId: null, expected: [sessions[0], other], patch: { notes: 'All activities' } });
+  expect(result.changed).toBe(2);
+  expect(result.sessions.map((session) => [session.id, session.categoryId, session.date])).toEqual([[sessions[0].id, categoryId, sessions[0].date], [other.id, otherId, other.date]]);
+  expect(await repos.sessions.get(sessions[1].id)).toEqual(sessions[1]);
+});
+
+it('rejects a changed category even in neutral scope without modifying the other activity', async () => {
+  const { repos, otherId, sessions } = await fixture();
+  const other = (await repos.sessions.saveBatch({ categoryId: otherId, dates: ['2026-10-01'], requestId: 'other' })).sessions[0];
+  await repos.sessions.update(sessions[0].id, { categoryId: otherId });
+  await expect(repos.sessions.updateDetailsBatch({ categoryId: null, expected: [other, sessions[0]], patch: { notes: 'Stale neutral batch' } })).rejects.toMatchObject({ code: 'session_changed' });
+  expect(await repos.sessions.get(other.id)).toEqual(other);
+});
+
 it('rejects stale values even when their updatedAt has not changed, without editing another target', async () => {
   const { repos, categoryId, sessions } = await fixture();
   await repos.db.run('UPDATE sessions SET notes = ? WHERE id = ?', ['Changed elsewhere', sessions[1].id]);

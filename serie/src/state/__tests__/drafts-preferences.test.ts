@@ -30,41 +30,75 @@ afterEach(async () => {
   jest.useRealTimers();
 });
 
-it('preserves A → B → A dates and details, then restores both drafts across boot', async () => {
+it('shares A → B → A dates while retaining activity details and request identities across boot', async () => {
   const [a, b] = useApp.getState().categories;
   A.toggleDate('2026-10-01');
   A.setPendingDetails({ notes: 'A notes' });
   const requestA = useApp.getState().drafts[a.id].requestId;
   await A.switchActivity(b.id);
-  expect(useApp.getState()).toMatchObject({ selection: [], pendingDetails: null, saving: false, saveError: null });
+  expect(useApp.getState()).toMatchObject({ selection: ['2026-10-01'], pendingDetails: null, saving: false, saveError: null });
   A.toggleDate('2026-10-02');
   A.setPendingDetails({ notes: 'B notes' });
   const requestB = useApp.getState().drafts[b.id].requestId;
   await A.switchActivity(a.id);
-  expect(useApp.getState()).toMatchObject({ selection: ['2026-10-01'], pendingDetails: { notes: 'A notes' } });
+  expect(useApp.getState()).toMatchObject({ selection: ['2026-10-01', '2026-10-02'], pendingDetails: { notes: 'A notes' } });
   await A.boot();
-  expect(useApp.getState()).toMatchObject({ activeId: a.id, selection: ['2026-10-01'], pendingDetails: { notes: 'A notes' } });
+  expect(useApp.getState()).toMatchObject({ activeId: a.id, selection: ['2026-10-01', '2026-10-02'], pendingDetails: { notes: 'A notes' } });
   expect(useApp.getState().drafts[a.id].requestId).toBe(requestA);
   await A.switchActivity(b.id);
-  expect(useApp.getState()).toMatchObject({ selection: ['2026-10-02'], pendingDetails: { notes: 'B notes' } });
+  expect(useApp.getState()).toMatchObject({ selection: ['2026-10-01', '2026-10-02'], pendingDetails: { notes: 'B notes' } });
   expect(useApp.getState().drafts[b.id].requestId).toBe(requestB);
 });
 
-it('persists neutral viewing without losing drafts or allowing unattributed sessions', async () => {
+it('persists neutral date selection without losing details or allowing unattributed sessions', async () => {
   const [a] = useApp.getState().categories;
   A.toggleDate('2026-10-01');
   A.setPendingDetails({ notes: 'Keep while viewing all colors' });
   const requestId = useApp.getState().drafts[a.id].requestId;
   await A.switchActivity(null);
-  expect(useApp.getState()).toMatchObject({ activeId: null, selection: [], pendingDetails: null });
-  expect(A.toggleDate('2026-10-02')).toBe(false);
+  expect(useApp.getState()).toMatchObject({ activeId: null, selection: ['2026-10-01'], pendingDetails: null });
+  expect(A.toggleDate('2026-10-02')).toBe(true);
   expect(await A.save()).toBe(false);
   await A.boot();
-  expect(useApp.getState().activeId).toBeNull();
+  expect(useApp.getState()).toMatchObject({ activeId: null, selection: ['2026-10-01', '2026-10-02'] });
   expect(useApp.getState().drafts[a.id].requestId).toBe(requestId);
   await A.switchActivity(a.id);
-  expect(useApp.getState()).toMatchObject({ selection: ['2026-10-01'], pendingDetails: { notes: 'Keep while viewing all colors' } });
+  expect(useApp.getState()).toMatchObject({ selection: ['2026-10-01', '2026-10-02'], pendingDetails: { notes: 'Keep while viewing all colors' } });
   expect(await mockRepos.sessions.listAll()).toEqual([]);
+});
+
+it('restores the union of legacy activity draft dates in neutral mode, then honors an explicit empty shared selection', async () => {
+  const [a, b] = useApp.getState().categories;
+  await mockRepos.drafts.put({ categoryId: a.id, dates: ['2026-10-01'], details: { notes: 'A' }, requestId: 'legacy-a', updatedAt: '2026-10-10T08:00:00Z' });
+  await mockRepos.drafts.put({ categoryId: b.id, dates: ['2026-10-02'], details: { notes: 'B' }, requestId: 'legacy-b', updatedAt: '2026-10-10T08:00:00Z' });
+  await A.switchActivity(null);
+  useApp.setState({ status: 'booting', drafts: {}, selection: [], bulkSelection: [] });
+  await A.boot();
+  expect(useApp.getState()).toMatchObject({ activeId: null, selection: ['2026-10-01', '2026-10-02'] });
+  expect(useApp.getState().drafts[a.id].details).toEqual({ notes: 'A' });
+  expect(useApp.getState().drafts[b.id].details).toEqual({ notes: 'B' });
+  A.clearSelection();
+  await A.boot();
+  expect(useApp.getState().selection).toEqual([]);
+  expect((await mockRepos.drafts.list()).map((draft) => draft.requestId).sort()).toEqual(['legacy-a', 'legacy-b']);
+});
+
+it('saves shared neutral dates only after choosing an activity, using that activity’s durable details', async () => {
+  const [a, b] = useApp.getState().categories;
+  A.setPendingDetails({ notes: 'A details' });
+  await A.switchActivity(b.id);
+  A.setPendingDetails({ notes: 'B details' });
+  await A.switchActivity(null);
+  A.toggleDate('2026-10-01');
+  A.toggleDate('2026-10-02');
+  expect(await A.save()).toBe(false);
+  expect(await mockRepos.sessions.listAll()).toEqual([]);
+  await A.switchActivity(a.id);
+  expect(await A.save()).toBe(true);
+  const sessions = await mockRepos.sessions.listAll();
+  expect(sessions.map((session) => [session.categoryId, session.date, session.notes])).toEqual([[a.id, '2026-10-01', 'A details'], [a.id, '2026-10-02', 'A details']]);
+  expect(useApp.getState().selection).toEqual([]);
+  expect((await mockRepos.drafts.get(b.id))?.details).toEqual({ notes: 'B details' });
 });
 
 it('does not reactivate an activity when hydration completes after deselection', async () => {
@@ -103,13 +137,14 @@ it('isolates failed saves and request ids, retaining the same retry identity aft
   expect(useApp.getState().saveError).toBeTruthy();
   await A.switchActivity(b.id);
   expect(useApp.getState().saveError).toBeNull();
-  A.toggleDate('2026-10-02');
-  expect(await A.save()).toBe(true);
   await A.switchActivity(a.id);
   expect(useApp.getState().saveError).toBeTruthy();
   expect(useApp.getState().drafts[a.id].requestId).toBe(requestA);
   await A.boot();
   expect(useApp.getState().drafts[a.id].requestId).toBe(requestA);
+  expect(await A.save()).toBe(true);
+  await A.switchActivity(b.id);
+  A.toggleDate('2026-10-02');
   expect(await A.save()).toBe(true);
   const sessions = await mockRepos.sessions.listAll();
   expect(sessions).toHaveLength(2);
@@ -134,6 +169,8 @@ it('ignores a double tap and lets another activity save while the first completi
   expect(await A.save()).toBe(false);
   await entered.promise;
   await A.switchActivity(b.id);
+  expect(useApp.getState().selection).toEqual(['2026-10-01']);
+  A.toggleDate('2026-10-01');
   A.toggleDate('2026-10-02');
   A.setPendingDetails({ notes: 'B stays independent' });
   expect(await A.save()).toBe(true);

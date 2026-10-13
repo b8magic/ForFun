@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, usePathname } from 'expo-router';
 import { useApp } from '@/state/store';
 import { useActive, useMotionReduced } from '@/state/selectors';
-import { clearSelection, goToday, save, setPlace, setViewMonth, toggleBulkSession, toggleDate } from '@/state/actions';
+import { clearSelection, goToday, save, setPlace, setViewMonth, toggleDate } from '@/state/actions';
 import { EARLIEST_DATE, addDays, compareMonths, monthKey, monthOf, monthRange, type MonthRef } from '@/domain/dates';
 import { buildDaySummaries } from '@/domain/daySummaries';
 import { MONTHS_TITLE, t } from '@/i18n/it';
@@ -54,16 +54,10 @@ export function Lineup() {
   const bulkDays = useMemo(() => {
     const selected = new Set(bulkSelection);
     const counts = new Map<string, number>();
-    for (const session of sessions) if (selected.has(session.id) && session.categoryId === active?.id) counts.set(session.date, (counts.get(session.date) ?? 0) + 1);
+    for (const session of sessions) if (selected.has(session.id) && (!active?.id || session.categoryId === active.id)) counts.set(session.date, (counts.get(session.date) ?? 0) + 1);
     return counts;
-  }, [bulkSelection, sessions, active?.id]);
-  const selection = useMemo(() => new Set(sessionMode === 'edit' ? bulkDays.keys() : selectionArr), [selectionArr, sessionMode, bulkDays]);
-  const selectExistingDay = useCallback((date: string) => {
-    const state = useApp.getState();
-    const matches = state.sessions.filter((session) => session.categoryId === state.activeId && session.date === date);
-    if (matches.length > 1) router.push({ pathname: '/bulk-day', params: { date } });
-    else if (matches.length === 1) toggleBulkSession(matches[0].id);
-  }, []);
+  }, [bulkSelection, sessions, active]);
+  const selection = useMemo(() => new Set(selectionArr), [selectionArr]);
   const [listHeight, setListHeight] = useState(0);
   const visibleMonth = viewMonth;
   const list = useRef<FlatList<MonthRef>>(null);
@@ -202,21 +196,21 @@ export function Lineup() {
         renderItem={({ item }) => (
           <View style={{ paddingBottom: 28 }} testID={`home-month-${monthKey(item)}`}>
             <Pressable onPress={() => { setViewMonth(item); router.push('/jump'); }} accessibilityRole="button" accessibilityLabel={`${MONTHS_TITLE[item.m - 1]} ${item.y}. Scegli mese e anno`} style={{ height: sectionTitleHeight, justifyContent: 'center' }}><T variant="heading" color={surface.fg}>{MONTHS_TITLE[item.m - 1]} <T variant="data" color={surface.mute}>{item.y}</T></T></Pressable>
-            <MonthCalendar month={item} days={days} activeId={active?.id} selection={selection} today={today} showAll={!active || mode === 'all'} onPressDay={active ? sessionMode === 'edit' ? selectExistingDay : toggleDate : openDay} onLongPressDay={sessionMode === 'edit' ? selectExistingDay : openDay} selectionEnabled={!!active} disabled={saving || bulkSaving} existingSelection={sessionMode === 'edit' ? bulkDays : undefined} recentSave={sessionMode === 'new' && highlightSaveId && breakEvent ? breakEvent : undefined} testID={`month-${monthKey(item)}`} />
+            <MonthCalendar month={item} days={days} activeId={active?.id} selection={selection} today={today} showAll={!active || mode === 'all'} onPressDay={toggleDate} onLongPressDay={openDay} disabled={saving || bulkSaving} existingSelection={sessionMode === 'edit' ? bulkDays : undefined} recentSave={sessionMode === 'new' && highlightSaveId && breakEvent ? breakEvent : undefined} testID={`month-${monthKey(item)}`} />
           </View>
         )}
       />
       <View style={[styles.dock, { backgroundColor: surface.bg, borderTopColor: surface.faint, paddingBottom: Math.max(insets.bottom, 12) }]}>
         {place === 'lineup' ? <ToastContent inline /> : null}
-        {active ? <><HomeSessionModes />{sessionMode === 'edit' ? <HomeBulkControls count={[...bulkDays.values()].reduce((sum, count) => sum + count, 0)} dayCount={bulkDays.size} color={active.color} /> : <><View style={styles.context}>
-          <Pressable onPress={() => router.push('/details')} accessibilityRole="button" accessibilityLabel={n ? t.detailsForSelection(n) : t.detailsLink} testID="details-link" style={styles.contextButton}><T variant="label" color={surface.mute} style={{ letterSpacing: 0.6 }}>{pendingDetails ? '✓ Dettagli' : '+ Dettagli'}</T></Pressable>
+        <HomeSessionModes />{sessionMode === 'edit' ? <HomeBulkControls count={[...bulkDays.values()].reduce((sum, count) => sum + count, 0)} dayCount={n} color={active?.color ?? surface.fg} /> : <><View style={styles.context}>
+          {active ? <Pressable onPress={() => router.push('/details')} accessibilityRole="button" accessibilityLabel={n ? t.detailsForSelection(n) : t.detailsLink} testID="details-link" style={styles.contextButton}><T variant="label" color={surface.mute} style={{ letterSpacing: 0.6 }}>{pendingDetails ? '✓ Dettagli' : '+ Dettagli'}</T></Pressable> : <T variant="small" color={surface.mute}>{n ? `${n} ${n === 1 ? 'giorno selezionato' : 'giorni selezionati'}` : ''}</T>}
           {n === 1 ? <Pressable onPress={() => openDay(selectionArr[0])} accessibilityRole="button" accessibilityLabel="Sessioni del giorno" testID="selected-day-details" style={styles.contextButton}><T variant="label" color={surface.fg} style={{ letterSpacing: 0.3 }}>Sessioni</T></Pressable> : null}
           {n ? <Pressable onPress={clearSelection} accessibilityRole="button" accessibilityLabel="Svuota la selezione" testID="clear-selection" style={styles.contextButton}><T variant="label" color={surface.mute} style={{ letterSpacing: 0.3 }}>Svuota</T></Pressable> : null}
         </View>
         {offMonth.length ? <Pressable onPress={() => setViewMonth(monthOf(offMonth[0]))} accessibilityRole="button" testID="off-month" style={{ minHeight: 28, justifyContent: 'center' }}><T variant="small" color={surface.mute}>{offMonth.length} {offMonth.length === 1 ? 'data in un altro mese' : 'date in altri mesi'}</T></Pressable> : null}
         {saveError ? <T variant="small" color={surface.danger} accessibilityLiveRegion="assertive">{saveError}</T> : null}
-        <SaveCapsule count={n} color={active.color} activityName={active.name} busy={saving} error={saveError} reduced={reduced} visible={place === 'lineup' && pathname === '/'} celebration={breakEvent?.categoryId === active.id ? breakEvent.id : null} onSave={() => { void save(); }} />
-        </>}</> : null}
+        <SaveCapsule count={n} color={active?.color ?? surface.fg} activityName={active?.name ?? null} busy={saving} error={saveError} reduced={reduced} visible={place === 'lineup' && pathname === '/'} celebration={active && breakEvent?.categoryId === active.id ? breakEvent.id : null} onSave={() => { void save(); }} />
+        </>}
         <View style={{ height: 10 }} /><ActivityDock categories={categories} activeId={active?.id ?? null} />
       </View>
     </View>

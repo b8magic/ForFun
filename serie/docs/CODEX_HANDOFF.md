@@ -7,7 +7,13 @@
 - Contribution author/tool: Codex. Final implementation commits use subjects beginning `Codex: …` so a future Claude/Codex reviewer can identify the work through Git history.
 - User-approved scope: complete the calendar/appearance/draft/day/history/named-period evolution, preserve existing data and integrations, run meaningful tests, and deliver one final verified GitHub IPA. No release marker is added before local candidate checks pass.
 
-## Current update: Serie 1.3.0
+## Current update: Serie 1.3.1 (IPA compilation pending)
+
+User feedback asks for shared Home day selection even with no activity selected, preserved through activity/mode changes; neutral editing across activities; immediate explicit deletion without a confirmation; a swipe that cannot also open the editor; and removal of missing-time/duration filler from day previews. Per-activity optional details remain separate. No schema or dependency changes.
+
+Delivery policy: targeted local checks and one IPA-only archive, with no simulator/video/full-browser pipeline. Local verification passed: **949 tests in 56 suites**, typecheck and lint, plus **7/7 focused browser journeys** with zero console errors/warnings. The browser checks physical touch swipes/long press, exact SQLite rows after neutral/scoped edits and deletion, selection persistence and clean inline history. Actual iPhone gesture behavior is not claimed as verified; no native simulator run is required for this delivery. IPA build and receipt pending.
+
+## Previous delivery: Serie 1.3.0
 
 Implementation follows the user's next iPhone feedback: compact numeric duration entry, fewer redundant labels, consistent year typography, smaller activity pills, dismissible save messages, native status-bar scroll correction, inline monthly history details and editing existing sessions together from Home.
 

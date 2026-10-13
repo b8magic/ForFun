@@ -1,4 +1,4 @@
-import { DATE_ONLY, buildTiming } from '@/domain/timing';
+import { DATE_ONLY, buildTiming, type TimingInput } from '@/domain/timing';
 import type { Place, Session } from '@/domain/types';
 import { compactDurationLine, durationLine, placeSummary, sessionPreview } from '../format';
 
@@ -14,27 +14,45 @@ it('keeps complete inline totals compact and uses the canonical rounded duration
   expect(compactDurationLine({ knownSec: 5400, knownCount: 2, totalCount: 2 })).toBe('1 h 30 min');
 });
 
-it('identifies partial and unknown inline durations without suggesting all sessions have a known duration', () => {
+it('shows recorded time in previews and keeps honest duration coverage in statistics', () => {
   const partial = { knownSec: 5400, knownCount: 1, totalCount: 3 };
-  expect(compactDurationLine(partial)).toBe('1 h 30 min · 1 su 3 con durata');
+  expect(compactDurationLine(partial)).toBe('1 h 30 min');
   expect(durationLine(partial)).toBe('1 h 30 min di tempo registrato · durata disponibile per 1 di 3 sessioni');
-  expect(compactDurationLine({ knownSec: 0, knownCount: 0, totalCount: 3 })).toBe('durata non indicata');
+  expect(compactDurationLine({ knownSec: 0, knownCount: 0, totalCount: 3 })).toBe('');
   expect(compactDurationLine({ knownSec: 0, knownCount: 0, totalCount: 0 })).toBe('');
+  expect(compactDurationLine({ knownSec: 0, knownCount: 1, totalCount: 1 })).toBe('');
 });
 
 it('does not turn a missing duration or place into an invented recorded value', () => {
-  expect(sessionPreview(base)).toEqual({ timing: 'Solo data · durata non specificata', place: null, notes: null });
+  expect(sessionPreview(base)).toEqual({ timing: '', place: null, notes: null });
   const timing = buildTiming(base.date, { state: 'duration_only', declaredSec: 5400 });
   if (!timing.ok) throw new Error('invalid fixture');
-  expect(sessionPreview({ ...base, timing: timing.timing }).timing).toBe('1 h 30 min · senza orario');
+  expect(sessionPreview({ ...base, timing: timing.timing }).timing).toBe('1 h 30 min');
+  expect(sessionPreview({ ...base, timing: { ...timing.timing, durationSec: null } }).timing).toBe('');
+  expect(sessionPreview({ ...base, timing: { ...timing.timing, durationSec: 0 } }).timing).toBe('');
+});
+
+it('retains actual start, end, duration and the explicitly calculated end', () => {
+  const cases: readonly [TimingInput, string][] = [
+    [{ state: 'start_only', start: '08:15', timeZone: 'Europe/Rome' }, 'dalle 08:15'],
+    [{ state: 'interval', start: '23:00', end: '00:30', endDayOffset: 1, timeZone: 'Europe/Rome' }, '23:00–00:30 (+1 g) · 1 h 30 min'],
+    [{ state: 'start_duration', start: '08:15', declaredSec: 5400, timeZone: 'Europe/Rome' }, 'dalle 08:15 · 1 h 30 min (fine calcolata 09:45)'],
+  ];
+  for (const [input, expected] of cases) {
+    const result = buildTiming(base.date, input);
+    if (!result.ok) throw new Error('invalid fixture');
+    expect(sessionPreview({ ...base, timing: result.timing }).timing).toBe(expected);
+  }
 });
 
 it('keeps a saved place visible independently of notes and duration, including map-only places', () => {
+  expect(placeSummary(place)).toBeNull();
+  expect(placeSummary({ ...place, label: ' ', address: ' ', mapUrl: ' ' })).toBeNull();
   expect(placeSummary({ ...place, label: '  La Fuente ', address: '  Via del mare 4 ' })).toBe('La Fuente · Via del mare 4');
   expect(placeSummary({ ...place, coords: { lat: 43, lng: 10 } })).toBe('Posizione salvata');
   expect(placeSummary({ ...place, mapUrl: 'https://maps.google.com/?q=La+Fuente' })).toBe('Link mappa salvato');
   expect(sessionPreview({ ...base, place: { ...place, label: 'La Fuente' }, notes: 'Onde pulite\nSeconda riga privata' })).toEqual({
-    timing: 'Solo data · durata non specificata', place: 'La Fuente', notes: '“Onde pulite”',
+    timing: '', place: 'La Fuente', notes: '“Onde pulite”',
   });
 });
 

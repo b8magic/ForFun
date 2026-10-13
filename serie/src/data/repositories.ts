@@ -369,7 +369,7 @@ export function sessionsRepo(db: SqlDriver, deps: Deps) {
           const row = await tx.first<SessionRow>('SELECT * FROM sessions WHERE id = ?', [reviewed.id]);
           if (!row) throw new DomainError('session_missing', reviewed.id);
           const current = sessionFromRow(row);
-          if (current.categoryId !== input.categoryId || reviewed.categoryId !== input.categoryId) throw new DomainError('bulk_category_changed');
+          if (input.categoryId !== null && (current.categoryId !== input.categoryId || reviewed.categoryId !== input.categoryId)) throw new DomainError('bulk_category_changed');
           if (!sameSessionVersion(current, reviewed)) throw new DomainError('session_changed', reviewed.id);
           const timing = input.patch.timing === undefined ? current.timing : bulkTimingForDate(current.date, input.patch.timing);
           if (!timing) throw new DomainError('timing_invalid_for_date', current.date);

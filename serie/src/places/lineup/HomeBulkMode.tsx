@@ -20,8 +20,8 @@ export function HomeBulkControls({ count, dayCount, color }: { count: number; da
   const busy = useApp((state) => state.bulkSaving);
   return <View testID="home-bulk-controls">
     <View style={styles.summary}>
-      <T variant="small" color={S.mute} testID="bulk-selection-count">{count ? `${count} ${count === 1 ? 'sessione' : 'sessioni'} · ${dayCount} ${dayCount === 1 ? 'giorno' : 'giorni'}` : 'Tocca i giorni con sessioni registrate'}</T>
-      {count ? <Pressable onPress={clearBulkSelection} disabled={busy} accessibilityRole="button" accessibilityLabel="Svuota le sessioni selezionate" testID="bulk-clear-selection" style={styles.clear}><T variant="label" color={S.mute}>Svuota</T></Pressable> : null}
+      <T variant="small" color={S.mute} testID="bulk-selection-count">{dayCount ? `${count} ${count === 1 ? 'sessione' : 'sessioni'} · ${dayCount} ${dayCount === 1 ? 'giorno' : 'giorni'}` : 'Seleziona i giorni'}</T>
+      {dayCount ? <View style={{ flexDirection: 'row', gap: 16 }}><Pressable onPress={() => router.push('/bulk-day')} disabled={busy} accessibilityRole="button" accessibilityLabel="Scegli le sessioni dei giorni selezionati" testID="selected-day-sessions" style={styles.clear}><T variant="label" color={S.fg}>Sessioni</T></Pressable><Pressable onPress={clearBulkSelection} disabled={busy} accessibilityRole="button" accessibilityLabel="Svuota le date selezionate" testID="bulk-clear-selection" style={styles.clear}><T variant="label" color={S.mute}>Svuota</T></Pressable></View> : null}
     </View>
     <Button label={count ? `Modifica ${count} ${count === 1 ? 'sessione' : 'sessioni'}` : 'Modifica sessioni'} color={color} disabled={!count || busy} onPress={() => router.push('/bulk')} testID="bulk-edit" />
   </View>;
