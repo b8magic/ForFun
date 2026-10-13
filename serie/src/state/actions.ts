@@ -141,7 +141,7 @@ async function hydrate() {
     set((state) => {
       const categories = snapshot.categories === categoriesRead ? b.categories : state.categories;
       const preferred = snapshot.active === activeRevision ? b.activeId : state.activeId;
-      const active = categories.find((category) => category.id === preferred) ?? categories[0] ?? null;
+      const active = preferred === null ? null : categories.find((category) => category.id === preferred) ?? categories[0] ?? null;
       const activeId = active?.id ?? null;
       const activeNotice = snapshot.active === activeRevision ? (b.changed && active ? t.activeContextChanged(active.name) : null) : state.activeNotice;
       if (activeId !== state.activeId) activeRevision++;
@@ -244,9 +244,9 @@ export function setPendingDetails(d: SessionDetailsDraft | null) {
   if (state.activeId) editDraft(state.activeId, state.selection, d ? JSON.parse(JSON.stringify(d)) as SessionDetailsDraft : null);
 }
 
-export async function switchActivity(id: ID) {
+export async function switchActivity(id: ID | null) {
   const { activeId, categories } = get();
-  if (!categories.some((c) => c.id === id)) return;
+  if (id !== null && !categories.some((c) => c.id === id)) return;
   if (id !== activeId) {
     activeRevision++;
     set((state) => ({ activeId: id, ...draftProjection(state.drafts, id), activeNotice: null, switcherOpen: false }));
@@ -379,7 +379,9 @@ export async function createCategory(input: { name: string; color: string; patte
   ++categoriesRead;
   set((state) => ({ categories: [...state.categories.filter((category) => category.id !== c.id), c] }));
   await reloadCategories().catch(() => undefined);
-  if (!get().activeId) await switchActivity(c.id);
+  // Creating the first activity restores logging; adding one while browsing
+  // all activities must not silently leave the user's neutral view.
+  if (!get().activeId && get().categories.length === 1) await switchActivity(c.id);
   return c;
 }
 

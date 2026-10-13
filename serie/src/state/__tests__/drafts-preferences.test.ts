@@ -50,6 +50,50 @@ it('preserves A → B → A dates and details, then restores both drafts across 
   expect(useApp.getState().drafts[b.id].requestId).toBe(requestB);
 });
 
+it('persists neutral viewing without losing drafts or allowing unattributed sessions', async () => {
+  const [a] = useApp.getState().categories;
+  A.toggleDate('2026-10-01');
+  A.setPendingDetails({ notes: 'Keep while viewing all colors' });
+  const requestId = useApp.getState().drafts[a.id].requestId;
+  await A.switchActivity(null);
+  expect(useApp.getState()).toMatchObject({ activeId: null, selection: [], pendingDetails: null });
+  expect(A.toggleDate('2026-10-02')).toBe(false);
+  expect(await A.save()).toBe(false);
+  await A.boot();
+  expect(useApp.getState().activeId).toBeNull();
+  expect(useApp.getState().drafts[a.id].requestId).toBe(requestId);
+  await A.switchActivity(a.id);
+  expect(useApp.getState()).toMatchObject({ selection: ['2026-10-01'], pendingDetails: { notes: 'Keep while viewing all colors' } });
+  expect(await mockRepos.sessions.listAll()).toEqual([]);
+});
+
+it('does not reactivate an activity when hydration completes after deselection', async () => {
+  const entered = deferred();
+  const release = deferred();
+  const list = mockRepos.sessions.listAll;
+  jest.spyOn(mockRepos.sessions, 'listAll').mockImplementationOnce(async () => {
+    entered.resolve();
+    await release.promise;
+    return list();
+  });
+  const hydration = A.boot();
+  await entered.promise;
+  await A.switchActivity(null);
+  release.resolve();
+  await hydration;
+  expect(useApp.getState().activeId).toBeNull();
+  expect(await mockRepos.settings.get('lastActiveCategoryId', 'missing')).toBeNull();
+});
+
+it('keeps neutral viewing when adding another activity', async () => {
+  await A.switchActivity(null);
+  const category = await A.createCategory({ name: 'Yoga', color: '#123456', pattern: 'swell' });
+  expect(useApp.getState().categories.some((item) => item.id === category.id)).toBe(true);
+  expect(useApp.getState().activeId).toBeNull();
+  await A.boot();
+  expect(useApp.getState().activeId).toBeNull();
+});
+
 it('isolates failed saves and request ids, retaining the same retry identity after a restart', async () => {
   const [a, b] = useApp.getState().categories;
   A.toggleDate('2026-10-01');

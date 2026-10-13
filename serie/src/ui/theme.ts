@@ -76,17 +76,29 @@ export function surfaceFor(theme: ThemePref): Surface {
 
 /** Activity colours stay unchanged; choose a readable label over their fill. */
 export function foregroundOn(color: string): string {
-  const hex = /^#([0-9a-f]{6})$/i.exec(color)?.[1];
-  if (!hex) return palette.ink;
+  const match = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(color)?.[1];
+  if (!match) return palette.ink;
+  const hex = match.length === 3 ? [...match].map((digit) => digit + digit).join('') : match;
+  const luminance = relativeLuminance(hex);
+  const inkContrast = contrast(luminance, INK_LUMINANCE);
+  const creamContrast = contrast(luminance, CREAM_LUMINANCE);
+  if (Math.max(inkContrast, creamContrast) >= 4.5) return inkContrast >= creamContrast ? palette.ink : palette.cream;
+  // Some middle tones need pure white/black to reach AA; never alter the activity fill.
+  return contrast(luminance, 0) >= contrast(luminance, 1) ? '#000000' : '#FFFFFF';
+}
+
+function relativeLuminance(hex: string): number {
   const channels = [0, 2, 4].map((i) => {
     const n = parseInt(hex.slice(i, i + 2), 16) / 255;
     return n <= 0.04045 ? n / 12.92 : ((n + 0.055) / 1.055) ** 2.4;
   });
-  const luminance = channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
-  return luminance > 0.18 ? palette.ink : palette.cream;
+  return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
 }
+const contrast = (a: number, b: number) => (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+const INK_LUMINANCE = relativeLuminance(palette.ink.slice(1));
+const CREAM_LUMINANCE = relativeLuminance(palette.cream.slice(1));
 
-/** Curated activity colours. Each reads on both Ink and Bone. */
+/** Stable presets: the original eight retain their ids, values and order. */
 export const activityColors = [
   { id: 'flare', hex: '#FF4D1F', name: 'Fiamma' },
   { id: 'lime', hex: '#C9F06A', name: 'Lime' },
@@ -96,6 +108,22 @@ export const activityColors = [
   { id: 'rose', hex: '#FF8FB0', name: 'Rosa' },
   { id: 'clay', hex: '#D9774A', name: 'Argilla' },
   { id: 'foam', hex: '#EEE8DA', name: 'Schiuma' },
+  { id: 'ruby', hex: '#CF3656', name: 'Rubino' },
+  { id: 'coral', hex: '#FA8065', name: 'Corallo' },
+  { id: 'ochre', hex: '#B58A37', name: 'Ocra' },
+  { id: 'sun', hex: '#F3DF70', name: 'Sole' },
+  { id: 'olive', hex: '#929D52', name: 'Oliva' },
+  { id: 'forest', hex: '#266957', name: 'Bosco' },
+  { id: 'lagoon', hex: '#36A9AE', name: 'Laguna' },
+  { id: 'ice', hex: '#A8DCDD', name: 'Ghiaccio' },
+  { id: 'sky', hex: '#79C6E6', name: 'Cielo' },
+  { id: 'cobalt', hex: '#365BC2', name: 'Cobalto' },
+  { id: 'night', hex: '#344B78', name: 'Notte' },
+  { id: 'indigo', hex: '#6354AC', name: 'Indaco' },
+  { id: 'violet', hex: '#936EC7', name: 'Viola' },
+  { id: 'plum', hex: '#9B597F', name: 'Prugna' },
+  { id: 'stone', hex: '#A69E90', name: 'Pietra' },
+  { id: 'graphite', hex: '#536067', name: 'Grafite' },
 ] as const;
 
 /** Font families (static instances of Roboto Flex and Martian Mono, see assets/fonts). */

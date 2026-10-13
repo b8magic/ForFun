@@ -50,7 +50,7 @@ export function SaveCapsule({ count, color, activityName, busy, error, reduced, 
   return (
     <Pressable onLayout={(event) => setWidth(event.nativeEvent.layout.width)} onPress={onSave} disabled={!count || busy} accessibilityRole="button" accessibilityLabel={count ? `${busy ? t.saving : error ? t.retry : t.save(count)} · ${activityName}` : `Salva · ${activityName}. Nessuna data selezionata`} accessibilityState={{ disabled: !count || busy, busy }} testID="save" style={({ pressed }) => [styles.root, { backgroundColor: count ? softenColor(color, palette.cream, 0.32) : surface.bg, borderColor: count ? color : surface.faint, opacity: pressed ? 0.8 : 1 }]}>
       <Canvas pointerEvents="none" style={StyleSheet.absoluteFill}><Group clip={clip}><Path path={path} color={color} /></Group></Canvas>
-      {count ? <T variant="button" color={palette.ink} numberOfLines={1}>{busy ? t.saving : error ? t.retry : t.save(count)}</T> : null}
+      {count ? <T variant="button" color={palette.ink} numberOfLines={1} style={{ backgroundColor: softenColor(color, palette.cream, 0.1), borderRadius: 12, paddingHorizontal: 10, paddingVertical: 3 }}>{busy ? t.saving : error ? t.retry : t.save(count)}</T> : null}
     </Pressable>
   );
 }

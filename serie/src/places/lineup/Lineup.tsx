@@ -153,14 +153,14 @@ export function Lineup() {
   const n = selectionArr.length;
   const offMonth = selectionArr.filter((date) => !date.startsWith(monthKey(visibleMonth)));
   const footerHeight = Math.max(0, listHeight - (frames[frames.length - 1]?.length ?? listHeight));
-  if (!active) return <View style={[styles.root, { backgroundColor: surface.bg, paddingTop: insets.top + 90, paddingHorizontal: 22 }]}><T variant="heading">{t.noActivities}</T><T variant="body" color={surface.mute} style={{ marginTop: 12, marginBottom: 24 }}>{t.noActivitiesBody}</T><Button label={t.createActivity} onPress={() => router.push('/activities')} /></View>;
+  if (!categories.length) return <View style={[styles.root, { backgroundColor: surface.bg, paddingTop: insets.top + 90, paddingHorizontal: 22 }]}><T variant="heading">{t.noActivities}</T><T variant="body" color={surface.mute} style={{ marginTop: 12, marginBottom: 24 }}>{t.noActivitiesBody}</T><Button label={t.createActivity} onPress={() => router.push('/activities')} /></View>;
 
   return (
     <View style={[styles.root, { backgroundColor: surface.bg, paddingTop: insets.top }]} testID="lineup">
       <View style={styles.header}>
         <Pressable onPress={() => router.push('/jump')} accessibilityRole="button" accessibilityLabel={`${MONTHS_TITLE[visibleMonth.m - 1]} ${visibleMonth.y}. Scegli mese e anno`} testID="month-title" style={styles.monthTitle}>
-          <T variant="heading" color={surface.fg} maxFontSizeMultiplier={1.15} style={{ fontFamily: fonts.displayBlack, fontSize: 30, lineHeight: 36 }}>Serie</T>
-          <View style={styles.year}><T variant="data" color={surface.mute}>{visibleMonth.y}</T><Chevron dir="down" color={surface.fg} size={7} /></View>
+          <T variant="heading" color={surface.fg} maxFontSizeMultiplier={1.15} style={{ fontFamily: fonts.displayBlack, fontSize: 30, lineHeight: 36 }}>{visibleMonth.y}</T>
+          <Chevron dir="down" color={surface.fg} size={7} />
         </Pressable>
         <Pressable onPress={() => setPlace('time')} accessibilityRole="button" accessibilityLabel="Storia" testID="history-handle" style={styles.headerButton}><T variant="bodyStrong" color={surface.fg}>Storia</T></Pressable>
         <Pressable onPress={() => router.push('/menu')} accessibilityRole="button" accessibilityLabel="Menu" testID="menu" style={styles.menu}><MenuGlyph color={surface.fg} /></Pressable>
@@ -180,17 +180,17 @@ export function Lineup() {
         onViewableItemsChanged={onVisible} viewabilityConfig={VIEWABILITY}
         initialNumToRender={3} maxToRenderPerBatch={3} windowSize={5} showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingHorizontal: 22 }} ListFooterComponent={<View style={{ height: footerHeight }} />}
-        extraData={{ selection, activeId: active.id, mode, saving, days, fontScale }} testID="month-list"
+        extraData={{ selection, activeId: active?.id, mode, saving, days, fontScale }} testID="month-list"
         renderItem={({ item }) => (
           <View style={{ paddingBottom: 28 }} testID={`home-month-${monthKey(item)}`}>
             <Pressable onPress={() => { setViewMonth(item); router.push('/jump'); }} accessibilityRole="button" accessibilityLabel={`${MONTHS_TITLE[item.m - 1]} ${item.y}. Scegli mese e anno`} style={{ height: sectionTitleHeight, justifyContent: 'center' }}><T variant="heading" color={surface.fg}>{MONTHS_TITLE[item.m - 1]} <T variant="data" color={surface.mute}>{item.y}</T></T></Pressable>
-            <MonthCalendar month={item} days={days} activeId={active.id} selection={selection} today={today} showAll={mode === 'all'} onPressDay={toggleDate} onLongPressDay={openDay} disabled={saving} recentSave={highlightSaveId && breakEvent ? breakEvent : undefined} testID={`month-${monthKey(item)}`} />
+            <MonthCalendar month={item} days={days} activeId={active?.id} selection={selection} today={today} showAll={!active || mode === 'all'} onPressDay={active ? toggleDate : openDay} onLongPressDay={openDay} selectionEnabled={!!active} disabled={saving} recentSave={highlightSaveId && breakEvent ? breakEvent : undefined} testID={`month-${monthKey(item)}`} />
           </View>
         )}
       />
       <View style={[styles.dock, { backgroundColor: surface.bg, borderTopColor: surface.faint, paddingBottom: Math.max(insets.bottom, 12) }]}>
         {place === 'lineup' ? <ToastContent inline /> : null}
-        <View style={styles.context}>
+        {active ? <><View style={styles.context}>
           <Pressable onPress={() => router.push('/details')} accessibilityRole="button" accessibilityLabel={n ? t.detailsForSelection(n) : t.detailsLink} testID="details-link" style={styles.contextButton}><T variant="label" color={surface.mute} style={{ letterSpacing: 0.6 }}>{pendingDetails ? '✓ Dettagli' : '+ Dettagli'}</T></Pressable>
           {n === 1 ? <Pressable onPress={() => openDay(selectionArr[0])} accessibilityRole="button" accessibilityLabel="Sessioni del giorno" testID="selected-day-details" style={styles.contextButton}><T variant="label" color={surface.fg} style={{ letterSpacing: 0.3 }}>Sessioni</T></Pressable> : null}
           {n ? <Pressable onPress={clearSelection} accessibilityRole="button" accessibilityLabel="Svuota la selezione" testID="clear-selection" style={styles.contextButton}><T variant="label" color={surface.mute} style={{ letterSpacing: 0.3 }}>Svuota</T></Pressable> : null}
@@ -198,7 +198,8 @@ export function Lineup() {
         {offMonth.length ? <Pressable onPress={() => setViewMonth(monthOf(offMonth[0]))} accessibilityRole="button" testID="off-month" style={{ minHeight: 28, justifyContent: 'center' }}><T variant="small" color={surface.mute}>{offMonth.length} {offMonth.length === 1 ? 'data in un altro mese' : 'date in altri mesi'}</T></Pressable> : null}
         {saveError ? <T variant="small" color={surface.danger} accessibilityLiveRegion="assertive">{saveError}</T> : null}
         <SaveCapsule count={n} color={active.color} activityName={active.name} busy={saving} error={saveError} reduced={reduced} visible={place === 'lineup' && pathname === '/'} celebration={breakEvent?.categoryId === active.id ? breakEvent.id : null} onSave={() => { void save(); }} />
-        <View style={{ height: 10 }} /><ActivityDock categories={categories} activeId={active.id} />
+        </> : null}
+        <View style={{ height: 10 }} /><ActivityDock categories={categories} activeId={active?.id ?? null} />
       </View>
     </View>
   );

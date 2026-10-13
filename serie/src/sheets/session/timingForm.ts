@@ -13,7 +13,7 @@
  */
 import type { LocalDate, Timing, TimingState, WallTime } from '@/domain/types';
 import { buildTiming, DATE_ONLY, derivedEnd, describeSwitch, type TimingChange, type TimingError, type TimingInput } from '@/domain/timing';
-import { formatDuration, formatHoursInput, parseDurationInput } from '@/domain/duration';
+import { formatDuration, MAX_DURATION_SEC, parseDurationInput, type DurationParse } from '@/domain/duration';
 import { isValidTimeZone, isWallTime } from '@/domain/zoned';
 import { addDays } from '@/domain/dates';
 import { t } from '@/i18n/it';
@@ -47,8 +47,9 @@ export interface TimingForm {
   start: string;
   end: string;
   nextDay: boolean;
+  /** Raw hours:minutes; legacy decimal input remains readable. Saved seconds survive until edited. */
   duration: string;
-  /** IANA zone as typed; blank = use the device zone. */
+  /** Selected IANA zone; blank = use the device zone. */
   zone: string;
 }
 
@@ -70,11 +71,57 @@ export function normalizeTimeInput(raw: string): string {
   return `${String(h).padStart(2, '0')}:${String(mi).padStart(2, '0')}`;
 }
 
-/** Prefill text for a duration that round-trips exactly through parseDurationInput. */
+/** Prefill hours/minutes without rounding any seconds already present in storage. */
 export function durationInputFrom(sec: number): string {
-  if (sec % 900 === 0) return formatHoursInput(sec); // 1,5 · 0,75 · 2
-  const min = Math.round(sec / 60);
-  return `${Math.floor(min / 60)}:${String(min % 60).padStart(2, '0')}`; // 1:20
+  const hours = Math.floor(sec / 3600);
+  const minutes = Math.floor((sec % 3600) / 60);
+  const seconds = sec % 60;
+  return `${hours}:${String(minutes).padStart(2, '0')}${seconds ? `:${String(seconds).padStart(2, '0')}` : ''}`;
+}
+
+export interface DurationParts {
+  hours: string;
+  minutes: string;
+}
+
+/** Read both raw fields without losing blanks or partially typed invalid values. */
+export function durationPartsFrom(raw: string): DurationParts {
+  if (!raw.trim()) return { hours: '', minutes: '' };
+  if (raw.includes(':')) {
+    const [hours, minutes] = raw.split(':');
+    return { hours, minutes };
+  }
+  const parsed = parseDurationInput(raw);
+  return parsed.ok ? durationPartsFrom(durationInputFrom(parsed.seconds)) : { hours: raw, minutes: '' };
+}
+
+/** Editing either field replaces any stored sub-minute precision with the entered minutes. */
+export function durationInputFromParts({ hours, minutes }: DurationParts): string {
+  return !hours.trim() && !minutes.trim() ? '' : `${hours}:${minutes}`;
+}
+
+/** Hours and minutes are whole numbers; either blank part means zero, both blank means unknown. */
+export function parseFormDuration(raw: string): DurationParse {
+  if (!raw.includes(':')) return parseDurationInput(raw);
+  const parts = raw.split(':').map((part) => part.trim());
+  if (parts.length !== 2 && parts.length !== 3) return { ok: false, error: 'invalid' };
+  const [hours, minutes, savedSeconds] = parts;
+  if (!hours && !minutes && savedSeconds == null) return { ok: false, error: 'empty' };
+  if ((hours && !/^\d+$/.test(hours)) || (minutes && !/^\d{1,2}$/.test(minutes)) || Number(minutes) > 59) return { ok: false, error: 'invalid' };
+  // This third part only comes from the exact prefill; the editor exposes hours and minutes.
+  if (savedSeconds != null && (!/^\d{2}$/.test(savedSeconds) || Number(savedSeconds) > 59)) return { ok: false, error: 'invalid' };
+  const seconds = Number(hours) * 3600 + Number(minutes) * 60 + Number(savedSeconds ?? 0);
+  if (!Number.isFinite(seconds)) return { ok: false, error: 'invalid' };
+  if (seconds <= 0) return { ok: false, error: 'non_positive' };
+  if (seconds > MAX_DURATION_SEC) return { ok: false, error: 'too_long' };
+  return { ok: true, seconds };
+}
+
+/** Existing second precision must also remain visible in duration summaries. */
+export function formatTimingDuration(sec: number): string {
+  const seconds = sec % 60;
+  if (!seconds) return formatDuration(sec);
+  return `${sec >= 60 ? `${formatDuration(sec - seconds)} ` : ''}${seconds} s`;
 }
 
 /** Form state for an existing timing (device zone used only when the timing has none). */
@@ -145,7 +192,7 @@ function parseFields(form: TimingForm, fallbackZone: string): Parsed {
     else errors.end = 'time';
   }
   if (modeHasDuration(mode) && form.duration.trim()) {
-    const p = parseDurationInput(form.duration);
+    const p = parseFormDuration(form.duration);
     if (p.ok) declaredSec = p.seconds;
     else errors.duration = p.error === 'too_long' ? 'duration_too_long' : p.error === 'too_short' ? 'duration_too_short' : 'duration';
   }
@@ -243,7 +290,7 @@ export function previewSwitch(date: LocalDate, form: TimingForm, to: TimingState
   let prefill: SwitchPreview['prefill'] = null;
   if (modeHasDuration(to) && !modeHasDuration(form.mode) && cur.durationSec != null) {
     next.duration = durationInputFrom(cur.durationSec);
-    prefill = { field: 'duration', text: formatDuration(cur.durationSec) };
+    prefill = { field: 'duration', text: formatTimingDuration(cur.durationSec) };
   }
   if (to === 'interval' && form.mode === 'start_duration') {
     const de = derivedEnd(date, { ...cur, state: 'start_duration' });
@@ -263,13 +310,13 @@ export function previewSwitch(date: LocalDate, form: TimingForm, to: TimingState
         lines.push(s.swDropsEnd(cur.end ?? ''));
         break;
       case 'drops_declared':
-        lines.push(s.swDropsDeclared(formatDuration(cur.declaredSec ?? 0)));
+        lines.push(s.swDropsDeclared(formatTimingDuration(cur.declaredSec ?? 0)));
         break;
       case 'duration_becomes_unknown':
         lines.push(s.swDurationUnknown);
         break;
       case 'keeps_duration_as_declared':
-        lines.push(s.swKeepsDeclared(formatDuration(cur.durationSec ?? 0)));
+        lines.push(s.swKeepsDeclared(formatTimingDuration(cur.durationSec ?? 0)));
         break;
       case 'duration_from_interval':
         lines.push(s.swFromInterval);
@@ -299,7 +346,7 @@ export function fieldErrorCopy(e: FieldError): string {
     case 'equal_times':
       return t.errEqualTimes;
     case 'duration':
-      return t.errDuration;
+      return s.errDurationParts;
     case 'duration_too_long':
       return s.errDurationTooLong;
     case 'duration_too_short':
@@ -314,8 +361,8 @@ export function fieldErrorCopy(e: FieldError): string {
 /** The active duration source, stated unambiguously. */
 export function durationSourceCopy(timing: Timing | null): { text: string; value: string | null; known: boolean } | null {
   if (!timing) return null;
-  if (timing.durationSec != null && timing.durationSource === 'interval') return { text: t.durationFromInterval, value: formatDuration(timing.durationSec), known: true };
-  if (timing.durationSec != null && timing.durationSource === 'declared') return { text: t.durationDeclared, value: formatDuration(timing.durationSec), known: true };
+  if (timing.durationSec != null && timing.durationSource === 'interval') return { text: t.durationFromInterval, value: formatTimingDuration(timing.durationSec), known: true };
+  if (timing.durationSec != null && timing.durationSource === 'declared') return { text: t.durationDeclared, value: formatTimingDuration(timing.durationSec), known: true };
   return { text: t.durationUnknown, value: null, known: false };
 }
 

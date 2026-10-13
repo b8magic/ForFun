@@ -12,7 +12,8 @@ import { activityColors } from '@/ui/theme';
 import { T } from '@/ui/T';
 import { t } from '@/i18n/it';
 import { NAME_MAX, errorCode, errorText, isNameCode, nameIssue, suggestLook, type NameIssue } from './helpers';
-import { ColorSwatches, LookPreview, PatternChoices } from './Look';
+import { LookPreview, PatternChoices } from './Look';
+import { ActivityColorPicker } from './ActivityColorPicker';
 import { FooterPair, KeyboardSafe, closeSheet } from './parts';
 import { confirmDiscard, useConfirmDiscard } from '../session/useConfirmDiscard';
 
@@ -38,6 +39,7 @@ export function ActivityForm({ category, categories, isActive, first, onCancel, 
   const [initial] = useState(() => (category ? { color: category.color, pattern: category.pattern } : suggestLook(categories, activityColors)));
   const [name, setName] = useState(category?.name ?? '');
   const [color, setColor] = useState(initial.color);
+  const [colorValid, setColorValid] = useState(true);
   const [pattern, setPattern] = useState<PatternKind>(initial.pattern);
   const [tried, setTried] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -60,6 +62,7 @@ export function ActivityForm({ category, categories, isActive, first, onCancel, 
   const cancel = onCancel ? () => leaveStep(onCancel) : undefined;
 
   async function submit() {
+    if (!colorValid) return;
     setTried(true);
     setError(null);
     if (issue) {
@@ -101,6 +104,7 @@ export function ActivityForm({ category, categories, isActive, first, onCancel, 
       label={editing ? t.manage.saveChanges : t.createActivity}
       onPress={submit}
       busy={busy}
+      disabled={!colorValid}
       color={color}
       testID="activity-submit"
     />
@@ -147,7 +151,7 @@ export function ActivityForm({ category, categories, isActive, first, onCancel, 
         </Section>
 
         <Section label={t.activityColor}>
-          <ColorSwatches value={color} onChange={setColor} />
+          <ActivityColorPicker value={color} onChange={setColor} onValidityChange={setColorValid} />
         </Section>
 
         <Section label={t.activityPattern}>

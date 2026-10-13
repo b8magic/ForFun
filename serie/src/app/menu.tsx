@@ -1,19 +1,18 @@
 /**
- * Menu — the compact way to everything that is not logging: history,
- * progress, activities, calendars, the motion preference and about.
+ * Activity management, calendars and preferences. History and progress share
+ * the direct Home entry point.
  */
 import { StyleSheet, View } from 'react-native';
 import { router } from 'expo-router';
 import Constants from 'expo-constants';
 import { useApp, type HomeActivitiesMode, type MotionPref, type ThemePref } from '@/state/store';
-import { setHomeActivitiesMode, setMotionPref, setPlace, setThemePref, setTimeScale } from '@/state/actions';
+import { setHomeActivitiesMode, setMotionPref, setThemePref } from '@/state/actions';
 import { Section, Segmented, Sheet } from '@/ui/controls';
 import { fonts } from '@/ui/theme';
 import { useSurface } from '@/ui/useTheme';
 import { T } from '@/ui/T';
 import { t } from '@/i18n/it';
 import { MenuItem, StatusLine } from '@/sheets/manage/MenuParts';
-import { closeSheet } from '@/sheets/manage/parts';
 
 export default function MenuSheet() {
   const S = useSurface();
@@ -25,31 +24,11 @@ export default function MenuSheet() {
   const version = Constants.expoConfig?.version ?? '1.0.0';
 
   return (
-    <Sheet title={t.menu} testID="menu-sheet">
+    <Sheet accessibleTitle={t.menu} testID="menu-sheet">
       {openJobs > 0 ? <StatusLine text={t.manage.pendingExports(openJobs)} action={t.calendars} onPress={() => router.replace('/calendar')} testID="menu-pending" /> : null}
 
       <View>
         <View style={[styles.top, { backgroundColor: S.faint }]} />
-        <MenuItem
-          title={t.history}
-          detail={t.manage.historyDetail}
-          onPress={() => {
-            setPlace('time');
-            // "Mese · Anno": coming back from Progressi (Tutto) would otherwise reopen it.
-            if (useApp.getState().timeScale === 'all') setTimeScale('month');
-            closeSheet();
-          }}
-          testID="menu-history"
-        />
-        <MenuItem
-          title={t.progress}
-          onPress={() => {
-            setPlace('time');
-            setTimeScale('all');
-            closeSheet();
-          }}
-          testID="menu-progress"
-        />
         <MenuItem title={t.activities} detail={String(activityCount)} onPress={() => router.replace('/activities')} testID="menu-activities" />
         <MenuItem title={t.calendars} onPress={() => router.replace('/calendar')} testID="menu-calendars" />
       </View>

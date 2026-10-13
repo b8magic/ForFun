@@ -28,12 +28,13 @@ interface Props {
   disabled?: boolean;
   preventFuture?: boolean;
   recentSave?: { id: number; dates: readonly string[] };
+  selectionEnabled?: boolean;
 }
 
 const EMPTY_SELECTION = new Set<string>();
 
 /** One shared calendar keeps colours and day meaning identical across surfaces. */
-export const MonthCalendar = memo(function MonthCalendar({ month, days, activeId = null, selection = EMPTY_SELECTION, today, showAll = true, onPressDay, onLongPressDay, testID, dayTestPrefix = 'day-', compact = false, disabled = false, preventFuture = true, recentSave }: Props) {
+export const MonthCalendar = memo(function MonthCalendar({ month, days, activeId = null, selection = EMPTY_SELECTION, today, showAll = true, onPressDay, onLongPressDay, testID, dayTestPrefix = 'day-', compact = false, disabled = false, preventFuture = true, recentSave, selectionEnabled = true }: Props) {
   const surface = useSurface();
   const reduced = useMotionReduced();
   const { width, fontScale } = useWindowDimensions();
@@ -41,7 +42,7 @@ export const MonthCalendar = memo(function MonthCalendar({ month, days, activeId
   const categoryNames = useMemo(() => new Map(categories.map((category) => [category.id, category.name])), [categories]);
   const weeks = useMemo(() => monthWeeks(month), [month]);
   const rowH = calendarRowHeight(fontScale, compact);
-  const size = Math.min(44, (width - 44) / 7 - 5);
+  const size = Math.min(44, (width - 44) / 7 - 1);
   return (
     <View testID={testID} style={{ paddingBottom: 8 }}>
       <View style={[styles.weekdays, { height: calendarWeekdayHeight(fontScale) }]} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
@@ -70,7 +71,7 @@ export const MonthCalendar = memo(function MonthCalendar({ month, days, activeId
                 disabled={disabledTap}
                 accessibilityRole={onPressDay || onLongPressDay ? 'button' : 'text'}
                 accessibilityLabel={label}
-                accessibilityHint={onLongPressDay ? 'Tocca per selezionare. Tieni premuto per le sessioni del giorno.' : undefined}
+                accessibilityHint={onLongPressDay ? selectionEnabled ? 'Tocca per selezionare. Tieni premuto per le sessioni del giorno.' : 'Mostra le sessioni del giorno' : undefined}
                 accessibilityState={{ selected, disabled: disabledTap }}
                 accessibilityActions={onLongPressDay ? [{ name: 'showSessions', label: 'Mostra le sessioni del giorno' }] : undefined}
                 onAccessibilityAction={(event) => { if (event.nativeEvent.actionName === 'showSessions') onLongPressDay?.(date); }}

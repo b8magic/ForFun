@@ -10,8 +10,6 @@ import type { ID } from '@/domain/types';
 import { useApp } from '@/state/store';
 import { showToast } from '@/state/actions';
 import { Button, Note, Sheet } from '@/ui/controls';
-import { useSurface } from '@/ui/useTheme';
-import { T } from '@/ui/T';
 import { t } from '@/i18n/it';
 import { countByCategory } from '@/sheets/manage/helpers';
 import { ActivityList } from '@/sheets/manage/ActivityList';
@@ -22,7 +20,6 @@ import { closeSheet } from '@/sheets/manage/parts';
 type Mode = { kind: 'list' } | { kind: 'create'; first: boolean } | { kind: 'edit'; id: ID } | { kind: 'delete'; id: ID };
 
 export default function ActivitiesSheet() {
-  const S = useSurface();
   const categories = useApp((s) => s.categories);
   const sessions = useApp((s) => s.sessions);
   const activeId = useApp((s) => s.activeId);
@@ -147,9 +144,6 @@ export default function ActivitiesSheet() {
       ) : null}
       <View style={{ gap: 12 }}>
         <ActivityList categories={categories} counts={counts} activeId={activeId} highlightId={highlight} onEdit={(id) => open({ kind: 'edit', id })} />
-        <T variant="small" color={S.mute}>
-          {t.manage.orderHint}
-        </T>
       </View>
     </Sheet>
   );

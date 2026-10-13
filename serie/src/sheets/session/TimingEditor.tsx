@@ -16,7 +16,6 @@ import { useMemo, useState } from 'react';
 import { AccessibilityInfo, Pressable, StyleSheet, TextInput, View, type TextInputProps } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import type { LocalDate, TimingState } from '@/domain/types';
-import { parseDurationInput, formatDuration } from '@/domain/duration';
 import { isWallTime } from '@/domain/zoned';
 import { Button, Note, Segmented, Toggle } from '@/ui/controls';
 import { fonts, HIT, type Surface } from '@/ui/theme';
@@ -26,19 +25,24 @@ import { useMotionReduced } from '@/state/selectors';
 import {
   TIMING_MODES,
   derivedEndCopy,
+  durationInputFromParts,
+  durationPartsFrom,
   durationSourceCopy,
   evaluateTiming,
   fieldErrorCopy,
+  formatTimingDuration,
   modeHasDuration,
   modeHasEnd,
   modeHasStart,
   modeLabel,
   normalizeTimeInput,
+  parseFormDuration,
   previewSwitch,
   type SwitchPreview,
   type TimingField,
   type TimingForm,
 } from './timingForm';
+import { TimeZonePicker } from './TimeZonePicker';
 
 const s = t.sessionSheets;
 
@@ -63,7 +67,6 @@ export function TimingEditor({ date, value: form, onChange, deviceZone, showErro
   const [pending, setPending] = useState<SwitchPreview | null>(null);
   const [prefill, setPrefill] = useState<SwitchPreview['prefill']>(null);
   const [touched, setTouched] = useState<Partial<Record<TimingField, boolean>>>({});
-  const [zoneOpen, setZoneOpen] = useState(false);
 
   const ev = useMemo(() => evaluateTiming(date, form, deviceZone), [date, form, deviceZone]);
   const enter = reduced ? undefined : FadeIn.duration(180);
@@ -98,11 +101,14 @@ export function TimingEditor({ date, value: form, onChange, deviceZone, showErro
     if (n !== form[f] && isWallTime(n)) set({ [f]: n });
   };
 
-  const durEcho = (() => {
-    if (!form.duration.trim()) return null;
-    const p = parseDurationInput(form.duration);
-    return p.ok ? s.durationEcho(formatDuration(p.seconds)) : null;
-  })();
+  const durationParts = durationPartsFrom(form.duration);
+  const parsedDuration = parseFormDuration(form.duration);
+  const durEcho = parsedDuration.ok ? s.durationEcho(formatTimingDuration(parsedDuration.seconds)) : null;
+  const savedSeconds = parsedDuration.ok ? parsedDuration.seconds % 60 : 0;
+  const changeDuration = (part: 'hours' | 'minutes', text: string) => {
+    set({ duration: durationInputFromParts({ ...durationParts, [part]: text }) });
+    if (prefill?.field === 'duration') setPrefill(null);
+  };
 
   const source = ev.ok ? durationSourceCopy(ev.timing) : null;
   const derived = ev.ok && ev.timing?.state === 'start_duration' ? derivedEndCopy(date, ev.timing) : null;
@@ -145,8 +151,8 @@ export function TimingEditor({ date, value: form, onChange, deviceZone, showErro
       {/* fields for the chosen representation */}
       {form.mode !== 'date_only' ? (
         <View style={{ gap: 14 }}>
-          <View style={styles.fieldRow}>
-            {hasStart ? (
+          {hasStart ? (
+            <View style={styles.fieldRow}>
               <TimeInput
                 label={t.start}
                 value={form.start}
@@ -156,44 +162,61 @@ export function TimingEditor({ date, value: form, onChange, deviceZone, showErro
                 accessibilityHint={err('start') ?? undefined}
                 testID={`${testID}-start`}
               />
-            ) : null}
-            {modeHasEnd(form.mode) ? (
-              <TimeInput
-                label={t.end}
-                value={form.end}
-                onChangeText={(v) => {
-                  set({ end: v });
-                  if (prefill?.field === 'end') setPrefill(null);
-                }}
-                onBlur={() => blurTime('end')}
-                invalid={!!err('end')}
-                accessibilityHint={err('end') ?? (form.nextDay ? t.nextDay : undefined)}
-                suffix={form.nextDay ? s.nextDayShort : null}
-                suffixColor={accent}
-                testID={`${testID}-end`}
-              />
-            ) : null}
-            {modeHasDuration(form.mode) ? (
-              <TimeInput
-                label={t.durationHours}
-                value={form.duration}
-                onChangeText={(v) => {
-                  set({ duration: v });
-                  if (prefill?.field === 'duration') setPrefill(null);
-                }}
-                onBlur={() => touch('duration')}
-                invalid={!!err('duration')}
-                accessibilityHint={err('duration') ?? durEcho ?? s.durationBlankHint}
-                placeholder={t.durationPlaceholder}
-                keyboardType="numbers-and-punctuation"
-                maxLength={12}
-                suffix={durEcho}
-                suffixPlain
-                wide={form.mode === 'duration_only'}
-                testID={`${testID}-duration`}
-              />
-            ) : null}
-          </View>
+              {modeHasEnd(form.mode) ? (
+                <TimeInput
+                  label={t.end}
+                  value={form.end}
+                  onChangeText={(v) => {
+                    set({ end: v });
+                    if (prefill?.field === 'end') setPrefill(null);
+                  }}
+                  onBlur={() => blurTime('end')}
+                  invalid={!!err('end')}
+                  accessibilityHint={err('end') ?? (form.nextDay ? t.nextDay : undefined)}
+                  suffix={form.nextDay ? s.nextDayShort : null}
+                  suffixColor={accent}
+                  testID={`${testID}-end`}
+                />
+              ) : null}
+            </View>
+          ) : null}
+          {modeHasDuration(form.mode) ? (
+            <View style={{ gap: 8 }} testID={`${testID}-duration`}>
+              <T variant="label" color={S.mute}>{s.durationLabel}</T>
+              <View style={styles.fieldRow}>
+                <TimeInput
+                  label={s.durationHoursLabel}
+                  accessibilityLabel={s.durationHoursA11y}
+                  value={durationParts.hours}
+                  onChangeText={(v) => changeDuration('hours', v)}
+                  onBlur={() => touch('duration')}
+                  invalid={!!err('duration')}
+                  accessibilityHint={err('duration') ?? s.durationPartsHint}
+                  placeholder="0"
+                  inputMode="numeric"
+                  keyboardType="number-pad"
+                  maxLength={3}
+                  testID={`${testID}-duration-hours`}
+                />
+                <TimeInput
+                  label={s.durationMinutesLabel}
+                  accessibilityLabel={s.durationMinutesA11y}
+                  value={durationParts.minutes}
+                  onChangeText={(v) => changeDuration('minutes', v)}
+                  onBlur={() => touch('duration')}
+                  invalid={!!err('duration')}
+                  accessibilityHint={err('duration') ?? s.durationPartsHint}
+                  placeholder="0"
+                  inputMode="numeric"
+                  keyboardType="number-pad"
+                  maxLength={2}
+                  testID={`${testID}-duration-minutes`}
+                />
+              </View>
+              {durEcho ? <T variant="small" color={S.mute}>{durEcho}</T> : null}
+              {savedSeconds ? <T variant="small" color={S.mute} testID={`${testID}-duration-precision`}>{s.durationSecondsKept(savedSeconds)}</T> : null}
+            </View>
+          ) : null}
 
           {fieldErrors.map(({ f, msg }) => (
             <T key={f} variant="small" color={S.danger} accessibilityLiveRegion="polite" testID={`${testID}-error-${f}`}>
@@ -203,7 +226,7 @@ export function TimingEditor({ date, value: form, onChange, deviceZone, showErro
 
           {modeHasDuration(form.mode) && !form.duration.trim() && !fieldErrors.length ? (
             <T variant="small" color={S.mute}>
-              {s.durationBlankHint}
+              {s.durationPartsHint}
             </T>
           ) : null}
 
@@ -256,55 +279,23 @@ export function TimingEditor({ date, value: form, onChange, deviceZone, showErro
       {ev.note ? <Note tone="warn">{ev.note === 'ambiguous_time' ? s.noteAmbiguousTime : s.noteNonexistentTime}</Note> : null}
 
       {hasStart ? (
-        zoneOpen || ev.errors.zone ? (
-          <View style={{ gap: 6 }}>
-            <T variant="label" color={S.mute}>
-              {t.timeZone}
+        <View style={{ gap: 6 }}>
+          <TimeZonePicker
+            value={ev.zoneUsed}
+            deviceZone={deviceZone}
+            invalid={!!ev.errors.zone}
+            onChange={(zone) => {
+              set({ zone });
+              touch('zone');
+            }}
+            testID={testID}
+          />
+          {ev.errors.zone ? (
+            <T variant="small" color={S.danger} accessibilityLiveRegion="polite">
+              {fieldErrorCopy('zone')}
             </T>
-            <TextInput
-              value={form.zone}
-              onChangeText={(v) => set({ zone: v })}
-              onBlur={() => touch('zone')}
-              placeholder={deviceZone}
-              placeholderTextColor={S.mute}
-          keyboardAppearance={S.name === 'night' ? 'dark' : 'light'}
-              selectionColor={S.accent}
-              autoCapitalize="none"
-              autoCorrect={false}
-              accessibilityLabel={t.timeZone}
-              style={[styles.zoneInput, { borderBottomColor: ev.errors.zone ? S.danger : S.faint }]}
-              testID={`${testID}-zone`}
-            />
-            {ev.errors.zone ? (
-              <T variant="small" color={S.danger} accessibilityLiveRegion="polite">
-                {fieldErrorCopy('zone')}
-              </T>
-            ) : (
-              <T variant="small" color={S.mute}>
-                {s.timeZoneHint}
-              </T>
-            )}
-          </View>
-        ) : (
-          <Pressable onPress={() => setZoneOpen(true)} accessibilityRole="button" accessibilityLabel={s.timeZoneA11y(ev.zoneUsed)} style={styles.zoneRow} testID={`${testID}-zone-open`}>
-            <View style={{ flex: 1, gap: 4 }}>
-              <T variant="label" color={S.mute}>
-                {t.timeZone}
-              </T>
-              <T variant="data" color={S.fg} numberOfLines={1}>
-                {ev.zoneUsed}
-                {ev.zoneUsed === deviceZone ? (
-                  <T variant="small" color={S.mute}>
-                    {`  ·  ${s.timeZoneDevice}`}
-                  </T>
-                ) : null}
-              </T>
-            </View>
-            <T variant="labelStrong" color={S.mute}>
-              {s.editShort}
-            </T>
-          </Pressable>
-        )
+          ) : null}
+        </View>
       ) : null}
     </View>
   );
@@ -315,15 +306,13 @@ function TimeInput({
   invalid,
   suffix,
   suffixColor,
-  suffixPlain,
-  wide,
   ...props
-}: TextInputProps & { label: string; invalid?: boolean; suffix?: string | null; suffixColor?: string; suffixPlain?: boolean; wide?: boolean }) {
+}: TextInputProps & { label: string; invalid?: boolean; suffix?: string | null; suffixColor?: string }) {
   const S = useSurface();
   const styles = useThemedStyles(createStyles);
   const [focused, setFocused] = useState(false);
   return (
-    <View style={[{ gap: 6 }, wide ? { flex: 1 } : styles.timeCol]}>
+    <View style={[{ gap: 6 }, styles.timeCol]}>
       <T variant="label" color={S.mute}>
         {label}
       </T>
@@ -350,7 +339,7 @@ function TimeInput({
           style={styles.timeInput}
         />
         {suffix ? (
-          <T variant={suffixPlain ? 'data' : 'labelStrong'} color={suffixColor ?? S.mute} numberOfLines={1} style={{ flexShrink: 0 }}>
+          <T variant="labelStrong" color={suffixColor ?? S.mute} numberOfLines={1} style={{ flexShrink: 0 }}>
             {suffix}
           </T>
         ) : null}
@@ -373,6 +362,4 @@ const createStyles = (S: Surface) => StyleSheet.create({
   ring: { width: 8, height: 8, borderRadius: 4, borderWidth: 1.2 },
   source: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 36 },
   sourceDot: { width: 8, height: 8, borderRadius: 4 },
-  zoneRow: { flexDirection: 'row', alignItems: 'center', gap: 14, minHeight: HIT },
-  zoneInput: { fontFamily: fonts.mono, fontSize: 16, color: S.fg, paddingVertical: 10, borderBottomWidth: 1.2, minHeight: HIT },
 });

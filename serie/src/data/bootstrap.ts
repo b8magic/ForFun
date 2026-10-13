@@ -23,7 +23,10 @@ export interface ActiveResolution {
   changed: boolean;
 }
 
-export function resolveActive(categories: Category[], remembered: ID | null): ActiveResolution {
+export function resolveActive(categories: Category[], remembered: ID | null | undefined): ActiveResolution {
+  // Explicit null is the user's all-activities viewing mode; missing preference
+  // still chooses the first activity for an existing installation.
+  if (remembered === null) return { activeId: null, changed: false };
   if (remembered && categories.some((c) => c.id === remembered)) return { activeId: remembered, changed: false };
   if (!categories.length) return { activeId: null, changed: remembered != null };
   return { activeId: categories[0].id, changed: remembered != null };
@@ -44,7 +47,7 @@ export async function bootstrap(repos: Repositories, options: { rememberResoluti
     await repos.settings.set(KEYS.seeded, true);
   }
   const categories = await repos.categories.list();
-  const remembered = await repos.settings.get<ID | null>(KEYS.lastActive, null);
+  const remembered = await repos.settings.get<ID | null | undefined>(KEYS.lastActive, undefined);
   const r = resolveActive(categories, remembered);
   if (options.rememberResolution !== false && r.activeId !== remembered) await repos.settings.set(KEYS.lastActive, r.activeId);
   return { categories, ...r };

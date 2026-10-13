@@ -8,7 +8,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { Canvas, Circle, Path, Skia } from '@shopify/react-native-skia';
 import type { PatternKind } from '@/domain/types';
 import { IdentityDisc } from '@/graphics/IdentityDisc';
-import { activityColors, HIT } from '@/ui/theme';
+import { activityColors, foregroundOn, HIT } from '@/ui/theme';
 import { T } from '@/ui/T';
 import { t } from '@/i18n/it';
 import { PATTERNS } from './helpers';
@@ -18,7 +18,7 @@ export const colorName = (hex: string) => activityColors.find((c) => c.hex.toLow
 export function ColorSwatches({ value, onChange }: { value: string; onChange: (hex: string) => void }) {
   const S = useSurface();
   return (
-    <View style={styles.grid} accessibilityRole="radiogroup" accessibilityLabel={t.activityColor}>
+    <View style={styles.grid} accessibilityRole="radiogroup" accessibilityLabel={t.activityColor} testID="color-presets">
       {activityColors.map((c) => {
         const on = c.hex.toLowerCase() === value.toLowerCase();
         return (
@@ -32,11 +32,10 @@ export function ColorSwatches({ value, onChange }: { value: string; onChange: (h
             style={({ pressed }) => [styles.swatchCell, pressed && { opacity: 0.7 }]}
           >
             <View style={[styles.swatchRing, { borderColor: on ? S.fg : 'transparent' }]}>
-              <View style={[styles.swatch, { backgroundColor: c.hex }]} />
+              <View style={[styles.swatch, { backgroundColor: c.hex, borderColor: S.mute }]}>
+                {on ? <View style={[styles.check, { borderColor: foregroundOn(c.hex) }]} /> : null}
+              </View>
             </View>
-            <T variant={on ? 'labelStrong' : 'label'} color={on ? S.fg : S.mute} numberOfLines={1}>
-              {c.name}
-            </T>
           </Pressable>
         );
       })}
@@ -121,9 +120,10 @@ export function LookPreview({ name, color, pattern }: { name: string; color: str
 
 const styles = StyleSheet.create({
   grid: { flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -4 },
-  swatchCell: { width: '25%', minHeight: 72, alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 6 },
+  swatchCell: { width: '16.666%', minWidth: HIT, minHeight: 50, alignItems: 'center', justifyContent: 'center' },
   swatchRing: { width: HIT, height: HIT, borderRadius: HIT / 2, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
-  swatch: { width: 30, height: 30, borderRadius: 15 },
+  swatch: { width: 30, height: 30, borderRadius: 15, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  check: { width: 12, height: 7, borderLeftWidth: 2, borderBottomWidth: 2, transform: [{ rotate: '-45deg' }], marginTop: -2 },
   patternCell: { width: '33.333%', minHeight: 92, alignItems: 'center', justifyContent: 'center', gap: 4, paddingVertical: 6 },
   preview: { flexDirection: 'row', alignItems: 'center', gap: 16, paddingVertical: 4 },
 });

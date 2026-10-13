@@ -1,18 +1,21 @@
 import {
   durationInputFrom,
+  durationInputFromParts,
+  durationPartsFrom,
   durationSourceCopy,
   derivedEndCopy,
   emptyTimingForm,
   evaluateTiming,
   fieldErrorCopy,
   formFromTiming,
+  formatTimingDuration,
   normalizeTimeInput,
+  parseFormDuration,
   previewSwitch,
   sameTiming,
   type TimingForm,
 } from '../timingForm';
 import { buildTiming, DATE_ONLY } from '@/domain/timing';
-import { parseDurationInput } from '@/domain/duration';
 import { t } from '@/i18n/it';
 
 const TZ = 'Europe/Rome';
@@ -36,14 +39,64 @@ describe('normalizeTimeInput', () => {
   });
 });
 
-describe('durationInputFrom round-trips through parseDurationInput', () => {
+describe('durationInputFrom round-trips through the editor', () => {
   it.each([5400, 2700, 7200, 4800, 900, 3660, 99 * 3600])('%i s', (sec) => {
-    const r = parseDurationInput(durationInputFrom(sec));
+    const r = parseFormDuration(durationInputFrom(sec));
     expect(r).toEqual({ ok: true, seconds: sec });
   });
-  it('uses the locale decimal comma for clean quarters', () => {
-    expect(durationInputFrom(5400)).toBe('1,5');
+  it('prefills hours and minutes', () => {
+    expect(durationInputFrom(5400)).toBe('1:30');
     expect(durationInputFrom(4800)).toBe('1:20');
+  });
+});
+
+describe('duration hour and minute fields', () => {
+  it.each([
+    [{ hours: '1', minutes: '30' }, 5400],
+    [{ hours: '', minutes: '45' }, 2700],
+    [{ hours: '2', minutes: '' }, 7200],
+    [{ hours: '0', minutes: '1' }, 60],
+    [{ hours: '1', minutes: '5' }, 3900],
+    [{ hours: '99', minutes: '0' }, 99 * 3600],
+  ])('saves %j as %i seconds', (parts, seconds) => {
+    const duration = durationInputFromParts(parts);
+    expect(durationPartsFrom(duration)).toEqual(parts);
+    expect(evaluateTiming(D, form({ mode: 'duration_only', duration }), TZ).timing?.declaredSec).toBe(seconds);
+  });
+  it('leaving both fields blank preserves unknown duration', () => {
+    const duration = durationInputFromParts({ hours: ' ', minutes: '' });
+    expect(duration).toBe('');
+    expect(evaluateTiming(D, form({ mode: 'start_duration', start: '08:00', duration }), TZ)).toMatchObject({ ok: true, effective: 'start_only' });
+  });
+  it.each([
+    [{ hours: '0', minutes: '0' }, 'duration'],
+    [{ hours: '', minutes: '60' }, 'duration'],
+    [{ hours: '1,5', minutes: '' }, 'duration'],
+    [{ hours: '1', minutes: '-1' }, 'duration'],
+    [{ hours: '99', minutes: '1' }, 'duration_too_long'],
+    [{ hours: '100', minutes: '' }, 'duration_too_long'],
+  ])('validates %j with %s', (parts, error) => {
+    const duration = durationInputFromParts(parts);
+    expect(evaluateTiming(D, form({ mode: 'duration_only', duration }), TZ)).toMatchObject({ ok: false, errors: { duration: error } });
+  });
+  it('converts legacy durations for editing without asking users for decimal hours', () => {
+    expect(durationPartsFrom('1,5')).toEqual({ hours: '1', minutes: '30' });
+    expect(durationPartsFrom('90 min')).toEqual({ hours: '1', minutes: '30' });
+  });
+  it('preserves exact saved seconds until a duration field is edited', () => {
+    const built = buildTiming(D, { state: 'start_duration', start: '07:00', timeZone: TZ, declaredSec: 5437 });
+    if (!built.ok) throw new Error('fixture');
+    const edit = formFromTiming(built.timing, 'UTC');
+    expect(edit.duration).toBe('1:30:37');
+    expect(durationPartsFrom(edit.duration)).toEqual({ hours: '1', minutes: '30' });
+    expect(evaluateTiming(D, { ...edit, start: '08:00', zone: 'Asia/Kathmandu' }, 'UTC').timing?.declaredSec).toBe(5437);
+    expect(formatTimingDuration(5437)).toBe('1 h 30 min 37 s');
+    const duration = durationInputFromParts({ ...durationPartsFrom(edit.duration), minutes: '45' });
+    expect(evaluateTiming(D, { ...edit, duration }, TZ).timing?.declaredSec).toBe(6300);
+  });
+  it('round-trips existing sub-minute durations and shows their seconds', () => {
+    expect(parseFormDuration(durationInputFrom(45))).toEqual({ ok: true, seconds: 45 });
+    expect(formatTimingDuration(45)).toBe('45 s');
   });
 });
 
@@ -134,7 +187,10 @@ describe('formFromTiming', () => {
       { state: 'start_only' as const, start: '06:15', timeZone: TZ },
       { state: 'interval' as const, start: '22:00', end: '00:30', endDayOffset: 1 as const, timeZone: TZ },
       { state: 'duration_only' as const, declaredSec: 4800 },
+      { state: 'duration_only' as const, declaredSec: 45 },
+      { state: 'duration_only' as const, declaredSec: 5437 },
       { state: 'start_duration' as const, start: '07:00', timeZone: TZ, declaredSec: 5400 },
+      { state: 'start_duration' as const, start: '07:00', timeZone: 'US/Eastern', declaredSec: 5437 },
     ];
     for (const i of inputs) {
       const r = buildTiming(D, i);
@@ -155,7 +211,7 @@ describe('previewSwitch', () => {
     const pv = previewSwitch(D, f, 'duration_only', TZ);
     expect(pv.changes).toEqual(expect.arrayContaining(['drops_start', 'drops_end', 'keeps_duration_as_declared']));
     expect(pv.needsConfirm).toBe(true);
-    expect(pv.next).toMatchObject({ mode: 'duration_only', start: '', end: '', duration: '1,5' });
+    expect(pv.next).toMatchObject({ mode: 'duration_only', start: '', end: '', duration: '1:30' });
     expect(pv.prefill).toEqual({ field: 'duration', text: '1 h 30 min' });
     expect(pv.lines).toEqual(
       expect.arrayContaining([t.sessionSheets.swDropsStart('07:30'), t.sessionSheets.swDropsEnd('09:00'), t.sessionSheets.swKeepsDeclared('1 h 30 min')]),
@@ -165,7 +221,7 @@ describe('previewSwitch', () => {
 
   it('interval → start + duration keeps the start and the duration', () => {
     const pv = previewSwitch(D, form({ mode: 'interval', start: '07:30', end: '08:15' }), 'start_duration', TZ);
-    expect(pv.next).toMatchObject({ start: '07:30', end: '', duration: '0,75' });
+    expect(pv.next).toMatchObject({ start: '07:30', end: '', duration: '0:45' });
     expect(pv.changes).not.toContain('drops_start');
   });
 
@@ -204,7 +260,7 @@ describe('copy', () => {
   it('maps errors to the required strings', () => {
     expect(fieldErrorCopy('end_before_start')).toBe(t.errEndBeforeStart);
     expect(fieldErrorCopy('equal_times')).toBe(t.errEqualTimes);
-    expect(fieldErrorCopy('duration')).toBe(t.errDuration);
+    expect(fieldErrorCopy('duration')).toBe(t.sessionSheets.errDurationParts);
     expect(fieldErrorCopy('time')).toBe(t.errTime);
   });
   it('states the duration source unambiguously', () => {

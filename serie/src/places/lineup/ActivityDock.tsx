@@ -6,11 +6,11 @@ import { useApp } from '@/state/store';
 import { switchActivity } from '@/state/actions';
 import { IdentityDisc } from '@/graphics/IdentityDisc';
 import { useSurface } from '@/ui/useTheme';
-import { palette } from '@/ui/theme';
+import { foregroundOn } from '@/ui/theme';
 import { T } from '@/ui/T';
 import { softenColor } from '@/ui/calendar/DayMosaic';
 
-export function ActivityDock({ categories, activeId }: { categories: Category[]; activeId: string }) {
+export function ActivityDock({ categories, activeId }: { categories: Category[]; activeId: string | null }) {
   const surface = useSurface();
   const drafts = useApp((state) => state.drafts);
   const ref = useRef<ScrollView>(null);
@@ -20,7 +20,7 @@ export function ActivityDock({ categories, activeId }: { categories: Category[];
   const scrollOffset = useRef(0);
   const activeIdRef = useRef(activeId);
   const reveal = useCallback(() => {
-    const chip = positions.current.get(activeIdRef.current);
+    const chip = activeIdRef.current ? positions.current.get(activeIdRef.current) : undefined;
     const viewport = viewportWidth.current;
     if (!chip || !viewport || !contentWidth.current) return;
     const offset = scrollOffset.current;
@@ -47,10 +47,10 @@ export function ActivityDock({ categories, activeId }: { categories: Category[];
         {categories.map((category) => {
           const active = category.id === activeId;
           const draftCount = drafts[category.id]?.dates.length ?? 0;
-          const ink = active ? palette.ink : surface.fg;
+          const ink = active ? foregroundOn(category.color) : surface.fg;
           return (
             <View key={category.id} onLayout={(event) => { const { x, width } = event.nativeEvent.layout; positions.current.set(category.id, { x, width }); if (category.id === activeIdRef.current) reveal(); }} testID={active ? 'activity-switcher' : undefined} accessibilityLabel={active ? `Attività attiva: ${category.name}` : undefined} aria-expanded={false}>
-              <Pressable onPress={() => { void switchActivity(category.id); }} accessibilityRole="button" accessibilityLabel={`${category.name}${active ? ', attività attiva' : ''}${draftCount ? `, ${draftCount} date da salvare` : ''}`} accessibilityState={{ selected: active }} testID={`activity-${category.name}`} style={({ pressed }) => [styles.chip, { backgroundColor: active ? category.color : softenColor(category.color, surface.bg, 0.18), borderColor: active ? surface.fg : 'transparent', opacity: pressed ? 0.7 : 1 }]}>
+              <Pressable onPress={() => { void switchActivity(active ? null : category.id).catch(() => undefined); }} accessibilityRole="button" accessibilityLabel={`${category.name}${active ? ', attività attiva' : ''}${draftCount ? `, ${draftCount} date da salvare` : ''}`} accessibilityHint={active ? 'Disattiva per vedere tutte le attività a colori pieni' : 'Seleziona per registrare sessioni di questa attività'} accessibilityState={{ selected: active }} testID={`activity-${category.name}`} style={({ pressed }) => [styles.chip, { backgroundColor: active ? category.color : softenColor(category.color, surface.bg, 0.18), borderColor: active ? surface.fg : 'transparent', opacity: pressed ? 0.7 : 1 }]}>
                 <IdentityDisc size={25} pattern={category.pattern} color={ink} stripe={ink} animated={false} />
                 <T variant="bodyStrong" color={ink} numberOfLines={1} style={{ maxWidth: 150 }}>{category.name}</T>
                 {draftCount ? <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: ink }} /> : null}

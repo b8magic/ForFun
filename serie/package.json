@@ -1,6 +1,6 @@
 {
   "name": "serie",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "main": "index",
   "dependencies": {
     "@react-native-community/datetimepicker": "9.1.0",
@@ -58,7 +58,7 @@
     "lint": "expo lint",
     "postinstall": "node tools/copy-wasm.mjs",
     "build:web": "tools/build-web.sh",
-    "e2e": "tools/build-web.sh && node tools/e2e.mjs && node tools/e2e-flows.mjs && tools/build-web.sh --e2e && node tools/e2e-calendar.mjs"
+    "e2e": "tools/build-web.sh && node tools/e2e.mjs && node tools/e2e-flows.mjs && node tools/e2e-v12.mjs && tools/build-web.sh --e2e && node tools/e2e-calendar.mjs"
   },
   "private": true,
   "jest": {

@@ -28,7 +28,7 @@ export default function JumpSheet() {
   const categories = useApp((s) => s.categories);
   const homeActivitiesMode = useApp((s) => s.homeActivitiesMode);
   const filterCat = target === 'history' ? categories.find((c) => c.id === params.cat) ?? null : active;
-  const activeId = target === 'history' ? filterCat?.id ?? ALL_ACTIVITIES : homeActivitiesMode === 'all' ? ALL_ACTIVITIES : filterCat?.id ?? null;
+  const activeId = target === 'history' ? filterCat?.id ?? ALL_ACTIVITIES : homeActivitiesMode === 'all' || !active ? ALL_ACTIVITIES : filterCat?.id ?? null;
   const accent = activeId === ALL_ACTIVITIES ? S.accent : filterCat?.color ?? S.accent;
   const current = monthOf(today);
 
