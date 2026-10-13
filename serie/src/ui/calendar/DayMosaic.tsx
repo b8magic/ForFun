@@ -31,7 +31,11 @@ const Segment = memo(function Segment({ color, muted, focused, index, count, siz
   useEffect(() => focus.set(withTiming(focused ? 1 : 0, { duration: reduced ? 0 : 240 })), [focused, reduced, focus]);
   const paint = useAnimatedStyle(() => {
     const value = interpolateColor(focus.value, [0, 1], [muted, color]);
-    return count === 2 && index === 0 ? { borderTopColor: value } : { backgroundColor: value };
+    // Reanimated retains omitted animated style properties when a keyed segment
+    // changes shape. Clear the old fill so the triangle exposes the other activity.
+    return count === 2 && index === 0
+      ? { borderTopColor: value, backgroundColor: 'transparent' }
+      : { backgroundColor: value, borderTopColor: 'transparent' };
   }, [muted, color, count, index]);
   if (count === 2 && index === 0) return <Animated.View style={[{ position: 'absolute', top: 0, left: 0, width: 0, height: 0, borderTopWidth: size, borderRightWidth: size, borderRightColor: 'transparent', zIndex: 1 }, paint]} />;
   const geometry = count === 2 ? { top: 0, left: 0, width: size, height: size }

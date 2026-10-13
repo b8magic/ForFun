@@ -12,6 +12,19 @@ const hasCount = async (date, count) => {
   const value = await label(`day-${date}`);
   assert(new RegExp(`\\b${count} session${count === 1 ? 'e' : 'i'} registrat`).test(value), `${date}: ${value}`);
 };
+const mixedDayPaint = async (date) => $(`day-${date}`).evaluate((day) => {
+  const triangle = [...day.querySelectorAll('div')].find((node) => {
+    const style = getComputedStyle(node);
+    return parseFloat(style.borderTopWidth) > 4 && style.borderTopWidth === style.borderRightWidth;
+  });
+  if (!triangle) return null;
+  const other = [...triangle.parentElement.children].find((node) => {
+    const style = getComputedStyle(node);
+    return node !== triangle && style.borderTopWidth === '0px' && style.zIndex === '0';
+  });
+  const style = getComputedStyle(triangle);
+  return { background: style.backgroundColor, upper: style.borderTopColor, lower: other && getComputedStyle(other).backgroundColor };
+});
 
 try {
   await home();
@@ -95,6 +108,16 @@ try {
     await hasCount('2026-09-10', 2);
     const value = await label('day-2026-09-10');
     assert(/Surf/.test(value) && /Corsa/.test(value), `Both activity colors have accessible names: ${value}`);
+    // This is the same mounted Surf segment changing from a full square to a
+    // triangle. A stale animated background used to cover the new Corsa region.
+    let paint = await mixedDayPaint('2026-09-10');
+    assert(paint?.background === 'rgba(0, 0, 0, 0)', `Mixed day must expose its second activity: ${JSON.stringify(paint)}`);
+    assert(paint.upper === 'rgb(250, 164, 138)' && paint.lower === 'rgb(201, 240, 106)', `Corsa focus retains muted Surf and bright Corsa: ${JSON.stringify(paint)}`);
+    await switchTo('Surf');
+    paint = await mixedDayPaint('2026-09-10');
+    assert(paint?.background === 'rgba(0, 0, 0, 0)', `Changing focus must keep the second region visible: ${JSON.stringify(paint)}`);
+    assert(paint.upper === 'rgb(255, 77, 31)' && paint.lower === 'rgb(225, 241, 173)', `Surf focus retains bright Surf and muted Corsa: ${JSON.stringify(paint)}`);
+    await switchTo('Corsa');
     await screenshot('04-mixed-activity-calendar');
     // Tapping a recorded day continues to select it for logging.
     await tap('day-2026-09-10');
