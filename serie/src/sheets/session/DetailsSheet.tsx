@@ -5,7 +5,7 @@ import { useSurface, useThemedStyles } from '@/ui/useTheme';
  * from the Lineup Save button (one copy per date, each editable afterwards).
  */
 import { useMemo, useRef, useState } from 'react';
-import { AccessibilityInfo, Pressable, StyleSheet, View, type ScrollView } from 'react-native';
+import { AccessibilityInfo, Keyboard, Pressable, StyleSheet, View, type ScrollView } from 'react-native';
 import { router } from 'expo-router';
 import type { Place } from '@/domain/types';
 import { deviceTimeZone } from '@/domain/zoned';
@@ -17,6 +17,7 @@ import { Button, Field, Note, Section, Sheet } from '@/ui/controls';
 import { HIT, type Surface } from '@/ui/theme';
 import { T } from '@/ui/T';
 import { t } from '@/i18n/it';
+import { KeyboardSafe } from '@/sheets/manage/parts';
 import { PlaceEditor } from './PlaceEditor';
 import { SheetScroll } from './SheetScroll';
 import { TimingEditor } from './TimingEditor';
@@ -71,6 +72,7 @@ export function DetailsSheet() {
       AccessibilityInfo.announceForAccessibility(s.fixToSave);
       return;
     }
+    Keyboard.dismiss();
     setPendingDetails(buildDetailsDraft({ notes, place, timing: ev.timing }));
     close();
   };
@@ -89,60 +91,62 @@ export function DetailsSheet() {
   const primary = n > 1 ? t.applyToAll(n) : n === 1 ? s.applyToOne : s.keepDetails;
 
   return (
-    <Sheet
-      title={title}
-      eyebrow={eyebrow}
-      testID="details-sheet"
-      scroll={false}
-      footer={
-        <View style={{ gap: 6 }}>
-          {attempted && !ev.ok ? <Note tone="error">{s.fixToSave}</Note> : null}
-          <Button label={primary} onPress={apply} color={accent} testID="details-apply" />
-          {pending || !empty ? (
-            <Pressable onPress={clear} accessibilityRole="button" style={styles.clear} testID="details-clear">
-              <T variant="labelStrong" color={S.mute}>
-                {s.clearDetails}
-              </T>
-            </Pressable>
-          ) : null}
-        </View>
-      }
-    >
-      <SheetScroll ref={scrollRef}>
-        {n === 0 ? <Note>{s.detailsNoSelection}</Note> : null}
+    <KeyboardSafe>
+      <Sheet
+        title={title}
+        eyebrow={eyebrow}
+        testID="details-sheet"
+        scroll={false}
+        footer={
+          <View style={{ gap: 6 }}>
+            {attempted && !ev.ok ? <Note tone="error">{s.fixToSave}</Note> : null}
+            <Button label={primary} onPress={apply} color={accent} testID="details-apply" />
+            {pending || !empty ? (
+              <Pressable onPress={clear} accessibilityRole="button" style={styles.clear} testID="details-clear">
+                <T variant="labelStrong" color={S.mute}>
+                  {s.clearDetails}
+                </T>
+              </Pressable>
+            ) : null}
+          </View>
+        }
+      >
+        <SheetScroll ref={scrollRef}>
+          {n === 0 ? <Note>{s.detailsNoSelection}</Note> : null}
 
-        <Section label={t.notes}>
-          <Field value={notes} onChangeText={setNotes} placeholder={t.notesPlaceholder} multiline accessibilityLabel={t.notes} testID="details-notes" />
-        </Section>
-
-        <Section label={t.place}>
-          <PlaceEditor key={`p${formKey}`} value={place} onChange={setPlace} accent={accent} testID="details-place" />
-        </Section>
-
-        <View onLayout={(e) => (timingY.current = e.nativeEvent.layout.y)}>
-          {badDates.length ? (
-            <Note tone="error">{`Questo orario non vale per ${datesSummary(badDates)}: in quel giorno cambia l’ora legale. Cambia l’orario o togli quella data dalla selezione.`}</Note>
-          ) : null}
-          <Section label={t.timing}>
-            <TimingEditor key={`t${formKey}`} date={refDate} value={timing} onChange={setTiming} deviceZone={deviceZone} showErrors={attempted} accent={accent} testID="details-timing" />
+          <Section label={t.notes}>
+            <Field value={notes} onChangeText={setNotes} placeholder={t.notesPlaceholder} multiline accessibilityLabel={t.notes} testID="details-notes" />
           </Section>
-        </View>
 
-        <View style={styles.notes}>
-          {n !== 1 ? (
-            <T variant="small" color={S.fg} testID="details-duration-note">
-              {n > 1 ? t.applyDurationNote(n) : s.durationEachNote}
+          <Section label={t.place}>
+            <PlaceEditor key={`p${formKey}`} value={place} onChange={setPlace} accent={accent} testID="details-place" />
+          </Section>
+
+          <View onLayout={(e) => (timingY.current = e.nativeEvent.layout.y)}>
+            {badDates.length ? (
+              <Note tone="error">{`Questo orario non vale per ${datesSummary(badDates)}: in quel giorno cambia l’ora legale. Cambia l’orario o togli quella data dalla selezione.`}</Note>
+            ) : null}
+            <Section label={t.timing}>
+              <TimingEditor key={`t${formKey}`} date={refDate} value={timing} onChange={setTiming} deviceZone={deviceZone} showErrors={attempted} accent={accent} testID="details-timing" />
+            </Section>
+          </View>
+
+          <View style={styles.notes}>
+            {n !== 1 ? (
+              <T variant="small" color={S.fg} testID="details-duration-note">
+                {n > 1 ? t.applyDurationNote(n) : s.durationEachNote}
+              </T>
+            ) : null}
+            <T variant="small" color={S.mute}>
+              {t.eachSessionEditable}
             </T>
-          ) : null}
-          <T variant="small" color={S.mute}>
-            {t.eachSessionEditable}
-          </T>
-          <T variant="small" color={S.mute}>
-            {s.detailsSaveHint}
-          </T>
-        </View>
-      </SheetScroll>
-    </Sheet>
+            <T variant="small" color={S.mute}>
+              {s.detailsSaveHint}
+            </T>
+          </View>
+        </SheetScroll>
+      </Sheet>
+    </KeyboardSafe>
   );
 }
 

@@ -4,7 +4,7 @@ import { useSurface } from '@/ui/useTheme';
  * pattern with a live identity-disc preview. Writes only through actions.
  */
 import { useState } from 'react';
-import { AccessibilityInfo, View } from 'react-native';
+import { AccessibilityInfo, Keyboard, View } from 'react-native';
 import type { Category, ID, PatternKind } from '@/domain/types';
 import { createCategory, switchActivity, updateCategory } from '@/state/actions';
 import { Button, Field, Note, Rule, Section, Sheet } from '@/ui/controls';
@@ -67,6 +67,7 @@ export function ActivityForm({ category, categories, isActive, first, onCancel, 
       AccessibilityInfo.announceForAccessibility(nameMessage(issue));
       return;
     }
+    Keyboard.dismiss();
     setBusy(true);
     try {
       if (editing && category) {

@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
-import { AccessibilityInfo, Pressable, StyleSheet, View, type ScrollView } from 'react-native';
+import { AccessibilityInfo, Keyboard, Pressable, StyleSheet, View, type ScrollView } from 'react-native';
 import type { Category, NamedPeriod, Session } from '@/domain/types';
 import { sessionsForNamedPeriod } from '@/domain/namedPeriods';
 import { summarize } from '@/domain/stats';
@@ -82,6 +82,7 @@ export function PeriodEditor({ period, initialDraft, categories, sessions, onSav
       AccessibilityInfo.announceForAccessibility('Controlla il nome, le date e le attività del periodo.');
       return;
     }
+    Keyboard.dismiss();
     inFlight.current = true;
     setBusy(true);
     try {

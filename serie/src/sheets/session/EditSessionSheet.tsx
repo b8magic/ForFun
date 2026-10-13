@@ -6,7 +6,7 @@ import { useSurface, useThemedStyles } from '@/ui/useTheme';
  * export links are read-only lookups. Deleting never touches calendar events.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { AccessibilityInfo, Pressable, StyleSheet, View, type ScrollView } from 'react-native';
+import { AccessibilityInfo, Keyboard, Pressable, StyleSheet, View, type ScrollView } from 'react-native';
 import { router } from 'expo-router';
 import type { Category, Place, Session } from '@/domain/types';
 import { deviceTimeZone } from '@/domain/zoned';
@@ -19,6 +19,7 @@ import { Button, Field, Note, Section, Sheet } from '@/ui/controls';
 import { HIT, type Surface } from '@/ui/theme';
 import { T } from '@/ui/T';
 import { t } from '@/i18n/it';
+import { KeyboardSafe } from '@/sheets/manage/parts';
 import { ActivityPicker } from './ActivityPicker';
 import { DateEditor } from './DateEditor';
 import { PlaceEditor } from './PlaceEditor';
@@ -122,6 +123,7 @@ function Editor({ session, categories, today, onDeleting }: { session: Session; 
       AccessibilityInfo.announceForAccessibility(s.fixToSave);
       return;
     }
+    Keyboard.dismiss();
     if (isEmptyPatch(patch)) return close();
     setBusy('save');
     try {
@@ -163,75 +165,77 @@ function Editor({ session, categories, today, onDeleting }: { session: Session; 
   const eyebrow = [original?.name, shortDate(session.date)].filter(Boolean).join(' · ');
 
   return (
-    <Sheet
-      title={t.editSession}
-      eyebrow={eyebrow}
-      testID="session-editor"
-      scroll={false}
-      footer={
-        <View style={{ gap: 10 }}>
-          {error ? <Note tone="error">{error}</Note> : null}
-          {attempted && !valid ? <Note tone="error">{s.fixToSave}</Note> : null}
-          <Button label={s.saveChanges} onPress={save} color={accent} disabled={!dirty} busy={busy === 'save'} testID="session-save" />
-        </View>
-      }
-    >
-      <SheetScroll ref={scrollRef}>
-        {prov.length ? <Provenance records={prov} zone={deviceZone} /> : null}
+    <KeyboardSafe>
+      <Sheet
+        title={t.editSession}
+        eyebrow={eyebrow}
+        testID="session-editor"
+        scroll={false}
+        footer={
+          <View style={{ gap: 10 }}>
+            {error ? <Note tone="error">{error}</Note> : null}
+            {attempted && !valid ? <Note tone="error">{s.fixToSave}</Note> : null}
+            <Button label={s.saveChanges} onPress={save} color={accent} disabled={!dirty} busy={busy === 'save'} testID="session-save" />
+          </View>
+        }
+      >
+        <SheetScroll ref={scrollRef}>
+          {prov.length ? <Provenance records={prov} zone={deviceZone} /> : null}
 
-        <View onLayout={(e) => (sectionY.current.date = e.nativeEvent.layout.y)}>
-          <Section label={t.date}>
-            <DateEditor value={dateText} onChange={setDateText} today={today} fallback={date} showErrors={attempted} testID="session-date" />
+          <View onLayout={(e) => (sectionY.current.date = e.nativeEvent.layout.y)}>
+            <Section label={t.date}>
+              <DateEditor value={dateText} onChange={setDateText} today={today} fallback={date} showErrors={attempted} testID="session-date" />
+            </Section>
+          </View>
+
+          {categories.length > 1 || categoryId !== session.categoryId ? (
+            <Section label={t.activity}>
+              <ActivityPicker categories={categories} value={categoryId} original={session.categoryId} onChange={setCategoryId} testID="session-activity" />
+            </Section>
+          ) : null}
+
+          <Section label={t.notes} right={<T variant="label" color={S.mute}>{t.detailsOptional}</T>}>
+            <Field value={notes} onChangeText={setNotes} placeholder={t.notesPlaceholder} multiline accessibilityLabel={t.notes} testID="session-notes" />
           </Section>
-        </View>
 
-        {categories.length > 1 || categoryId !== session.categoryId ? (
-          <Section label={t.activity}>
-            <ActivityPicker categories={categories} value={categoryId} original={session.categoryId} onChange={setCategoryId} testID="session-activity" />
+          <Section label={t.place} right={<T variant="label" color={S.mute}>{t.detailsOptional}</T>}>
+            <PlaceEditor value={place} onChange={setPlace} accent={accent} testID="session-place" />
           </Section>
-        ) : null}
 
-        <Section label={t.notes} right={<T variant="label" color={S.mute}>{t.detailsOptional}</T>}>
-          <Field value={notes} onChangeText={setNotes} placeholder={t.notesPlaceholder} multiline accessibilityLabel={t.notes} testID="session-notes" />
-        </Section>
+          <View onLayout={(e) => (sectionY.current.timing = e.nativeEvent.layout.y)}>
+            <Section label={t.timing} right={<T variant="label" color={S.mute}>{t.detailsOptional}</T>}>
+              <TimingEditor date={date} value={timing} onChange={setTiming} deviceZone={deviceZone} showErrors={attempted} accent={accent} testID="session-timing" />
+            </Section>
+          </View>
 
-        <Section label={t.place} right={<T variant="label" color={S.mute}>{t.detailsOptional}</T>}>
-          <PlaceEditor value={place} onChange={setPlace} accent={accent} testID="session-place" />
-        </Section>
+          {links.length ? <ExportLinks links={links} zone={deviceZone} /> : null}
 
-        <View onLayout={(e) => (sectionY.current.timing = e.nativeEvent.layout.y)}>
-          <Section label={t.timing} right={<T variant="label" color={S.mute}>{t.detailsOptional}</T>}>
-            <TimingEditor date={date} value={timing} onChange={setTiming} deviceZone={deviceZone} showErrors={attempted} accent={accent} testID="session-timing" />
-          </Section>
-        </View>
-
-        {links.length ? <ExportLinks links={links} zone={deviceZone} /> : null}
-
-        <View style={styles.danger}>
-          {confirmDelete ? (
-            <View style={{ gap: 14 }} accessibilityLiveRegion="polite" testID="session-delete-confirm">
-              <T variant="body" color={S.fg}>
-                {t.deleteSessionConfirm}
-              </T>
-              <View style={styles.dangerRow}>
-                <View style={{ flex: 1 }}>
-                  <Button label={t.delete} kind="danger" onPress={remove} busy={busy === 'delete'} testID="session-delete-yes" />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Button label={t.cancel} kind="secondary" onPress={() => setConfirmDelete(false)} testID="session-delete-no" />
+          <View style={styles.danger}>
+            {confirmDelete ? (
+              <View style={{ gap: 14 }} accessibilityLiveRegion="polite" testID="session-delete-confirm">
+                <T variant="body" color={S.fg}>
+                  {t.deleteSessionConfirm}
+                </T>
+                <View style={styles.dangerRow}>
+                  <View style={{ flex: 1 }}>
+                    <Button label={t.delete} kind="danger" onPress={remove} busy={busy === 'delete'} testID="session-delete-yes" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Button label={t.cancel} kind="secondary" onPress={() => setConfirmDelete(false)} testID="session-delete-no" />
+                  </View>
                 </View>
               </View>
-            </View>
-          ) : (
-            <Pressable onPress={askDelete} accessibilityRole="button" style={styles.quiet} testID="session-delete">
-              <T variant="labelStrong" color={S.danger}>
-                {t.deleteSession}
-              </T>
-            </Pressable>
-          )}
-        </View>
-      </SheetScroll>
-    </Sheet>
+            ) : (
+              <Pressable onPress={askDelete} accessibilityRole="button" style={styles.quiet} testID="session-delete">
+                <T variant="labelStrong" color={S.danger}>
+                  {t.deleteSession}
+                </T>
+              </Pressable>
+            )}
+          </View>
+        </SheetScroll>
+      </Sheet>
+    </KeyboardSafe>
   );
 }
 

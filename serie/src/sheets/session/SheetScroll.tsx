@@ -1,12 +1,11 @@
 /**
- * Scrolling body for the session sheets (use with <Sheet scroll={false}>).
- * Same rhythm as the shared Sheet body, plus keyboard handling: on iOS the
- * content inset follows the keyboard (automaticallyAdjustKeyboardInsets), so
- * the timing fields at the bottom of a form sheet are never hidden behind it;
- * dragging the content dismisses the keyboard interactively.
+ * Scrolling body inside <KeyboardSafe><Sheet scroll={false}>.
+ * KeyboardSafe resizes the whole form, including its fixed footer. Adding an
+ * automatic keyboard inset here would reserve the same space a second time.
+ * Handled taps reach form controls immediately; dragging dismisses the keyboard.
  */
 import { forwardRef, type ReactNode } from 'react';
-import { ScrollView } from 'react-native';
+import { Platform, ScrollView } from 'react-native';
 import { space } from '@/ui/theme';
 
 export const SheetScroll = forwardRef<ScrollView, { children: ReactNode; testID?: string }>(function SheetScroll({ children, testID }, ref) {
@@ -16,8 +15,8 @@ export const SheetScroll = forwardRef<ScrollView, { children: ReactNode; testID?
       style={{ flex: 1, marginHorizontal: -space.gutter }}
       contentContainerStyle={{ paddingHorizontal: space.gutter, paddingTop: 4, paddingBottom: 32, gap: 22 }}
       keyboardShouldPersistTaps="handled"
-      keyboardDismissMode="interactive"
-      automaticallyAdjustKeyboardInsets
+      keyboardDismissMode={Platform.OS === 'android' ? 'on-drag' : 'interactive'}
+      automaticallyAdjustKeyboardInsets={false}
       testID={testID}
     >
       {children}

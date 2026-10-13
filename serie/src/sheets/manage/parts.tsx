@@ -20,8 +20,9 @@ export function closeSheet() {
 
 /**
  * Keeps a sheet's footer (the primary action) above the software keyboard.
- * Sheets here are bottom-anchored (iOS form sheet on iPhone, full-screen modal
- * elsewhere), so the overlap is the keyboard height. RN's KeyboardAvoidingView
+ * iPhone form sheets here are bottom-anchored, so the overlap is the keyboard
+ * height. Android already resizes the window (Expo's default adjustResize), and
+ * must not reserve that space again. RN's KeyboardAvoidingView
  * measures its frame relative to its parent, which under-reports the overlap
  * inside a form sheet that does not start at the top of the window.
  */
@@ -31,8 +32,7 @@ export function KeyboardSafe({ children }: { children: ReactNode }) {
   const [inset, setInset] = useState(0);
   const bottomPad = Math.max(insets.bottom, 12); // what Sheet already reserves below its footer
   useEffect(() => {
-    if (Platform.OS === 'web') return;
-    const ios = Platform.OS === 'ios';
+    if (Platform.OS !== 'ios') return;
     const follow = (e: KeyboardEvent) => {
       // Move with the keyboard's own curve; under reduced motion just settle.
       if (!reduced && e.duration && e.easing) {
@@ -40,11 +40,11 @@ export function KeyboardSafe({ children }: { children: ReactNode }) {
         LayoutAnimation.configureNext({ duration, update: { duration, type: LayoutAnimation.Types[e.easing] ?? LayoutAnimation.Types.keyboard } });
       }
     };
-    const show = Keyboard.addListener(ios ? 'keyboardWillShow' : 'keyboardDidShow', (e) => {
+    const show = Keyboard.addListener('keyboardWillShow', (e) => {
       follow(e);
       setInset(Math.max(0, Math.round(e.endCoordinates.height + 12 - bottomPad)));
     });
-    const hide = Keyboard.addListener(ios ? 'keyboardWillHide' : 'keyboardDidHide', (e) => {
+    const hide = Keyboard.addListener('keyboardWillHide', (e) => {
       follow(e);
       setInset(0);
     });
