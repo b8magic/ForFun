@@ -4,13 +4,13 @@
 
 The identity, typography, patterns and motion come from the *corduroy* trailer in `../trailer`. The calendar evolution is developed on `codex/serie-calendar`, starting at commit `0f39ebd14b1f1157eb9d4cf89ba2cb0f57e2c655`. See [Codex handoff](docs/CODEX_HANDOFF.md) for provenance and final validation. Existing images in `docs/screens/` document the earlier interface; [final native captures](docs/screens-calendar-1.1/README.md) preserve the evolved interface and exact source provenance.
 
-**Previous delivered build: [Serie 1.1.0, build 7 — unsigned IPA](https://github.com/b8magic/ForFun/actions/runs/38336957498/artifacts/11786327415)**, source `429a8a4a18971e1f4f1b69e86033f3c4933164cd`. Log in to GitHub and install with SideStore/AltStore Classic. The download is retained until **20 October 2026 at 02:58 UTC**. All application/native/packaging gates passed; the separate automatic prerelease job could not start, so delivery uses this verified raw artifact. Intermediate release build 6 is excluded from delivery. See the handoff for the checksum and release-only follow-up.
+**Current delivery: [Serie 1.2.0, build 3 — unsigned IPA](https://github.com/b8magic/ForFun/actions/runs/38376497626/artifacts/11806645205)**, source `3760f86b40e4690764a17b8458b98b82d0dbe760`. Install with SideStore/AltStore Classic; sign in to GitHub if the artifact download asks for it. The download is retained until **20 October 2026 at 10:44 UTC**. Packaging, raw upload and artifact metadata share the same SHA-256; [delivery receipt](docs/ipa-1.2.json) records the exact digest, size and provenance.
 
-**Serie 1.2.0: implemented and locally verified, but no new IPA yet.** The [single IPA-only build](https://github.com/b8magic/ForFun/actions/runs/38376497626) failed before runner startup, consistent with the reported exhausted Actions allowance. Resume that failed job after capacity is restored; the old IPA above contains only 1.1. Verification: 861 tests/48 suites, 43 browser checks, clean types/lint. See [current handoff](docs/CODEX_HANDOFF.md) and [new interface captures](docs/screens-feedback-1.2/README.md).
+Verification: **861 tests/48 suites**, **43 browser checks**, clean types/lint and a successful native Release archive. The user made the repository public after the original attempt failed before runner startup; rerunning only the IPA job succeeded on a standard macOS runner. Native simulator execution was not repeated for 1.2, and installation remains an iPhone check. See [current handoff](docs/CODEX_HANDOFF.md) and [new interface captures](docs/screens-feedback-1.2/README.md). The previous 1.1 delivery and its native captures remain documented as historical evidence.
 
 ## What it does
 
-Version **1.2.0** adds neutral calendar viewing, per-activity `×N` session badges, confirmed swipe deletion in day details, 24 color presets plus a continuous HSV/HEX picker, separate hour/minute controls and searchable IANA timezone selection. Home names the year; history/progress use the direct Home entry instead of duplicate menu items. The preceding 1.1 IPA does not contain these changes; current build status is recorded in the handoff.
+Version **1.2.0** adds neutral calendar viewing, per-activity `×N` session badges, confirmed swipe deletion in day details, 24 color presets plus a continuous HSV/HEX picker, separate hour/minute controls and searchable IANA timezone selection. Home names the year; history/progress use the direct Home entry instead of duplicate menu items. The current IPA contains these changes; delivery provenance is recorded in the handoff.
 
 - **Immediate logging.** Surf is active on a fresh installation. The remembered activity opens directly on later launches. Visible activity chips switch the context; activity management has its own control. A deleted remembered activity falls back safely with a notice.
 - **Continuous calendar.** Scroll through months or tap the sticky month title to jump to a month/year. Each day shows up to four recorded activity colors and a +N overflow marker; accessible labels and day sheets include every actual activity. Settings choose all-activity markers or only the active activity. Future dates cannot enter a logging draft.
@@ -70,7 +70,7 @@ Artifacts include `candidate-web-verification`, `Serie-simulator`, `smoke-test` 
 
 ### Sideload with SideStore / AltStore
 
-The IPA is **unsigned**. SideStore or **AltStore Classic** re-signs it with your Apple ID. Download the private repository's release while signed in to GitHub, then share the IPA to SideStore/AltStore or select it from **My Apps → +**.
+The IPA is **unsigned**. SideStore or **AltStore Classic** re-signs it with your Apple ID. Download the verified IPA linked above, signing in to GitHub if the Actions artifact download asks for it, then share the IPA to SideStore/AltStore or select it from **My Apps → +**. The repository is public; a release asset, when available, can be downloaded without signing in.
 
 - iOS **16.4+** and Developer Mode are required. The place map needs iOS 17; iOS 16 shows a text readout.
 - A free Apple ID signs the app for 7 days; SideStore/AltStore can refresh it. Serie uses one of the three active app slots.
@@ -122,20 +122,23 @@ The browser suites use **13 October 2026, 12:00 UTC** as the fixed date while le
 - `tools/e2e.mjs`: meaningful first launch, multi-date save, separate durable drafts across activity switches/restart, repeat-save protection, intentional same-day sessions, disabled future dates, mixed activity calendar/day details, edit-return, long press, honest empty filters and omission of empty month rows, twelve-month year mosaic, drill-down, Progressi and direct history navigation to an older recorded year.
 - `tools/e2e-flows.mjs`: the four-session duration acceptance case, edit/delete recalculation, independent multi-date durations, activity management/discard guards/deleted drafts, cross-year month jump, settings/theme persistence, Maps resolution and unchanged links, session discard guard, named-period validation/preview/persistence/scoped edit/overlap/delete with sessions preserved.
 - `tools/e2e-calendar.mjs`: memory-provider import/export/automatic export, title-only matching, labels, recurrence/cancellation, re-import detection, equivalent destinations, idempotency and explicit change review.
+- `tools/e2e-v12.mjs`: neutral activity focus and persistence, per-activity session counts, confirmed swipe deletion, arbitrary colors and contrast, hour/minute durations, searchable timezones and simplified navigation.
 - `maestro/`: native logging/drafts/mixed-day/history, Apple Maps, EventKit export, settings and period/session integrity. A native v1 → v2 upgrade check compares original categories, sessions, settings and calendar-exchange tables after relaunch. `tools/sim-smoke.sh` derives fixture dates from the previous month so all test sessions are historical on the runner.
 
 Evidence defaults to a temporary `serie-e2e/` directory. Set `E2E_SHOTS` to choose a base directory and `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` to select another Chromium executable. Results and screenshots are separated into `core`, `flows` and `calendar` subdirectories.
 
 ## Status
 
-Final 1.1.0 verification passed **829 tests in 45 suites**, typecheck, lint, **34/34 browser checks** with zero runtime errors/warnings and **9/9 pixel-checker tests**. [Final run 38336957498](https://github.com/b8magic/ForFun/actions/runs/38336957498) also passed all four Maestro journeys on iPhone 17 Pro / iOS 26.5, actual six-table SQLite upgrade, same-day native color pixels, startup and crash checks, then built the unsigned IPA from that same commit. The raw IPA artifact is ready above; automatic prerelease startup failed separately. Receipts and provenance are in [Codex handoff](docs/CODEX_HANDOFF.md). Baseline totals are not reused as validation of this branch.
+The current **1.2.0** delivery passed 861 tests/48 suites, 43 browser checks, types/lint and native Release compilation/IPA packaging. [Run 38376497626, attempt 2](https://github.com/b8magic/ForFun/actions/runs/38376497626) succeeded against the immutable source above. Its IPA-only path intentionally skipped simulator execution and prerelease publication; use the verified raw artifact above. See the [machine-readable receipt](docs/ipa-1.2.json).
+
+Historical **1.1.0** verification passed **829 tests in 45 suites**, typecheck, lint, **34/34 browser checks** with zero runtime errors/warnings and **9/9 pixel-checker tests**. [Final run 38336957498](https://github.com/b8magic/ForFun/actions/runs/38336957498) also passed all four Maestro journeys on iPhone 17 Pro / iOS 26.5, actual six-table SQLite upgrade, same-day native color pixels, startup and crash checks, then built the unsigned IPA from that same commit. The historical 1.1 IPA and failed automatic prerelease startup are recorded in the handoff. Receipts and provenance are in [Codex handoff](docs/CODEX_HANDOFF.md). Baseline totals are not reused as validation of this branch.
 
 | Area | Verification boundary |
 |---|---|
 | Model, migrations, durable drafts, periods, stats and calendar engines | Jest uses the same SQL through sql.js and fake native/provider adapters. |
-| Actual calendar/day/history/settings/period UI | Three browser suites drive the exported app and database. Canvas screenshots support visual review. |
-| Native Release app, maps and EventKit export | The candidate's GitHub macOS simulator gate runs Maestro and captures evidence. |
-| Installable unsigned IPA | Built after all candidate gates, with source manifest and checksum. Physical iPhone installation remains a device check. |
+| Actual calendar/day/history/settings/period UI | Four browser suites drive the exported app and database, including 1.2 feedback scenarios. Canvas screenshots support visual review. |
+| Native Release app, maps and EventKit export | 1.1 passed the GitHub macOS simulator's Maestro gate; 1.2 passed native compilation but did not repeat simulator execution. |
+| Installable unsigned IPA | 1.2 uses local gates followed by IPA-only compilation; 1.1 used the full candidate pipeline. Both packages have source manifests and checksums. Physical iPhone installation remains a device check. |
 | Google OAuth and real REST traffic | Requires real OAuth credentials and a test account. Memory providers and fetch mocks do not prove this. |
 
 Physical-device frame rate, thermal/battery behavior, haptics, VoiceOver, Dynamic Type and iOS 16/17 behavior need device testing. The simulator cannot establish those results. Real Google OAuth/calendar writes and the Apple permission prompt itself are outside the browser suite; simulator calendar permission is pre-granted.

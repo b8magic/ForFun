@@ -173,7 +173,7 @@ jobs:
           {
             echo "### Serie $APP_VERSION — Serie-unsigned.ipa"
             echo "- size: $SIZE · build: ~${MINS} min · build number ${{ github.run_number }}"
-            echo "- Xcode: $(xcodebuild -version | head -1) · commit $CANDIDATE_SHA"
+            echo "- Xcode: $(xcodebuild -version | awk 'NR == 1 { print }') · commit $CANDIDATE_SHA"
           } >> "$GITHUB_STEP_SUMMARY"
         env:
           CANDIDATE_SHA: ${{ inputs.candidate_sha || github.sha }}
@@ -239,7 +239,7 @@ jobs:
             Si installa con **SideStore** o **AltStore Classic** (non AltStore PAL), che la firmano con il tuo Apple ID.
 
             **Installazione**
-            1. Su iPhone apri questa pagina in Safari con il login a GitHub (il repo è privato) e scarica `Serie-unsigned.ipa`.
+            1. Su iPhone apri questa pagina in Safari e scarica `Serie-unsigned.ipa`.
             2. Condividi il file con SideStore/AltStore (oppure *My Apps → +* e scegli il file da File).
             3. Serve iOS 16.4 o successivo e la Modalità sviluppatore attiva (Impostazioni → Privacy e sicurezza).
 
