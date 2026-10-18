@@ -46,6 +46,7 @@ const YearRow = memo(function YearRow({ g, days, today }: {
   const tileWidth = (width - 2 * space.gutter - (columns - 1) * 10) / columns;
   const dur = durationLine(g.summary.duration);
   const populated = g.summary.sessions > 0;
+  const months = useMemo(() => g.months.slice().reverse(), [g.months]);
 
   return (
     <View style={styles.year} testID={`year-${g.year}`}>
@@ -68,7 +69,7 @@ const YearRow = memo(function YearRow({ g, days, today }: {
             {[t.activeDays(g.summary.activeDays), dur].filter(Boolean).join(' · ')}
           </T>
           <View style={styles.grid}>
-            {g.months.map((m) => <YearMonth key={m.key} month={m} days={days} today={today} width={tileWidth} />)}
+            {months.map((m) => <YearMonth key={m.key} month={m} days={days} today={today} width={tileWidth} />)}
           </View>
         </>
       ) : null}
@@ -107,9 +108,11 @@ const YearMonth = memo(function YearMonth({ month, days, today, width }: {
           <T variant="labelStrong" color={populated ? C.fg : C.mute} style={{ fontSize: 10, letterSpacing: 0.6 }}>
             {MONTHS_SHORT[month.month.m - 1]}
           </T>
-          <T variant="small" color={populated ? C.fg : C.mute} style={{ fontSize: 12, lineHeight: 15 }}>
-            {month.future ? '—' : month.summary.sessions}
-          </T>
+          {month.future ? null : (
+            <T variant="small" color={populated ? C.fg : C.mute} style={{ fontSize: 12, lineHeight: 15 }}>
+              {month.summary.sessions}
+            </T>
+          )}
         </View>
         <View style={styles.monthDays}>
           {weeks.map((week, row) => (

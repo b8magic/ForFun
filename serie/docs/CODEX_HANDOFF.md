@@ -7,7 +7,17 @@
 - Contribution author/tool: Codex. Final implementation commits use subjects beginning `Codex: …` so a future Claude/Codex reviewer can identify the work through Git history.
 - User-approved scope: complete the calendar/appearance/draft/day/history/named-period evolution, preserve existing data and integrations, run meaningful tests, and deliver one final verified GitHub IPA. No release marker is added before local candidate checks pass.
 
-## Current delivery: Serie 1.3.1
+## Current update: Serie 1.3.2 (IPA pending)
+
+History now places its common counts and known-duration summary between activity filters and the Mese/Anno/Progressi tabs, without repeating the activity name. Unknown duration summaries, empty hours blocks, future-month dashes and the empty current-streak note are omitted. Positive duration totals retain coverage, so partial recorded time remains distinguishable from a complete total. The shared formatter also cleans named-period summaries without altering data.
+
+Year mosaics follow the descending chronology of their years: December to January, with dates and drill-down destinations unchanged. Each Home month heading shows actual saved session counts for the focused activity or all activities in neutral view; duplicate same-day sessions count independently, drafts do not. Counts use one memoized month index and preserve the existing calendar frame sizes.
+
+Other empty-value wording intentionally remains in bulk editing (no notes/place, timing not specified), calendar import/export review, and whole-screen empty states. These communicate what will be changed or why a view has no results. True zero counts and unmet milestone states remain visible.
+
+Local typecheck/lint and all **949 tests in 56 suites** passed. **6/6 focused browser journeys** also passed with zero console errors/warnings, including a 320px layout and rendered grid order. One unsigned IPA build follows; no simulator/video or full-browser pipeline is requested. No dependency/schema changes.
+
+## Previous delivery: Serie 1.3.1
 
 User feedback asks for shared Home day selection even with no activity selected, preserved through activity/mode changes; neutral editing across activities; immediate explicit deletion without a confirmation; a swipe that cannot also open the editor; and removal of missing-time/duration filler from day previews. Per-activity optional details remain separate. No schema or dependency changes.
 

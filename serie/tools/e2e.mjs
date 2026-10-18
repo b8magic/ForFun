@@ -170,7 +170,7 @@ try {
     await tap('filter-Surf', 300);
     const september = await historyLabel('2026-09');
     assert(/6 sessioni · 5 giorni attivi/.test(september), `September counts: ${september}`);
-    assert(/Nessuna durata registrata/.test(september), `Honest duration: ${september}`);
+    assert(!/Nessuna durata registrata|tempo registrato/.test(september), `Missing duration stays omitted: ${september}`);
     assert(await historyItem('month-2026-08').count() === 0, 'Empty August has no archive row');
     assert(await historyItem('mini-2026-09-03').count(), 'Populated month calendar is open without a disclosure tap');
     await tap('filter-Allenamento', 400);

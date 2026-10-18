@@ -1,6 +1,6 @@
 /**
  * Turns statistics into honest Italian sentences: session counts, active
- * days and recorded hours are always distinct; completeness is always shown.
+ * days and recorded hours are always distinct; known hours include coverage.
  */
 import type { DurationSummary, LocalDate, PeriodSummary, Session } from '@/domain/types';
 import { formatDuration } from '@/domain/duration';
@@ -9,8 +9,7 @@ import { derivedEnd } from '@/domain/timing';
 import { MONTHS, MONTHS_TITLE, WEEKDAYS, t } from '@/i18n/it';
 
 export function durationLine(d: DurationSummary): string {
-  if (d.totalCount === 0) return '';
-  if (d.knownCount === 0) return t.noDurations;
+  if (d.totalCount === 0 || d.knownCount === 0 || !(d.knownSec > 0)) return '';
   return `${t.recorded(formatDuration(d.knownSec))} · ${t.coverage(d.knownCount, d.totalCount)}`;
 }
 

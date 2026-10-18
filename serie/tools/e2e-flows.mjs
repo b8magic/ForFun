@@ -90,13 +90,13 @@ try {
     assert(/1 h 30 min di tempo registrato/.test(value) && /1 di 4/.test(value), `After edit: ${value}`);
   });
 
-  await check('deleting the last known duration yields an unavailable duration, preserving other sessions', async () => {
+  await check('deleting the last known duration omits its summary, preserving other sessions', async () => {
     await openSession('2026-09-04');
     await tap('session-delete');
     await tap('session-delete-yes', 650);
     await closeDay();
     const value = await monthLabel('2026-09');
-    assert(/3 sessioni/.test(value) && /Nessuna durata registrata/.test(value), `After delete: ${value}`);
+    assert(/3 sessioni/.test(value) && !/Nessuna durata registrata|tempo registrato/.test(value), `After delete: ${value}`);
     await tap('back-to-log', 450);
   });
 
@@ -271,7 +271,7 @@ try {
     if ((await activeCheckbox.getAttribute('aria-checked')) !== 'true') await activeCheckbox.tap();
     const preview = await text('period-preview-summary');
     assert(/3 sessioni · 3 giorni attivi/.test(preview), `Scoped period count: ${preview}`);
-    assert(/Nessuna durata registrata/.test(preview), 'Date-only and start-only do not invent duration');
+    assert(!/Nessuna durata registrata|tempo registrato/.test(preview), 'Date-only and start-only omit missing duration');
     await tap('period-save', 500);
     await h.visible('period-detail');
     assert(/Settembre allenamento/.test(await text('period-detail')), 'Updated metadata displayed');

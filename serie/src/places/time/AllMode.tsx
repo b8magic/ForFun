@@ -47,6 +47,7 @@ export function AllMode({ sessions, allSessions, categories, filterId, today, ac
     [sessions],
   );
   const avg = averageKnown(total.duration);
+  const dur = durationLine(total.duration);
   const nextSessions = milestones.find((m) => m.kind === 'sessions' && !m.reached);
 
   return (
@@ -55,7 +56,7 @@ export function AllMode({ sessions, allSessions, categories, filterId, today, ac
       <View style={{ paddingHorizontal: space.gutter, gap: 30 }}>
         <Corduroy groups={groups} width={W} accent={accent} />
 
-        <View style={styles.bigRow} accessible accessibilityLabel={`${t.totalSessions}: ${total.sessions}, ${t.activeDays(total.activeDays)}. ${durationLine(total.duration) || t.noDurations}`}>
+        <View style={styles.bigRow} accessible accessibilityLabel={[`${t.totalSessions}: ${total.sessions}, ${t.activeDays(total.activeDays)}`, dur].filter(Boolean).join('. ')}>
           <View style={{ flex: 1 }}>
             <T variant="label" color={C.mute}>
               {t.totalSessions}
@@ -67,17 +68,19 @@ export function AllMode({ sessions, allSessions, categories, filterId, today, ac
               {t.activeDays(total.activeDays)}
             </T>
           </View>
-          <View style={{ flex: 1.2, alignItems: 'flex-end' }}>
-            <T variant="label" color={C.mute}>
-              {t.cumulativeHours}
-            </T>
-            <T variant="hero" color={total.duration.knownCount ? C.fg : C.mute} style={{ fontVariant: ['tabular-nums'] }}>
-              {total.duration.knownCount ? formatDuration(total.duration.knownSec).replace(' min', '′') : '—'}
-            </T>
-            <T variant="data" color={C.mute} align="right">
-              {total.duration.knownCount ? t.coverage(total.duration.knownCount, total.duration.totalCount) : t.noDurations}
-            </T>
-          </View>
+          {dur ? (
+            <View style={{ flex: 1.2, alignItems: 'flex-end' }}>
+              <T variant="label" color={C.mute}>
+                {t.cumulativeHours}
+              </T>
+              <T variant="hero" color={C.fg} style={{ fontVariant: ['tabular-nums'] }}>
+                {formatDuration(total.duration.knownSec).replace(' min', '′')}
+              </T>
+              <T variant="data" color={C.mute} align="right">
+                {t.coverage(total.duration.knownCount, total.duration.totalCount)}
+              </T>
+            </View>
+          ) : null}
         </View>
         {avg ? (
           <T variant="small" color={C.mute}>
@@ -104,32 +107,33 @@ export function AllMode({ sessions, allSessions, categories, filterId, today, ac
         </Block>
 
         <Block label={t.consistency}>
-          <Pair a={t.activeWeeks(freq.activeWeeks, freq.windowWeeks)} b={t.longestStreak(streaks.longest)} note={streaks.current ? t.currentStreak(streaks.current) : 'Nessuna serie in corso'} />
+          <Pair a={t.activeWeeks(freq.activeWeeks, freq.windowWeeks)} b={t.longestStreak(streaks.longest)} note={streaks.current ? t.currentStreak(streaks.current) : undefined} />
         </Block>
 
         {!filterId ? (
           <Block label={t.perActivity}>
-            {dist.map((d) => (
-              <View key={d.categoryId} style={styles.distRow} accessible accessibilityLabel={`${d.name}: ${t.sessions(d.summary.sessions)}, ${Math.round(d.share * 100)}%. ${durationLine(d.summary.duration) || t.noDurations}`}>
-                <IdentityDisc size={34} pattern={categories.find((c) => c.id === d.categoryId)!.pattern} color={d.color} stripe={C.fg} animated={false} />
-                <View style={{ flex: 1, gap: 4 }}>
-                  <View style={styles.distHead}>
-                    <T variant="bodyStrong" color={C.fg}>
-                      {d.name}
-                    </T>
-                    <T variant="dataStrong" color={C.fg}>
-                      {d.summary.sessions} · {Math.round(d.share * 100)}%
-                    </T>
+            {dist.map((d) => {
+              const duration = durationLine(d.summary.duration);
+              return (
+                <View key={d.categoryId} style={styles.distRow} accessible accessibilityLabel={[`${d.name}: ${t.sessions(d.summary.sessions)}, ${Math.round(d.share * 100)}%`, duration].filter(Boolean).join('. ')}>
+                  <IdentityDisc size={34} pattern={categories.find((c) => c.id === d.categoryId)!.pattern} color={d.color} stripe={C.fg} animated={false} />
+                  <View style={{ flex: 1, gap: 4 }}>
+                    <View style={styles.distHead}>
+                      <T variant="bodyStrong" color={C.fg}>
+                        {d.name}
+                      </T>
+                      <T variant="dataStrong" color={C.fg}>
+                        {d.summary.sessions} · {Math.round(d.share * 100)}%
+                      </T>
+                    </View>
+                    <View style={styles.shareTrack}>
+                      <View style={[styles.shareFill, { width: `${d.summary.sessions > 0 ? Math.max(1.5, d.share * 100) : 0}%`, backgroundColor: d.color }]} />
+                    </View>
+                    {duration ? <T variant="small" color={C.mute}>{duration}</T> : null}
                   </View>
-                  <View style={styles.shareTrack}>
-                    <View style={[styles.shareFill, { width: `${d.summary.sessions > 0 ? Math.max(1.5, d.share * 100) : 0}%`, backgroundColor: d.color }]} />
-                  </View>
-                  <T variant="small" color={C.mute}>
-                    {d.summary.sessions ? durationLine(d.summary.duration) : t.emptyMonth}
-                  </T>
                 </View>
-              </View>
-            ))}
+              );
+            })}
           </Block>
         ) : null}
 

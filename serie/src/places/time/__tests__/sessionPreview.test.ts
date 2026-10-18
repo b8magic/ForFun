@@ -21,6 +21,9 @@ it('shows recorded time in previews and keeps honest duration coverage in statis
   expect(compactDurationLine({ knownSec: 0, knownCount: 0, totalCount: 3 })).toBe('');
   expect(compactDurationLine({ knownSec: 0, knownCount: 0, totalCount: 0 })).toBe('');
   expect(compactDurationLine({ knownSec: 0, knownCount: 1, totalCount: 1 })).toBe('');
+  expect(durationLine({ knownSec: 0, knownCount: 0, totalCount: 3 })).toBe('');
+  expect(durationLine({ knownSec: 0, knownCount: 0, totalCount: 0 })).toBe('');
+  expect(durationLine({ knownSec: 0, knownCount: 1, totalCount: 1 })).toBe('');
 });
 
 it('does not turn a missing duration or place into an invented recorded value', () => {

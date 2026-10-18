@@ -51,6 +51,16 @@ export function Lineup() {
   // Only the visible window is rendered. Stable month indices prevent scroll jumps.
   const months = useMemo(() => monthRange(monthOf(EARLIEST_DATE), current), [current]);
   const days = useMemo(() => buildDaySummaries(sessions, categories), [sessions, categories]);
+  const activeId = active?.id;
+  const monthSessionCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const session of sessions) {
+      if (activeId && session.categoryId !== activeId) continue;
+      const key = session.date.slice(0, 7);
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+    return counts;
+  }, [sessions, activeId]);
   const bulkDays = useMemo(() => {
     const selected = new Set(bulkSelection);
     const counts = new Map<string, number>();
@@ -192,13 +202,21 @@ export function Lineup() {
         onViewableItemsChanged={onVisible} viewabilityConfig={VIEWABILITY}
         initialNumToRender={3} maxToRenderPerBatch={3} windowSize={5} showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingHorizontal: 22 }} ListFooterComponent={<View style={{ height: footerHeight }} />}
-        extraData={{ selection, activeId: active?.id, mode, saving, days, fontScale, sessionMode, bulkDays, bulkSaving }} testID="month-list"
-        renderItem={({ item }) => (
-          <View style={{ paddingBottom: 28 }} testID={`home-month-${monthKey(item)}`}>
-            <Pressable onPress={() => { setViewMonth(item); router.push('/jump'); }} accessibilityRole="button" accessibilityLabel={`${MONTHS_TITLE[item.m - 1]} ${item.y}. Scegli mese e anno`} style={{ height: sectionTitleHeight, justifyContent: 'center' }}><T variant="heading" color={surface.fg}>{MONTHS_TITLE[item.m - 1]} <T variant="data" color={surface.mute}>{item.y}</T></T></Pressable>
-            <MonthCalendar month={item} days={days} activeId={active?.id} selection={selection} today={today} showAll={!active || mode === 'all'} onPressDay={toggleDate} onLongPressDay={openDay} disabled={saving || bulkSaving} existingSelection={sessionMode === 'edit' ? bulkDays : undefined} recentSave={sessionMode === 'new' && highlightSaveId && breakEvent ? breakEvent : undefined} testID={`month-${monthKey(item)}`} />
-          </View>
-        )}
+        extraData={{ selection, activeId, activeName: active?.name, mode, saving, days, monthSessionCounts, fontScale, sessionMode, bulkDays, bulkSaving }} testID="month-list"
+        renderItem={({ item }) => {
+          const key = monthKey(item);
+          const count = monthSessionCounts.get(key) ?? 0;
+          const countLabel = `${t.sessions(count)} ${active ? `di ${active.name}` : count === 1 ? 'totale' : 'totali'}`;
+          return (
+            <View style={{ paddingBottom: 28 }} testID={`home-month-${key}`}>
+              <Pressable onPress={() => { setViewMonth(item); router.push('/jump'); }} accessibilityRole="button" accessibilityLabel={`${MONTHS_TITLE[item.m - 1]} ${item.y}. ${countLabel}. Scegli mese e anno`} style={[styles.monthHeading, { height: sectionTitleHeight }]} testID={`home-month-heading-${key}`}>
+                <T variant="heading" color={surface.fg} style={styles.monthHeadingTitle} testID={`home-month-title-${key}`}>{MONTHS_TITLE[item.m - 1]} <T variant="data" color={surface.mute}>{item.y}</T></T>
+                <T variant="small" color={surface.mute} numberOfLines={2} ellipsizeMode="tail" align="right" style={styles.monthCount} testID={`home-month-count-${key}`}>{countLabel}</T>
+              </Pressable>
+              <MonthCalendar month={item} days={days} activeId={activeId} selection={selection} today={today} showAll={!active || mode === 'all'} onPressDay={toggleDate} onLongPressDay={openDay} disabled={saving || bulkSaving} existingSelection={sessionMode === 'edit' ? bulkDays : undefined} recentSave={sessionMode === 'new' && highlightSaveId && breakEvent ? breakEvent : undefined} testID={`month-${key}`} />
+            </View>
+          );
+        }}
       />
       <View style={[styles.dock, { backgroundColor: surface.bg, borderTopColor: surface.faint, paddingBottom: Math.max(insets.bottom, 12) }]}>
         {place === 'lineup' ? <ToastContent inline /> : null}
@@ -216,5 +234,5 @@ export function Lineup() {
     </View>
   );
 }
-const styles = StyleSheet.create({ root: { flex: 1 }, header: { paddingHorizontal: 22, paddingTop: 8, paddingBottom: 4, flexDirection: 'row', alignItems: 'center', gap: 10 }, monthTitle: { flex: 1, minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 10 }, year: { flexDirection: 'row', alignItems: 'center', gap: 6 }, headerButton: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 2 }, menu: { width: 44, height: 44, justifyContent: 'center', alignItems: 'flex-end' }, today: { paddingHorizontal: 22, minHeight: 36, justifyContent: 'center' }, dock: { paddingHorizontal: 22, paddingTop: 2, borderTopWidth: StyleSheet.hairlineWidth }, context: { minHeight: 44, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', columnGap: 8 }, contextButton: { minHeight: 44, flexShrink: 1, justifyContent: 'center' } });
+const styles = StyleSheet.create({ root: { flex: 1 }, header: { paddingHorizontal: 22, paddingTop: 8, paddingBottom: 4, flexDirection: 'row', alignItems: 'center', gap: 10 }, monthTitle: { flex: 1, minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 10 }, monthHeading: { flexDirection: 'row', alignItems: 'center', gap: 12 }, monthHeadingTitle: { flexShrink: 0 }, monthCount: { flex: 1, minWidth: 0, fontSize: 12, lineHeight: 16 }, year: { flexDirection: 'row', alignItems: 'center', gap: 6 }, headerButton: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 2 }, menu: { width: 44, height: 44, justifyContent: 'center', alignItems: 'flex-end' }, today: { paddingHorizontal: 22, minHeight: 36, justifyContent: 'center' }, dock: { paddingHorizontal: 22, paddingTop: 2, borderTopWidth: StyleSheet.hairlineWidth }, context: { minHeight: 44, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', columnGap: 8 }, contextButton: { minHeight: 44, flexShrink: 1, justifyContent: 'center' } });
 export { addDays };

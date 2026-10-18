@@ -115,6 +115,8 @@ function TimeBody() {
   const cat = categories.find((c) => c.id === filterId) ?? null;
   const accent = cat?.color ?? C.fg;
   const total = useMemo(() => summarize(filtered), [filtered]);
+  const totalCounts = [t.sessions(total.sessions), total.sessions ? t.activeDays(total.activeDays) : ''].filter(Boolean).join(' · ');
+  const totalDuration = durationLine(total.duration);
   const days = useMemo(() => buildDaySummaries(filtered, categories), [filtered, categories]);
   const months = useMemo(() => (scale === 'month' ? monthGroups(filtered, today) : []), [filtered, today, scale]);
   const years = useMemo(() => (scale === 'year' ? yearGroups(filtered, today) : []), [filtered, today, scale]);
@@ -159,6 +161,17 @@ function TimeBody() {
         ))}
       </ScrollView>
 
+      <View style={{ gap: 2, marginTop: 4 }} accessible accessibilityLabel={[totalCounts, totalDuration].filter(Boolean).join('. ')} testID="history-summary">
+        <T variant="data" color={C.fg}>
+          {totalCounts}
+        </T>
+        {totalDuration ? (
+          <T variant="data" color={C.mute}>
+            {totalDuration}
+          </T>
+        ) : null}
+      </View>
+
       <Segmented<TimeScale>
         value={scale}
         onChange={setTimeScale}
@@ -171,20 +184,6 @@ function TimeBody() {
         ]}
         testID="scale"
       />
-      <View style={{ gap: 2, marginTop: 4 }} accessible accessibilityLabel={`${cat ? t.totalForActivity(cat.name) : t.allActivities}: ${t.sessions(total.sessions)}, ${t.activeDays(total.activeDays)}. ${durationLine(total.duration) || t.noDurations}`}>
-        <T variant="label" color={C.mute}>
-          {cat ? t.totalForActivity(cat.name) : t.allActivities}
-        </T>
-        <T variant="data" color={C.fg}>
-          {t.sessions(total.sessions)}
-          {total.sessions ? ` · ${t.activeDays(total.activeDays)}` : ''}
-        </T>
-        {total.sessions ? (
-          <T variant="data" color={C.mute}>
-            {durationLine(total.duration)}
-          </T>
-        ) : null}
-      </View>
     </View>
   );
 
