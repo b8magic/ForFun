@@ -70,7 +70,7 @@ try {
     assert(/Surf/.test(await body()) && !/Uncaught Error|Failed to compile|Something went wrong/i.test(await body()), 'Home renders meaningful app content without a framework overlay');
     await switchTo('Surf');
     await jumpMonth(2026, 9);
-    await expectCount('0 sessioni di Surf');
+    assert(await $('home-month-count-2026-09').count() === 0, 'Empty Home counts stay hidden');
     await tap(`day-${dates.mixed}`, 100);
     await details(async () => {
       await tap('details-timing-mode-duration_only', 100);

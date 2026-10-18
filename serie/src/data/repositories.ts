@@ -395,6 +395,51 @@ export function sessionsRepo(db: SqlDriver, deps: Deps) {
         return r.changes;
       });
     },
+    /** A short-lived, single-use receipt. Restore local rows only, never queued calendar writes. */
+    async removeWithUndo(id: ID) {
+      const snapshot = await db.transaction(async (tx) => {
+        const row = await tx.first<SessionRow>('SELECT * FROM sessions WHERE id = ?', [id]);
+        if (!row) throw new DomainError('session_missing');
+        const category = await tx.first<CategoryRow>('SELECT * FROM categories WHERE id = ?', [row.category_id]);
+        if (!category) throw new DomainError('category_missing');
+        const provenance = await tx.all<ProvRow>('SELECT * FROM import_provenance WHERE session_id = ?', [id]);
+        const links = await tx.all<LinkRow>('SELECT * FROM export_links WHERE session_id = ?', [id]);
+        await tx.run('DELETE FROM sessions WHERE id = ?', [id]);
+        return { row, category, provenance, links };
+      });
+      let consumed = false;
+      return {
+        async restore(): Promise<Session | null> {
+          // Consume before awaiting so duplicate calls and an old receipt after a later
+          // deletion cannot resurrect the session a second time.
+          if (consumed) return null;
+          consumed = true;
+          return db.transaction(async (tx) => {
+            const { row, category, provenance, links } = snapshot;
+            const currentCategory = await tx.first<CategoryRow>('SELECT * FROM categories WHERE id = ?', [row.category_id]);
+            if (!currentCategory || currentCategory.created_at !== category.created_at) throw new DomainError('category_missing');
+            if (await tx.first('SELECT id FROM sessions WHERE id = ?', [id])) throw new DomainError('session_changed');
+            if (row.save_request_id && await tx.first('SELECT id FROM sessions WHERE save_request_id = ? AND category_id = ? AND date = ?', [row.save_request_id, row.category_id, row.date])) {
+              throw new DomainError('session_changed');
+            }
+            // Restore the stored values verbatim, including identity, timing and timestamps.
+            // The regular insert normalizes details and ignores conflicts: neither is right for Undo.
+            await tx.run(`INSERT INTO sessions (${SESSION_COLS}) VALUES (${SESSION_PLACEHOLDERS})`, SESSION_COLS.split(', ').map((key) => row[key as keyof SessionRow]));
+            const reattach = async <R extends { id: string; session_id: string | null }>(table: 'import_provenance' | 'export_links', records: R[]) => {
+              for (const saved of records) {
+                const current = await tx.first<R>(`SELECT * FROM ${table} WHERE id = ?`, [saved.id]);
+                // Another import/export may have claimed or changed the tombstone in the meantime.
+                if (!current || current.session_id !== null || (Object.keys(saved) as (keyof R)[]).some((key) => key !== 'session_id' && current[key] !== saved[key])) continue;
+                await tx.run(`UPDATE ${table} SET session_id = ? WHERE id = ? AND session_id IS NULL`, [id, saved.id]);
+              }
+            };
+            await reattach('import_provenance', provenance);
+            await reattach('export_links', links);
+            return sessionFromRow(row);
+          });
+        },
+      };
+    },
   };
 }
 

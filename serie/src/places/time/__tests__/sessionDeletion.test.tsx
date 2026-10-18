@@ -46,12 +46,12 @@ describe.each(['day', 'history'] as const)('%s direct session deletion', (surfac
     const onDelete = rows().onDelete;
     act(() => { onDelete(session); onDelete(sessions[1]); });
     expect(deleteSession).toHaveBeenCalledTimes(1);
-    expect(deleteSession).toHaveBeenCalledWith(session.id);
+    expect(deleteSession).toHaveBeenCalledWith(...(surface === 'history' ? [session.id, { undo: true }] : [session.id]));
     expect(rows().interactive).toBe(false);
     expect(renderer.root.findAll((node) => /^(day|history)-delete-confirm$/.test(node.props.testID ?? ''))).toHaveLength(0);
     await act(async () => complete());
     expect(rows().interactive).toBe(true);
-    expect(showToast).toHaveBeenCalledTimes(1);
+    expect(showToast).toHaveBeenCalledTimes(surface === 'history' ? 0 : 1); // History's action owns the undo receipt/toast.
   });
 
   it('keeps the sessions available and restores actions when deletion fails', async () => {

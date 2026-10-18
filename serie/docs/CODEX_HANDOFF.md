@@ -7,7 +7,19 @@
 - Contribution author/tool: Codex. Final implementation commits use subjects beginning `Codex: …` so a future Claude/Codex reviewer can identify the work through Git history.
 - User-approved scope: complete the calendar/appearance/draft/day/history/named-period evolution, preserve existing data and integrations, run meaningful tests, and deliver one final verified GitHub IPA. No release marker is added before local candidate checks pass.
 
-## Current delivery: Serie 1.3.2
+## Current update: Serie 1.3.3
+
+Home monthly session counts now disappear at zero, including their accessible labels. Positive counts still follow the activity focus and exclude drafts.
+
+Deleting from History's inline monthly day details offers the existing red **Annulla** action. Undo restores the exact SQLite session row, including its ID, timestamps and optional details; unchanged import/export associations are reattached atomically. It is single-use and expires with the toast (6 seconds, 12 with VoiceOver). Conflicting or missing records fail visibly. Local restoration does not create calendar export jobs or repeat save hooks. The other deletion entry points retain their existing behavior.
+
+Named Periods use the installed native iPhone date picker for inclusive start/end dates; the browser verification build uses real date inputs. Local date conversion avoids UTC day shifts and supports future endpoints. Existing validation and unsaved-change guards remain intact. No database schema or dependency changes.
+
+**Pending user choices, deliberately unchanged:** Home's Nuove → Sessioni currently opens the full single-day sheet; Modifica → Sessioni opens the selected-date checklist filtered by the focused activity. Recommended next step is a shared list grouped by day, available for multiple days in Nuove, with selection checkboxes in Modifica. Activity-name dots come from legacy per-activity draft dates, which can be stale with the shared Home selection; removing them is recommended. The user explicitly requested discussion before modifying these flows. The monthly History ridgeline already exists in 1.3.1 and represents daily session counts.
+
+Local verification passed **976 tests in 59 suites**, typecheck/lint, and **5/5 focused browser journeys**, with zero errors/warnings. Tests include exact persisted-row undo, single-use/expiry/conflict behavior, zero counts for active/neutral scope, 320px layout, native browser date inputs, range validation and future-date persistence. Date conversion tests also passed in America/Los_Angeles and Pacific/Kiritimati. [Verification receipt](verification-1.3.3.json). One IPA-only build is requested after these checks; no simulator, video or physical iPhone interaction test is claimed.
+
+## Previous delivery: Serie 1.3.2
 
 History now places its common counts and known-duration summary between activity filters and the Mese/Anno/Progressi tabs, without repeating the activity name. Unknown duration summaries, empty hours blocks, future-month dashes and the empty current-streak note are omitted. Positive duration totals retain coverage, so partial recorded time remains distinguishable from a complete total. The shared formatter also cleans named-period summaries without altering data.
 

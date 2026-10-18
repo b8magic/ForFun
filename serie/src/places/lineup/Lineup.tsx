@@ -206,12 +206,12 @@ export function Lineup() {
         renderItem={({ item }) => {
           const key = monthKey(item);
           const count = monthSessionCounts.get(key) ?? 0;
-          const countLabel = `${t.sessions(count)} ${active ? `di ${active.name}` : count === 1 ? 'totale' : 'totali'}`;
+          const countLabel = count ? `${t.sessions(count)} ${active ? `di ${active.name}` : count === 1 ? 'totale' : 'totali'}` : '';
           return (
             <View style={{ paddingBottom: 28 }} testID={`home-month-${key}`}>
-              <Pressable onPress={() => { setViewMonth(item); router.push('/jump'); }} accessibilityRole="button" accessibilityLabel={`${MONTHS_TITLE[item.m - 1]} ${item.y}. ${countLabel}. Scegli mese e anno`} style={[styles.monthHeading, { height: sectionTitleHeight }]} testID={`home-month-heading-${key}`}>
+              <Pressable onPress={() => { setViewMonth(item); router.push('/jump'); }} accessibilityRole="button" accessibilityLabel={[`${MONTHS_TITLE[item.m - 1]} ${item.y}`, countLabel, 'Scegli mese e anno'].filter(Boolean).join('. ')} style={[styles.monthHeading, { height: sectionTitleHeight }]} testID={`home-month-heading-${key}`}>
                 <T variant="heading" color={surface.fg} style={styles.monthHeadingTitle} testID={`home-month-title-${key}`}>{MONTHS_TITLE[item.m - 1]} <T variant="data" color={surface.mute}>{item.y}</T></T>
-                <T variant="small" color={surface.mute} numberOfLines={2} ellipsizeMode="tail" align="right" style={styles.monthCount} testID={`home-month-count-${key}`}>{countLabel}</T>
+                {countLabel ? <T variant="small" color={surface.mute} numberOfLines={2} ellipsizeMode="tail" align="right" style={styles.monthCount} testID={`home-month-count-${key}`}>{countLabel}</T> : null}
               </Pressable>
               <MonthCalendar month={item} days={days} activeId={activeId} selection={selection} today={today} showAll={!active || mode === 'all'} onPressDay={toggleDate} onLongPressDay={openDay} disabled={saving || bulkSaving} existingSelection={sessionMode === 'edit' ? bulkDays : undefined} recentSave={sessionMode === 'new' && highlightSaveId && breakEvent ? breakEvent : undefined} testID={`month-${key}`} />
             </View>

@@ -426,6 +426,8 @@ export const t = {
     saveChanges: 'Salva modifiche',
     fixToSave: 'Correggi i campi segnati per salvare. I dettagli lasciati vuoti non bloccano mai il salvataggio.',
     sessionDeleted: 'Sessione eliminata',
+    sessionRestored: 'Sessione ripristinata',
+    sessionRestoreFailed: 'Impossibile ripristinare la sessione.',
     sessionNotFound: 'Sessione non trovata',
     sessionNotFoundBody: 'Potrebbe essere stata eliminata o annullata. Le altre sessioni sono al loro posto.',
     provenance: 'Provenienza',

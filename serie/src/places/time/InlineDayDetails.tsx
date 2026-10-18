@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState } from 'react';
 import { AccessibilityInfo, Pressable, StyleSheet, View } from 'react-native';
 import type { Category, LocalDate, Session } from '@/domain/types';
-import { deleteSession, showToast } from '@/state/actions';
+import { deleteSession } from '@/state/actions';
 import { Chevron } from '@/ui/glyphs';
 import { T } from '@/ui/T';
 import { HIT } from '@/ui/theme';
@@ -42,8 +42,7 @@ export function InlineDayDetails({ date, sessions, catById, filterId, onClose, o
     setDeleting(true);
     setDeleteError(null);
     try {
-      await deleteSession(id);
-      showToast(t.sessionSheets.sessionDeleted);
+      await deleteSession(id, { undo: true });
     } catch {
       setDeleteError(t.errorGeneric);
       AccessibilityInfo.announceForAccessibility(t.errorGeneric);

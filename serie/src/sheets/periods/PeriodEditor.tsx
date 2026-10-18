@@ -3,7 +3,6 @@ import { AccessibilityInfo, Keyboard, Pressable, StyleSheet, View, type ScrollVi
 import type { Category, NamedPeriod, Session } from '@/domain/types';
 import { sessionsForNamedPeriod } from '@/domain/namedPeriods';
 import { summarize } from '@/domain/stats';
-import { isLocalDate } from '@/domain/dates';
 import { DomainError } from '@/data/repositories';
 import { createNamedPeriod, showToast, updateNamedPeriod } from '@/state/actions';
 import { useMotionReduced } from '@/state/selectors';
@@ -11,7 +10,6 @@ import { useSurface } from '@/ui/useTheme';
 import { Button, Field, Note, Section, Sheet } from '@/ui/controls';
 import { T } from '@/ui/T';
 import { t } from '@/i18n/it';
-import { dateLabel } from '@/places/time/format';
 import { closeSheet, FooterPair, KeyboardSafe } from '@/sheets/manage/parts';
 import { SheetScroll } from '@/sheets/session/SheetScroll';
 import { confirmDiscard, useConfirmDiscard } from '@/sheets/session/useConfirmDiscard';
@@ -19,6 +17,7 @@ import { evaluatePeriodDraft, samePeriodDraft, type PeriodDraft } from './model'
 import { PeriodMosaic } from './PeriodMosaic';
 import { PeriodSessionsPreview } from './PeriodSessions';
 import { PeriodSummary } from './PeriodSummary';
+import { PeriodDateField } from './PeriodDateField';
 
 const DISCARD_COPY = { title: 'Modifiche non salvate', body: 'Se esci adesso, le modifiche a questo periodo andranno perse.' };
 
@@ -144,36 +143,22 @@ export function PeriodEditor({ period, initialDraft, categories, sessions, onSav
           />
 
           <View style={styles.dates} onLayout={(e) => (fieldY.current.dates = e.nativeEvent.layout.y)}>
-            <View style={{ flex: 1, minWidth: 0, gap: 6 }}>
-              <Field
-                label="Inizio"
-                value={draft.startDate}
-                onChangeText={(value) => change('startDate', value)}
-                placeholder="AAAA-MM-GG"
-                keyboardType="numbers-and-punctuation"
-                maxLength={10}
-                autoCorrect={false}
-                editable={!busy}
-                error={attempted ? evaluation.errors.startDate : null}
-                testID="period-start"
-              />
-              {isLocalDate(draft.startDate) ? <T variant="small" color={C.mute}>{dateLabel(draft.startDate)}</T> : null}
-            </View>
-            <View style={{ flex: 1, minWidth: 0, gap: 6 }}>
-              <Field
-                label="Fine"
-                value={draft.endDate}
-                onChangeText={(value) => change('endDate', value)}
-                placeholder="AAAA-MM-GG"
-                keyboardType="numbers-and-punctuation"
-                maxLength={10}
-                autoCorrect={false}
-                editable={!busy}
-                error={attempted ? evaluation.errors.endDate : null}
-                testID="period-end"
-              />
-              {isLocalDate(draft.endDate) ? <T variant="small" color={C.mute}>{dateLabel(draft.endDate)}</T> : null}
-            </View>
+            <PeriodDateField
+              label="Inizio"
+              value={draft.startDate}
+              onChange={(value) => change('startDate', value)}
+              disabled={busy}
+              error={attempted ? evaluation.errors.startDate : null}
+              testID="period-start"
+            />
+            <PeriodDateField
+              label="Fine"
+              value={draft.endDate}
+              onChange={(value) => change('endDate', value)}
+              disabled={busy}
+              error={attempted ? evaluation.errors.endDate : null}
+              testID="period-end"
+            />
           </View>
 
           <View onLayout={(e) => (fieldY.current.activities = e.nativeEvent.layout.y)}><Section label="Attività incluse">
@@ -282,7 +267,7 @@ function ScopeChoice({ title, detail, on, onPress, disabled, testID }: {
 }
 
 const styles = StyleSheet.create({
-  dates: { flexDirection: 'row', gap: 18, alignItems: 'flex-start' },
+  dates: { gap: 12 },
   scope: { flexDirection: 'row', gap: 12, alignItems: 'center', minHeight: 58, paddingVertical: 8 },
   radio: { width: 20, height: 20, borderWidth: 1.5, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
   radioFill: { width: 10, height: 10, borderRadius: 5 },

@@ -107,7 +107,7 @@ let screenReader = false;
 export const setScreenReaderActive = (on: boolean) => {
   screenReader = on;
 };
-/** How long "Annulla" stays available after a save (longer with VoiceOver). Auto-export waits longer than this. */
+/** How long "Annulla" stays available after saving/deleting (longer with VoiceOver). Auto-export waits longer than this. */
 export const UNDO_WINDOW_MS = { default: 6000, screenReader: 12000 } as const;
 
 export function showToast(text: string, opts: { action?: { label: string; run: () => void }; tone?: 'neutral' | 'error'; ms?: number } = {}) {
@@ -119,6 +119,7 @@ export function showToast(text: string, opts: { action?: { label: string; run: (
   setTimeout(() => {
     if (get().toast?.id === id) set({ toast: null });
   }, ms);
+  return id;
 }
 
 export const dismissToast = () => set({ toast: null });
@@ -457,12 +458,40 @@ export async function updateSession(id: ID, patch: SessionPatch): Promise<Sessio
   return s;
 }
 
-export async function deleteSession(id: ID) {
+export async function deleteSession(id: ID, options: { undo?: boolean } = {}) {
   const repos = await getRepositories();
-  await repos.sessions.remove([id]);
+  // An export already in flight finishes before the undo receipt captures its links.
+  const deleted = options.undo ? await withExportLock(repos.exportJobs, () => repos.sessions.removeWithUndo(id)) : null;
+  if (!deleted) await repos.sessions.remove([id]);
   ++sessionsRead;
   set((state) => ({ sessions: state.sessions.filter((session) => session.id !== id) }));
   await reloadSessions().catch(() => undefined);
+  if (!deleted) return;
+  await reloadOpenJobs().catch(() => undefined);
+  const expiresAt = Date.now() + (screenReader ? UNDO_WINDOW_MS.screenReader : UNDO_WINDOW_MS.default);
+  let used = false;
+  const toastId = showToast(t.sessionSheets.sessionDeleted, {
+    ms: UNDO_WINDOW_MS.default,
+    action: {
+      label: t.undo,
+      run: async () => {
+        if (used || Date.now() > expiresAt || toastSeq !== toastId) return;
+        used = true;
+        try {
+          const restored = await withExportLock(repos.exportJobs, () => deleted.restore());
+          if (!restored) return;
+          ++sessionsRead;
+          set((state) => ({ sessions: [...state.sessions.filter((session) => session.id !== restored.id), restored] }));
+          await reloadSessions().catch(() => undefined);
+          // Restoring is not a new save: do not enqueue exports or replay Home animations/drafts.
+          if (toastSeq === toastId) showToast(t.sessionSheets.sessionRestored);
+        } catch {
+          if (toastSeq === toastId) showToast(t.sessionSheets.sessionRestoreFailed, { tone: 'error' });
+          haptics.error();
+        }
+      },
+    },
+  });
 }
 
 // ─── Activities ──────────────────────────────────────────────────────────────
