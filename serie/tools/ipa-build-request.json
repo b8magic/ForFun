@@ -1,16 +1,16 @@
 {
-  "version": "1.3.2",
-  "applicationSource": "2e27bd3b63ee8f3602b13d425f9a698a65190964",
-  "reason": "Shared History summary above tabs, omit missing-value filler, December-to-January year mosaics and scoped Home month session counts",
+  "version": "1.3.3",
+  "applicationSource": "af13d491df1c58275814807ade2dfa69cdb50ca9",
+  "reason": "Hide zero Home counts, red undo for monthly History deletion, native date pickers for named Periods",
   "verifiedLocally": {
-    "unitTests": 949,
-    "unitSuites": 56,
-    "focusedBrowserChecks": 6,
+    "unitTests": 976,
+    "unitSuites": 59,
+    "focusedBrowserChecks": 5,
     "browserErrors": 0,
     "browserWarnings": 0,
     "typecheck": true,
     "lint": true
   },
-  "nativeStatus": "No simulator cycle for this visual update; native archive and packaging required. Physical iPhone interaction remains device verification.",
+  "nativeStatus": "No simulator cycle; native archive and packaging required. Native date picker interaction remains physical iPhone verification.",
   "buildPolicy": "Single unsigned IPA job only; no simulator, video or repeated browser workflow"
 }
