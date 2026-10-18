@@ -7,7 +7,7 @@
 - Contribution author/tool: Codex. Final implementation commits use subjects beginning `Codex: …` so a future Claude/Codex reviewer can identify the work through Git history.
 - User-approved scope: complete the calendar/appearance/draft/day/history/named-period evolution, preserve existing data and integrations, run meaningful tests, and deliver one final verified GitHub IPA. No release marker is added before local candidate checks pass.
 
-## Current update: Serie 1.3.2 (IPA pending)
+## Current delivery: Serie 1.3.2
 
 History now places its common counts and known-duration summary between activity filters and the Mese/Anno/Progressi tabs, without repeating the activity name. Unknown duration summaries, empty hours blocks, future-month dashes and the empty current-streak note are omitted. Positive duration totals retain coverage, so partial recorded time remains distinguishable from a complete total. The shared formatter also cleans named-period summaries without altering data.
 
@@ -15,7 +15,15 @@ Year mosaics follow the descending chronology of their years: December to Januar
 
 Other empty-value wording intentionally remains in bulk editing (no notes/place, timing not specified), calendar import/export review, and whole-screen empty states. These communicate what will be changed or why a view has no results. True zero counts and unmet milestone states remain visible.
 
-Local typecheck/lint and all **949 tests in 56 suites** passed. **6/6 focused browser journeys** also passed with zero console errors/warnings, including a 320px layout and rendered grid order. One unsigned IPA build follows; no simulator/video or full-browser pipeline is requested. No dependency/schema changes.
+Local typecheck/lint and all **949 tests in 56 suites** passed. **6/6 focused browser journeys** also passed with zero console errors/warnings, including a 320px layout and rendered grid order. One unsigned IPA build succeeded; no simulator/video or full-browser pipeline is requested. No dependency/schema changes.
+
+### Delivered IPA 1.3.2
+
+- **[Serie 1.3.2, build 6 — unsigned IPA](https://github.com/b8magic/ForFun/actions/runs/39137001314/artifacts/12140428021)**. Bundle `app.serie.ios`, minimum iOS **16.4**. **16,099,310 bytes**, retained until **2026-10-25 14:54:34 UTC**. Install through SideStore/AltStore Classic, signing in to GitHub if requested.
+- Binary source **`013764175696f86af65d13d37cafdee4002e146a`**; locally verified application source **`2e27bd3b63ee8f3602b13d425f9a698a65190964`**. Later receipt/documentation commits do not change the delivered binary.
+- IPA SHA-256 **`574594bb1acff9d46f2096c6fbeab6b7fae91f58c1a01c44da250d1c8038db06`** matches packaging, raw upload and artifact metadata, including exact size. Packaging requires embedded `main.jsbundle` and logs built Info.plist identity/version/build/minimum OS.
+- [Companion ZIP](https://github.com/b8magic/ForFun/actions/runs/39137001314/artifacts/12140875940): **15,969,780 bytes**, SHA-256 `587936afb9cd368a77bb83d7a454c9869c93ae089fdf90777a7c70737b3eef43`. Three files: IPA, checksum and generated source/version/run/build manifest. Independent local binary/ZIP inspection is not claimed.
+- [Run 39137001314](https://github.com/b8magic/ForFun/actions/runs/39137001314), job `117703440242`, succeeded on `macos-26` with Xcode **26.6** and iPhoneOS SDK **26.5**. IPA-only publication intentionally skips the prerelease job. [Delivery receipt](ipa-1.3.2.json) · [Local verification](verification-1.3.2.json).
 
 ## Previous delivery: Serie 1.3.1
 
