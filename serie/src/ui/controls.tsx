@@ -8,35 +8,40 @@ import { type ReactNode, useState } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, Switch, TextInput, View, type TextInputProps, type ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import { palette, surfaces, fonts, HIT, space } from './theme';
+import { foregroundOn, fonts, HIT, space } from './theme';
+import { useSurface } from './useTheme';
 import { T } from './T';
-import { Close } from './glyphs';
+import { Chevron, Close } from './glyphs';
 import { t } from '@/i18n/it';
-
-const S = surfaces.night;
-// react-native-web colours the active thumb separately (teal by default)
-const WEB_SWITCH = (Platform.OS === 'web' ? { activeThumbColor: palette.foam } : {}) as object;
 
 export function Sheet({
   title,
+  accessibleTitle,
   eyebrow,
   children,
   footer,
   onClose,
+  onBack,
+  backLabel = t.back,
   scroll = true,
   keyboardInsets = true,
   testID,
 }: {
-  title: string;
+  title?: string;
+  /** A heading for assistive technology when the visible content already names the sheet. */
+  accessibleTitle?: string;
   eyebrow?: string;
   children: ReactNode;
   footer?: ReactNode;
   onClose?: () => void;
+  onBack?: () => void;
+  backLabel?: string;
   scroll?: boolean;
   /** iOS: keep the focused field above the keyboard (off when a parent already pads for it). */
   keyboardInsets?: boolean;
   testID?: string;
 }) {
+  const S = useSurface();
   const insets = useSafeAreaInsets();
   const close = onClose ?? (() => (router.canGoBack() ? router.back() : router.replace('/')));
   const body = <View style={[{ paddingHorizontal: space.gutter, paddingBottom: 32, gap: 22 }, !scroll && { flex: 1, paddingBottom: 0 }]}>{children}</View>;
@@ -46,17 +51,20 @@ export function Sheet({
   // header and the footer) or, next to a sibling it took for a header, to zero height. As real
   // containers, the sheet and its header keep the ScrollView out of that search: plain flex layout.
   return (
-    <View style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, 12) }]} testID={testID} collapsable={false}>
+    <View style={[styles.sheet, { backgroundColor: S.bg, paddingBottom: Math.max(insets.bottom, 12) }]} testID={testID} collapsable={false}>
       <View style={styles.sheetHead} collapsable={false}>
-        <View style={{ flex: 1, gap: 4 }}>
+        {onBack ? (
+          <Pressable onPress={onBack} accessibilityRole="button" accessibilityLabel={backLabel} style={styles.backBtn} hitSlop={8} testID="sheet-back">
+            <Chevron dir="left" color={S.fg} size={11} />
+          </Pressable>
+        ) : null}
+        <View style={{ flex: 1, gap: 4, minHeight: !title && accessibleTitle ? HIT : undefined }} accessible={!title && !!accessibleTitle} accessibilityRole={!title && accessibleTitle ? 'header' : undefined} accessibilityLabel={!title ? accessibleTitle : undefined}>
           {eyebrow ? (
             <T variant="label" color={S.mute}>
               {eyebrow}
             </T>
           ) : null}
-          <T variant="heading" color={S.fg} accessibilityRole="header">
-            {title}
-          </T>
+          {title ? <T variant="heading" color={S.fg} accessibilityRole="header">{title}</T> : null}
         </View>
         <Pressable onPress={close} accessibilityRole="button" accessibilityLabel={t.close} style={styles.closeBtn} hitSlop={8} testID="sheet-close">
           <Close color={S.fg} />
@@ -75,6 +83,7 @@ export function Sheet({
 }
 
 export function Section({ label, children, hint, right }: { label: string; children: ReactNode; hint?: string; right?: ReactNode }) {
+  const S = useSurface();
   return (
     <View style={{ gap: 10 }}>
       <View style={styles.sectionHead}>
@@ -94,10 +103,12 @@ export function Section({ label, children, hint, right }: { label: string; child
 }
 
 export function Rule({ style }: { style?: ViewStyle }) {
+  const S = useSurface();
   return <View style={[{ height: StyleSheet.hairlineWidth, backgroundColor: S.faint }, style]} />;
 }
 
 export function Field({ label, error, style, ...props }: TextInputProps & { label?: string; error?: string | null }) {
+  const S = useSurface();
   const [focused, setFocused] = useState(false);
   return (
     <View style={{ gap: 6 }}>
@@ -107,8 +118,9 @@ export function Field({ label, error, style, ...props }: TextInputProps & { labe
         </T>
       ) : null}
       <TextInput
-        placeholderTextColor="rgba(238,232,218,0.55)"
-        selectionColor={palette.flare}
+        placeholderTextColor={S.mute}
+        selectionColor={S.accent}
+        keyboardAppearance={S.name === 'night' ? 'dark' : 'light'}
         {...props}
         onFocus={(e) => {
           setFocused(true);
@@ -122,14 +134,15 @@ export function Field({ label, error, style, ...props }: TextInputProps & { labe
         style={[
           styles.input,
           {
-            borderBottomColor: error ? palette.danger : focused ? palette.foam : S.faint,
+            color: S.fg,
+            borderBottomColor: error ? S.danger : focused ? S.fg : S.faint,
           },
           props.multiline && { minHeight: 84, textAlignVertical: 'top' },
           style,
         ]}
       />
       {error ? (
-        <T variant="small" color={palette.danger} accessibilityLiveRegion="polite">
+        <T variant="small" color={S.danger} accessibilityLiveRegion="polite">
           {error}
         </T>
       ) : null}
@@ -156,8 +169,9 @@ export function Button({
   testID?: string;
   accessibilityHint?: string;
 }) {
-  const bg = kind === 'primary' ? (color ?? palette.flare) : 'transparent';
-  const fg = kind === 'primary' ? palette.ink : kind === 'danger' ? palette.danger : S.fg;
+  const S = useSurface();
+  const bg = kind === 'primary' ? (color ?? S.accent) : 'transparent';
+  const fg = kind === 'primary' ? (color ? foregroundOn(color) : S.onAccent) : kind === 'danger' ? S.danger : S.fg;
   return (
     <Pressable
       onPress={onPress}
@@ -179,7 +193,7 @@ export function Button({
         },
         kind === 'danger' && {
           borderWidth: 1.2,
-          borderColor: 'rgba(255,90,78,0.4)',
+          borderColor: S.danger,
         },
       ]}
     >
@@ -195,9 +209,8 @@ export function Segmented<K extends string>({
   value,
   options,
   onChange,
-  accent = palette.flare,
+  accent,
   testID,
-  tone = 'night',
 }: {
   value: K;
   options: { key: K; label: string }[];
@@ -206,12 +219,13 @@ export function Segmented<K extends string>({
   testID?: string;
   tone?: 'night' | 'calm';
 }) {
-  const S = surfaces[tone];
+  const S = useSurface();
+  const selectedColor = accent ?? S.accent;
   const items = options.map((o) => {
     const on = o.key === value;
     return (
       <Pressable key={o.key} onPress={() => onChange(o.key)} accessibilityRole="radio" aria-checked={on} style={styles.segment} testID={testID ? `${testID}-${o.key}` : undefined}>
-        <View style={[styles.segDot, { backgroundColor: on ? accent : 'transparent' }]} />
+        <View style={[styles.segDot, { backgroundColor: on ? selectedColor : 'transparent' }]} />
         <T variant={on ? 'labelStrong' : 'label'} color={on ? S.fg : S.mute} align="center" numberOfLines={1}>
           {o.label}
         </T>
@@ -219,7 +233,7 @@ export function Segmented<K extends string>({
     );
   });
   const line = {
-    borderBottomColor: tone === 'calm' ? 'rgba(20,18,15,0.3)' : 'rgba(238,232,218,0.3)',
+    borderBottomColor: S.faint,
   };
   // more than three choices: one line that scrolls sideways instead of wrapping a lone option
   if (options.length > 3)
@@ -236,6 +250,9 @@ export function Segmented<K extends string>({
 }
 
 export function Toggle({ label, value, onChange, hint, disabled, testID }: { label: string; value: boolean; onChange: (v: boolean) => void; hint?: string; disabled?: boolean; testID?: string }) {
+  const S = useSurface();
+  // react-native-web also has a separate active-thumb colour.
+  const webSwitch = (Platform.OS === 'web' ? { activeThumbColor: S.bg } : {}) as object;
   return (
     <Pressable onPress={() => !disabled && onChange(!value)} accessibilityRole="switch" aria-checked={value} aria-disabled={disabled} style={styles.toggleRow} testID={testID}>
       <View style={{ flex: 1, gap: 2 }}>
@@ -248,7 +265,7 @@ export function Toggle({ label, value, onChange, hint, disabled, testID }: { lab
           </T>
         ) : null}
       </View>
-      <Switch value={value} onValueChange={onChange} disabled={disabled} trackColor={{ false: palette.ink3, true: palette.flare }} thumbColor={palette.foam} ios_backgroundColor={palette.ink3} {...WEB_SWITCH} />
+      <Switch value={value} onValueChange={onChange} disabled={disabled} trackColor={{ false: S.faint, true: S.accent }} thumbColor={S.bg} ios_backgroundColor={S.faint} {...webSwitch} />
     </Pressable>
   );
 }
@@ -270,13 +287,14 @@ export function Row({
   testID?: string;
   accessibilityLabel?: string;
 }) {
+  const S = useSurface();
   return (
     <Pressable
       onPress={onPress}
       disabled={!onPress}
       accessibilityRole={onPress ? 'button' : undefined}
       accessibilityLabel={accessibilityLabel}
-      style={({ pressed }) => [styles.row, pressed && onPress ? { opacity: 0.7 } : null]}
+      style={({ pressed }) => [styles.row, { borderBottomColor: S.faint }, pressed && onPress ? { opacity: 0.7 } : null]}
       testID={testID}
     >
       {left}
@@ -296,7 +314,8 @@ export function Row({
 }
 
 export function Note({ children, tone = 'neutral' }: { children: ReactNode; tone?: 'neutral' | 'warn' | 'error' }) {
-  const c = tone === 'error' ? palette.danger : tone === 'warn' ? '#F3C46E' : S.mute;
+  const S = useSurface();
+  const c = tone === 'error' ? S.danger : tone === 'warn' ? S.warning : S.mute;
   return (
     <View style={[styles.note, { borderLeftColor: c }]}>
       <T variant="small" color={tone === 'neutral' ? S.mute : c}>
@@ -307,7 +326,7 @@ export function Note({ children, tone = 'neutral' }: { children: ReactNode; tone
 }
 
 const styles = StyleSheet.create({
-  sheet: { flex: 1, backgroundColor: palette.ink2 },
+  sheet: { flex: 1 },
   sheetHead: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -324,6 +343,7 @@ const styles = StyleSheet.create({
     marginRight: -10,
     marginTop: -8,
   },
+  backBtn: { width: HIT, height: HIT, alignItems: 'center', justifyContent: 'center', marginLeft: -12, marginTop: -8 },
   footer: { paddingHorizontal: space.gutter, paddingTop: 12, gap: 10 },
   sectionHead: {
     flexDirection: 'row',
@@ -333,7 +353,6 @@ const styles = StyleSheet.create({
   input: {
     fontFamily: fonts.text,
     fontSize: 17,
-    color: palette.foam,
     paddingVertical: 10,
     borderBottomWidth: 1.2,
     minHeight: HIT,
@@ -348,7 +367,6 @@ const styles = StyleSheet.create({
   segmented: {
     flexDirection: 'row',
     borderBottomWidth: 1.2,
-    borderBottomColor: 'rgba(238,232,218,0.3)',
     flexWrap: 'wrap',
   },
   segmentedScroll: { borderBottomWidth: 1.2, flexGrow: 0 },
@@ -376,7 +394,6 @@ const styles = StyleSheet.create({
     minHeight: 56,
     paddingVertical: 10,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: S.faint,
   },
   note: { borderLeftWidth: 2, paddingLeft: 12, paddingVertical: 2 },
 });

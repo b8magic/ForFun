@@ -1,171 +1,245 @@
-// End-to-end verification of the Serie web build (headless Chromium).
-// Each check drives the real UI and asserts on what the user would see.
-//   node tools/e2e.mjs            (expects dist-web built by tools/build-web.sh)
-import http from 'node:http';
-import fs from 'node:fs';
-import path from 'node:path';
-import { chromium } from 'playwright';
+// Real web UI journeys: durable activity drafts, logging, mixed days and archive.
+// tools/build-web.sh && node tools/e2e.mjs
+import { assert, createHarness } from './e2e-harness.mjs';
 
-const ROOT = path.resolve('dist-web');
-const SHOTS = process.env.E2E_SHOTS || path.resolve('/tmp/claude-0/-home-user-ForFun/95d9cc13-7e3c-5b9b-9777-89259157d415/scratchpad/e2e');
-fs.mkdirSync(SHOTS, { recursive: true });
-const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.wasm': 'application/wasm', '.ttf': 'font/ttf', '.png': 'image/png', '.json': 'application/json', '.ico': 'image/x-icon' };
-const server = http.createServer((req, res) => {
-  const p = decodeURIComponent(req.url.split('?')[0]);
-  let f = path.join(ROOT, p);
-  if (!f.startsWith(ROOT) || !fs.existsSync(f) || fs.statSync(f).isDirectory()) f = path.join(ROOT, 'index.html');
-  res.writeHead(200, { 'Content-Type': MIME[path.extname(f)] || 'application/octet-stream' });
-  fs.createReadStream(f).pipe(res);
-});
-await new Promise((r) => server.listen(0, '127.0.0.1', r));
-const URL = `http://127.0.0.1:${server.address().port}/`;
-const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
-
-const results = [];
-let ctx, page;
-const errors = [];
-async function fresh() {
-  if (ctx) await ctx.close();
-  ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, hasTouch: true, isMobile: true });
-  page = await ctx.newPage();
-  page.on('pageerror', (e) => errors.push(e.message));
-  await page.goto(URL);
-  await page.locator('[data-testid="lineup"]').waitFor({ timeout: 30000 });
-  await page.waitForTimeout(1200);
-}
-async function reload() {
-  await page.reload();
-  await page.locator('[data-testid="lineup"]').waitFor({ timeout: 30000 });
-  await page.waitForTimeout(1200);
-}
-const $ = (id) => page.locator(`[data-testid="${id}"]`).first();
-const tap = async (id, wait = 180) => {
-  await $(id).tap();
-  await page.waitForTimeout(wait);
+const h = await createHarness('core');
+const { page, $, tap, text, label, body, fill, check, home, reload, switchTo, jumpMonth, details, save, screenshot } = h;
+const history = () => page.getByTestId('time-place');
+const historyItem = (id) => history().getByTestId(id).first();
+const historyLabel = async (key) => (await historyItem(`month-${key}`).getAttribute('aria-label')) ?? '';
+const selected = async (date) => /selezionat/i.test(await label(`day-${date}`));
+const hasCount = async (date, count) => {
+  const value = await label(`day-${date}`);
+  assert(new RegExp(`\\b${count} session${count === 1 ? 'e' : 'i'} registrat`).test(value), `${date}: ${value}`);
 };
-const text = async (id) => (await $(id).innerText()).trim();
-const label = async (id) => (await $(id).getAttribute('aria-label')) ?? '';
-async function check(name, fn) {
-  const t0 = Date.now();
-  try {
-    await fn();
-    results.push({ name, ok: true, ms: Date.now() - t0 });
-    console.log(`✓ ${name}`);
-  } catch (e) {
-    results.push({ name, ok: false, err: String(e?.message ?? e).slice(0, 400) });
-    console.log(`✗ ${name}\n   ${String(e?.message ?? e).slice(0, 400)}`);
-    await page.screenshot({ path: path.join(SHOTS, `fail-${name.replace(/\W+/g, '_')}.png`) }).catch(() => {});
-  }
+const mixedDayPaint = async (date) => $(`day-${date}`).evaluate((day) => {
+  const triangle = [...day.querySelectorAll('div')].find((node) => {
+    const style = getComputedStyle(node);
+    return parseFloat(style.borderTopWidth) > 4 && style.borderTopWidth === style.borderRightWidth;
+  });
+  if (!triangle) return null;
+  const other = [...triangle.parentElement.children].find((node) => {
+    const style = getComputedStyle(node);
+    return node !== triangle && style.borderTopWidth === '0px' && style.zIndex === '0';
+  });
+  const style = getComputedStyle(triangle);
+  return { background: style.backgroundColor, upper: style.borderTopColor, lower: other && getComputedStyle(other).backgroundColor };
+});
+
+try {
+  await home();
+  await check('first launch has a cream calendar, active Surf and disabled Save', async () => {
+    assert(page.url() === h.url, 'Correct entry route');
+    assert(/Surf/.test(await body()), 'Meaningful app content');
+    assert(!/Uncaught Error|Failed to compile|Something went wrong/i.test(await body()), 'No framework error overlay');
+    assert(/Attività attiva: Surf/.test(await label('activity-switcher')), 'First activity is Surf');
+    assert((await $('save').getAttribute('aria-disabled')) === 'true', 'No dates selected');
+    assert(/Ottobre 2026/.test(await label('month-title')), 'The fixture clock controls the calendar month');
+    assert((await text('month-title')) === '2026', 'Home uses the current year as its large title');
+    await screenshot('01-first-launch');
+  });
+
+  await check('month jump and multi-date save record each date once', async () => {
+    await jumpMonth(2026, 9);
+    for (const date of ['2026-09-03', '2026-09-10', '2026-09-24']) await tap(`day-${date}`);
+    assert(/Salva 3 sessioni/i.test(await text('save')), await text('save'));
+    await save();
+    for (const date of ['2026-09-03', '2026-09-10', '2026-09-24']) await hasCount(date, 1);
+    await screenshot('02-multiple-dates-saved');
+  });
+
+  await check('drafts retain their dates and details independently across activity switches and restart', async () => {
+    await tap('day-2026-09-17');
+    await details(async () => fill('details-notes', 'Bozza Surf: onda lunga'));
+    await switchTo('Corsa');
+    await jumpMonth(2026, 9);
+    assert((await $('save').getAttribute('aria-disabled')) === 'true', 'New activity starts with its own empty draft');
+    await tap('day-2026-09-18');
+    await details(async () => fill('details-notes', 'Bozza Corsa: lungomare'));
+    await switchTo('Surf');
+    await jumpMonth(2026, 9);
+    assert(await selected('2026-09-17'), 'Surf selected date restored');
+    assert(!(await selected('2026-09-18')), 'Corsa selected date stays separate');
+    await reload();
+    assert(/Attività attiva: Surf/.test(await label('activity-switcher')), 'Remembered activity restored');
+    await jumpMonth(2026, 9);
+    assert(await selected('2026-09-17'), 'Surf draft survives restart');
+    await details(async () => assert((await $('details-notes').inputValue()) === 'Bozza Surf: onda lunga', 'Surf notes survive restart'));
+    await switchTo('Corsa');
+    await jumpMonth(2026, 9);
+    assert(await selected('2026-09-18'), 'Corsa draft survives restart');
+    await details(async () => assert((await $('details-notes').inputValue()) === 'Bozza Corsa: lungomare', 'Corsa notes survive restart'));
+    await save();
+    await hasCount('2026-09-18', 1);
+    await switchTo('Surf');
+    await jumpMonth(2026, 9);
+    assert(await selected('2026-09-17'), 'Saving Corsa leaves the Surf draft intact');
+    await save();
+    await hasCount('2026-09-17', 1);
+    await details(async () => assert((await $('details-notes').inputValue()) === '', 'Saved draft details are cleared'));
+    await screenshot('03-draft-after-restart');
+  });
+
+  await check('rapid repeated Save cannot duplicate a draft, but deliberate repeated logging can', async () => {
+    await tap('day-2026-09-05');
+    await tap('save', 0);
+    // The first press may already disable Save. A second physical press must
+    // still be harmless rather than waiting for the button to become enabled.
+    await $('save').tap({ force: true });
+    await page.waitForTimeout(900);
+    await hasCount('2026-09-05', 1);
+    await tap('day-2026-09-05');
+    await save();
+    await hasCount('2026-09-05', 2);
+  });
+
+  await check('future dates stay disabled and do not enter a draft', async () => {
+    await jumpMonth(2026, 10);
+    assert(/data futura/i.test(await label('day-2026-10-30')), 'Future day is explained accessibly');
+    assert((await $('day-2026-10-30').getAttribute('aria-disabled')) === 'true', 'Future day disabled');
+    await $('day-2026-10-30').tap({ force: true });
+    assert((await $('save').getAttribute('aria-disabled')) === 'true', 'Future tap cannot select a date');
+  });
+
+  await check('mixed activity markers remain visible and day details list both actual sessions', async () => {
+    await switchTo('Corsa');
+    await jumpMonth(2026, 9);
+    await tap('day-2026-09-10');
+    await save();
+    await hasCount('2026-09-10', 2);
+    const value = await label('day-2026-09-10');
+    assert(/Surf/.test(value) && /Corsa/.test(value), `Both activity colors have accessible names: ${value}`);
+    // This is the same mounted Surf segment changing from a full square to a
+    // triangle. A stale animated background used to cover the new Corsa region.
+    let paint = await mixedDayPaint('2026-09-10');
+    assert(paint?.background === 'rgba(0, 0, 0, 0)', `Mixed day must expose its second activity: ${JSON.stringify(paint)}`);
+    assert(paint.upper === 'rgb(250, 164, 138)' && paint.lower === 'rgb(201, 240, 106)', `Corsa focus retains muted Surf and bright Corsa: ${JSON.stringify(paint)}`);
+    await switchTo('Surf');
+    paint = await mixedDayPaint('2026-09-10');
+    assert(paint?.background === 'rgba(0, 0, 0, 0)', `Changing focus must keep the second region visible: ${JSON.stringify(paint)}`);
+    assert(paint.upper === 'rgb(255, 77, 31)' && paint.lower === 'rgb(225, 241, 173)', `Surf focus retains bright Surf and muted Corsa: ${JSON.stringify(paint)}`);
+    await switchTo('Corsa');
+    await screenshot('04-mixed-activity-calendar');
+    // Tapping a recorded day continues to select it for logging.
+    await tap('day-2026-09-10');
+    assert(await selected('2026-09-10'), 'Recorded date can be selected for another session');
+    await tap('selected-day-details', 350);
+    await h.visible('day-sheet');
+    const sheet = page.getByTestId('day-sheet');
+    assert(/2 sessioni/.test(await sheet.getByTestId('day-total').innerText()), 'Full day total includes both activities');
+    assert(await sheet.getByRole('button', { name: /^Surf, sessione/ }).count() === 1, 'Surf session is listed');
+    assert(await sheet.getByRole('button', { name: /^Corsa, sessione/ }).count() === 1, 'Corsa session is listed');
+    await screenshot('05-mixed-day-details');
+  });
+
+  await check('editing a session returns to its day and closing restores the calendar draft', async () => {
+    const sheet = page.getByTestId('day-sheet');
+    await sheet.getByRole('button', { name: /^Surf, sessione/ }).tap();
+    await h.visible('session-editor');
+    await fill('session-notes', 'Aggiornata dalla giornata');
+    await tap('session-save', 650);
+    await h.visible('day-sheet');
+    assert(/Aggiornata dalla giornata/.test(await page.getByTestId('day-sheet').innerText()), 'Day rows refresh after edit');
+    await tap('sheet-close', 400);
+    await h.visible('lineup');
+    assert(await selected('2026-09-10'), 'Entering a day and editing a saved session does not lose the logging draft');
+    await tap('clear-selection');
+    assert((await $('save').getAttribute('aria-disabled')) === 'true', 'Explicitly clearing the draft clears its dates');
+  });
+
+  await check('long press opens a saved day without changing the logging draft', async () => {
+    const box = await $('day-2026-09-10').boundingBox();
+    assert(box, 'Saved day has a touch target');
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.waitForTimeout(750);
+    await page.mouse.up();
+    await h.visible('day-sheet');
+    assert(/2 sessioni/.test(await page.getByTestId('day-sheet').getByTestId('day-total').innerText()), 'Long press reveals actual sessions');
+    await tap('sheet-close', 400);
+    assert((await $('save').getAttribute('aria-disabled')) === 'true', 'Long press leaves the draft empty');
+  });
+
+  await check('history shows only populated months and can filter an empty activity honestly', async () => {
+    await switchTo('Surf');
+    await jumpMonth(2026, 7);
+    await tap('day-2026-07-01');
+    await save();
+    await tap('history-handle', 700);
+    await h.visible('time-place');
+    await tap('filter-Surf', 300);
+    const september = await historyLabel('2026-09');
+    assert(/6 sessioni · 5 giorni attivi/.test(september), `September counts: ${september}`);
+    assert(!/Nessuna durata registrata|tempo registrato/.test(september), `Missing duration stays omitted: ${september}`);
+    assert(await historyItem('month-2026-08').count() === 0, 'Empty August has no archive row');
+    assert(await historyItem('mini-2026-09-03').count(), 'Populated month calendar is open without a disclosure tap');
+    await tap('filter-Allenamento', 400);
+    assert(!/6 sessioni/.test(await history().innerText()), 'Empty filter does not retain Surf totals');
+    assert(/0 sessioni|Nessuna sessione|non hai ancora/i.test(await history().innerText()), 'Empty filter is explicit');
+    await tap('filter-Tutte le attività', 400);
+    assert(/8 sessioni/.test(await historyLabel('2026-09')), 'All-activity count comes from both activities');
+    await tap('filter-Surf', 350);
+    await screenshot('06-history-month');
+  });
+
+  await check('year mosaic includes twelve months and disables empty and future drill-downs', async () => {
+    await tap('scale-year', 600);
+    assert(await history().locator('[data-testid^="year-month-2026-"]').count() === 12, 'All twelve miniature month calendars rendered');
+    assert((await historyItem('year-month-2026-08').getAttribute('aria-disabled')) === 'true', 'Empty August disabled');
+    assert((await historyItem('year-month-2026-12').getAttribute('aria-disabled')) === 'true', 'Future December disabled');
+    assert((await historyItem('year-month-2026-09').getAttribute('aria-disabled')) !== 'true', 'Recorded September opens');
+    await screenshot('07-history-year');
+    await tap('year-month-2026-09', 600);
+    assert((await $('scale-month').getAttribute('aria-checked')) === 'true', 'Year selection returns to month mode');
+    await historyItem('mini-2026-09-10').scrollIntoViewIfNeeded();
+    await historyItem('mini-2026-09-10').tap();
+    await h.visible('history-day-details');
+    assert(/1 sessione/.test(await $('history-day-details').getByTestId('day-total').innerText()), 'The selected Surf filter scopes the inline day');
+    assert((await $('filter-Surf').getAttribute('aria-selected')) === 'true', 'The inline day retains the selected Surf filter');
+    assert(await $('history-day-details').locator('[role="button"][data-testid^="session-"]').count() === 1, 'The filtered Surf session remains accessible');
+    assert(!/Corsa/.test(await text('history-day-details')), 'The other activity is outside this filter');
+    await tap('filter-Tutte le attività', 350);
+    await historyItem('mini-2026-09-10').scrollIntoViewIfNeeded();
+    await historyItem('mini-2026-09-10').tap();
+    await h.visible('history-day-details');
+    assert(/2 sessioni/.test(await $('history-day-details').getByTestId('day-total').innerText()), 'All activities reveal both mixed-day sessions inline');
+    assert(await $('day-sheet').count() === 0, 'Selecting a history day does not open a sheet');
+    await tap('history-day-close', 400);
+  });
+
+  await check('Progressi uses actual data and the three history scales remain navigable', async () => {
+    await tap('scale-all', 650);
+    const content = await history().innerText();
+    assert(/Progressi/i.test(content), 'Progressi is named visibly');
+    assert(/SESSIONI TOTALI/i.test(content) && /TRAGUARDI/i.test(content), 'Actual totals and milestones rendered');
+    await screenshot('08-history-progress');
+    await tap('scale-month', 400);
+    await tap('back-to-log', 500);
+    await h.visible('lineup');
+    assert(/Attività attiva: Surf/.test(await label('activity-switcher')), 'Return to the remembered activity');
+  });
+
+  await check('history month jump reaches an older recorded year after several populated months', async () => {
+    await jumpMonth(2021, 3);
+    await tap('day-2021-03-12');
+    await save();
+    await jumpMonth(2023, 12);
+    await tap('day-2023-12-20');
+    await save();
+    await tap('history-handle', 600);
+    await tap('filter-Surf', 300);
+    await jumpMonth(2021, 3, 'jump-history');
+    const value = await historyLabel('2021-03');
+    assert(/Marzo 2021: 1 sessione/.test(value), `Requested old month: ${value}`);
+    await historyItem('mini-2021-03-12').scrollIntoViewIfNeeded();
+    await screenshot('09-history-far-year-jump');
+    await historyItem('mini-2021-03-12').tap();
+    await h.visible('history-day-details');
+    assert(await $('history-day-2021-03-12').isVisible(), 'The inline day belongs to the requested older year');
+    assert(/1 sessione/.test(await $('history-day-details').getByTestId('day-total').innerText()), 'Older session is actually preserved and visible');
+    await tap('history-day-close', 350);
+    await tap('back-to-log', 450);
+  });
+} finally {
+  await h.finish();
 }
-function assert(c, msg) {
-  if (!c) throw new Error(msg);
-}
-async function save(wait = 2300) {
-  await tap('save', wait);
-}
-
-await fresh();
-
-await check('first launch opens directly in Surf, ready to select dates', async () => {
-  const l = await label('activity-switcher');
-  assert(/Attività attiva: Surf/.test(l), `switcher label: ${l}`);
-  assert((await text('save')).toUpperCase().includes('SELEZIONA LE DATE'), 'save should be disabled with "Seleziona le date"');
-  await page.screenshot({ path: path.join(SHOTS, '01-first-launch.png') });
-});
-
-await check('multi-date selection with no details saves immediately', async () => {
-  await tap('prev-month', 500);
-  for (const d of ['2026-09-03', '2026-09-10', '2026-09-24']) await tap(`day-${d}`, 140);
-  assert((await text('save')).includes('Salva 3 sessioni'), `save label: ${await text('save')}`);
-  await save();
-  assert((await text('save')).toUpperCase().includes('SELEZIONA'), 'selection must be cleared after saving');
-  const l = await label('day-2026-09-10');
-  assert(/1 sessione registrata/.test(l), `day label after save: ${l}`);
-});
-
-await check('saved sessions survive a restart; old selections are not reused', async () => {
-  await tap('day-2026-09-17', 140); // leave a pending selection, then restart
-  await reload();
-  assert(/Attività attiva: Surf/.test(await label('activity-switcher')), 'still Surf');
-  assert((await text('save')).toUpperCase().includes('SELEZIONA'), 'pending selection must not survive a restart');
-  await tap('prev-month', 500);
-  assert(/1 sessione registrata/.test(await label('day-2026-09-10')), 'session persisted');
-  assert(!/selezionato/.test(await label('day-2026-09-17')), 'stale selection');
-});
-
-await check('double tap on Save does not duplicate sessions', async () => {
-  await tap('day-2026-09-05', 140);
-  await $('save').tap();
-  await $('save').tap().catch(() => {});
-  await page.waitForTimeout(2400);
-  const l = await label('day-2026-09-05');
-  assert(/1 sessione registrata/.test(l), `expected exactly one session, got: ${l}`);
-});
-
-await check('a deliberate second session on the same date is allowed', async () => {
-  await tap('day-2026-09-05', 140);
-  await save();
-  assert(/2 sessioni registrate/.test(await label('day-2026-09-05')), await label('day-2026-09-05'));
-});
-
-await check('future dates cannot be selected', async () => {
-  await tap('next-month', 500);
-  const l = await label('day-2026-10-30');
-  assert(/data futura/.test(l), `future label: ${l}`);
-  await $('day-2026-10-30').tap({ force: true }).catch(() => {});
-  assert(!/Salva/.test(await text('save')), 'future date selected');
-});
-
-await check('switching activity persists across restart and clears selection', async () => {
-  await tap('day-2026-10-01', 140);
-  await tap('activity-switcher', 900);
-  await page.screenshot({ path: path.join(SHOTS, '02-switcher.png') });
-  await tap('activity-Corsa', 1300);
-  assert(/Attività attiva: Corsa/.test(await label('activity-switcher')), 'now Corsa');
-  assert((await text('save')).toUpperCase().includes('SELEZIONA'), 'selection must not carry across activities');
-  await reload();
-  assert(/Attività attiva: Corsa/.test(await label('activity-switcher')), 'relaunch in Corsa');
-  await tap('day-2026-10-02', 140);
-  await save();
-  await tap('activity-switcher', 900);
-  await tap('activity-Surf', 1300);
-});
-
-await check('history month mode shows exact counts and honest durations', async () => {
-  await tap('history-handle', 1200);
-  await page.screenshot({ path: path.join(SHOTS, '03-history-month.png') });
-  const sep = await page.locator('[data-testid="month-2026-09"]').getAttribute('aria-label');
-  assert(/Settembre 2026: 5 sessioni · 4 giorni attivi/.test(sep ?? ''), `sep label: ${sep}`);
-  assert(/Nessuna durata registrata/.test(sep ?? ''), 'no durations yet');
-  await tap('month-2026-09', 600);
-  await tap('mini-2026-09-05', 500);
-  const vis = await page.locator('[data-testid="time-place"]').innerText();
-  assert(/Sessioni del sabato 5 settembre 2026/i.test(vis), 'day panel');
-  await page.screenshot({ path: path.join(SHOTS, '04-history-day.png') });
-});
-
-await check('year mode shows annual totals and a month drill-down', async () => {
-  await tap('scale-year', 900);
-  const y = await page.locator('[data-testid="time-place"]').innerText();
-  assert(/2026/.test(y), 'year 2026 visible');
-  await page.screenshot({ path: path.join(SHOTS, '05-history-year.png') });
-  await tap('year-month-2026-09', 1000);
-  const vis = await page.locator('[data-testid="time-place"]').innerText();
-  assert(/Settembre 2026/.test(vis), 'drilled into September');
-});
-
-await check('all-time view renders progress from real data', async () => {
-  await tap('scale-all', 1200);
-  await page.screenshot({ path: path.join(SHOTS, '06-history-all.png') });
-  const vis = await page.locator('[data-testid="time-place"]').innerText();
-  assert(/SESSIONI TOTALI/i.test(vis) && /TRAGUARDI/i.test(vis), 'progress blocks');
-  await tap('scale-month', 600);
-  await tap('back-to-log', 900);
-});
-
-console.log(`\n${results.filter((r) => r.ok).length}/${results.length} checks passed`);
-if (errors.length) console.log('page errors:\n' + [...new Set(errors)].slice(0, 10).join('\n'));
-fs.writeFileSync(path.join(SHOTS, 'results.json'), JSON.stringify({ results, errors: [...new Set(errors)] }, null, 2));
-await browser.close();
-server.close();
-process.exit(results.every((r) => r.ok) ? 0 : 1);

@@ -1,5 +1,5 @@
-# Native smoke test 2/3: details sheet with a place from a Google Maps link → Apple Maps (expo-maps),
-# save, then open the session from history and see its map. Needs 01 (active activity: Corsa).
+# Native smoke: a Google Maps place link → Apple Maps, compact numeric duration,
+# then saved-session map and timing. Needs 01 (active activity: Corsa).
 appId: app.serie.ios
 name: 02 dettagli, luogo e mappa
 ---
@@ -7,10 +7,9 @@ name: 02 dettagli, luogo e mappa
 - extendedWaitUntil:
     visible:
       id: activity-switcher
+      text: "Attività attiva: Corsa.*"
     timeout: 60000
-- tapOn:
-    id: prev-month
-    waitToSettleTimeoutMs: 1500
+- runFlow: subflows/jump-prev.yaml
 - tapOn:
     id: day-${PREV}-15
     waitToSettleTimeoutMs: 1500
@@ -21,24 +20,90 @@ name: 02 dettagli, luogo e mappa
     visible:
       id: details-place-name
     timeout: 10000
+- takeScreenshot: 09-before-name
 - tapOn:
     id: details-place-name
     waitToSettleTimeoutMs: 1500
+- assertVisible:
+    id: details-sheet
 - inputText: Livorno
+- assertVisible:
+    id: details-place-name
+    text: Livorno
 - pressKey: Enter
+# Adding the name label and Clear footer can clip the next field in the short
+# detent. Pan the actual scrolling body, not the screen or a covered AX node.
+- swipe:
+    from:
+      id: details-scroll
+    direction: UP
+- takeScreenshot: 09-before-link
 - tapOn:
     id: details-place-link
     waitToSettleTimeoutMs: 1500
+- assertVisible:
+    id: details-sheet
+- takeScreenshot: 09-link-target
 - inputText: "https://www.google.com/maps/place/Livorno/@43.5485,10.3106,15z"
+- assertVisible:
+    id: details-place-link
+    text: 'https://www\.google\.com/maps/place/Livorno/@43\.5485,10\.3106,15z'
 - pressKey: Enter
+- assertVisible:
+    id: details-sheet
+- takeScreenshot: 10-before-map-scroll
+# Begin outside AppleMaps, whose own recognizer consumes map-centre drags.
+- swipe:
+    from:
+      id: details-place-link
+    direction: UP
 - extendedWaitUntil:
     visible:
       id: map-caption
     timeout: 15000
 - takeScreenshot: 10-details-map
+# Begin the pan below AppleMaps so its gesture recognizer cannot eat it.
+- swipe:
+    from:
+      id: map-caption
+    direction: UP
+# Bring the horizontal mode rail into view, then reveal its fourth choice.
+# Vertical scrolling cannot expose an offscreen child of this horizontal rail.
+- scrollUntilVisible:
+    element:
+      id: details-timing-mode
+    direction: DOWN
+    timeout: 15000
+- swipe:
+    from:
+      id: details-timing-mode
+    direction: LEFT
+    duration: 400
+- assertVisible:
+    id: details-timing-mode-duration_only
+- tapOn:
+    id: details-timing-mode-duration_only
+- scrollUntilVisible:
+    element:
+      id: details-timing-duration-input
+    direction: DOWN
+    timeout: 15000
+- tapOn:
+    id: details-timing-duration-input
+- inputText: '1'
+- inputText: '30'
+- assertVisible:
+    id: details-timing-duration-input
+    text: '1h30m'
+- takeScreenshot: 10-details-duration
+# The numeric keyboard has no Return key; the visible Apply footer closes it.
 - tapOn:
     id: details-apply
     waitToSettleTimeoutMs: 1500
+- extendedWaitUntil:
+    notVisible:
+      id: details-sheet
+    timeout: 10000
 - extendedWaitUntil:
     visible:
       id: save
@@ -68,10 +133,7 @@ name: 02 dettagli, luogo e mappa
     visible:
       id: month-${PREV}
     timeout: 10000
-- tapOn:
-    id: month-${PREV}
-    waitToSettleTimeoutMs: 1500
-# the expanded month's mini calendar and its day panel can be below the fold
+# Populated month calendars are open by default; day details remain inline.
 - scrollUntilVisible:
     element:
       id: mini-${PREV}-15
@@ -80,6 +142,18 @@ name: 02 dettagli, luogo e mappa
 - tapOn:
     id: mini-${PREV}-15
     waitToSettleTimeoutMs: 1500
+- extendedWaitUntil:
+    visible:
+      id: history-day-details
+    timeout: 10000
+- assertVisible:
+    id: history-day-${PREV}-15
+- assertNotVisible:
+    id: day-sheet
+- assertVisible:
+    id: day-total
+    text: '.*1 h 30 min.*'
+- assertVisible: '.*Livorno.*'
 - scrollUntilVisible:
     element:
       id: "session-(?!editor).+"
@@ -92,16 +166,42 @@ name: 02 dettagli, luogo e mappa
     visible:
       id: session-editor
     timeout: 10000
+# Native map settling exceeded the old 15 s budget during one successful
+# swipe. Leave time for Maestro to recheck the fully visible caption.
 - scrollUntilVisible:
     element:
       id: map-caption
     direction: DOWN
-    timeout: 15000
+    timeout: 60000
+    waitToSettleTimeoutMs: 1500
 - takeScreenshot: 11-session-map
+# The saved duration reopens unchanged, after the place map.
+- swipe:
+    from:
+      id: map-caption
+    direction: UP
+- scrollUntilVisible:
+    element:
+      id: session-timing-duration-input
+    direction: DOWN
+    timeout: 15000
+- assertVisible:
+    id: session-timing-duration-input
+    text: '1h30m'
+- takeScreenshot: 11-session-duration
 - tapOn:
     id: sheet-close
     waitToSettleTimeoutMs: 1500
-# the history header (and its back button) scrolled away above the session
+- extendedWaitUntil:
+    visible:
+      id: history-day-details
+    timeout: 10000
+- assertVisible:
+    id: history-day-${PREV}-15
+- tapOn:
+    id: history-day-close
+    waitToSettleTimeoutMs: 1000
+# the history header (and its back button) scrolled away above the day
 - scrollUntilVisible:
     element:
       id: back-to-log

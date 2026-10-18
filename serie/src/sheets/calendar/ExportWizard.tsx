@@ -1,3 +1,4 @@
+import { useSurface, useThemedStyles } from '@/ui/useTheme';
 /**
  * Esporta — one activity per operation:
  *   activity → destinations (Google, iPhone or both, each with its own
@@ -27,7 +28,7 @@ import { useApp } from '@/state/store';
 import { refreshAll, showToast } from '@/state/actions';
 import { Sheet, Section, Button, Field, Note, Segmented, Toggle } from '@/ui/controls';
 import { T } from '@/ui/T';
-import { palette, surfaces } from '@/ui/theme';
+import { type Surface } from '@/ui/theme';
 import { t } from '@/i18n/it';
 import { ActivityPicker } from '@/sheets/session/ActivityPicker';
 import { errorText } from '@/sheets/manage/helpers';
@@ -37,11 +38,12 @@ import { DEFAULT_SETTINGS, editSettings, linkSettings, resetAllTitles, ROW_FILTE
 import { useMountedRef } from './useMountedRef';
 import { ExportRow } from './ExportRow';
 
-const S = surfaces.night;
 const STEPS = 4;
 type RangeKey = 'all' | '1y' | 'custom';
 
 export function ExportWizard() {
+  const S = useSurface();
+  const styles = useThemedStyles(createStyles);
   const categories = useApp((s) => s.categories);
   const activeId = useApp((s) => s.activeId);
   const allSessions = useApp((s) => s.sessions);
@@ -298,7 +300,7 @@ export function ExportWizard() {
               <View style={styles.counts} testID={`export-result-${d.ref.provider}`}>
                 {lines.map(([l, n]) => (
                   <View key={l} style={styles.countCell} accessible accessibilityLabel={`${l}: ${n}`}>
-                    <T variant="heading" color={n && (l === t.resultFailed || l === t.resultPending) ? '#F3C46E' : S.fg}>
+                    <T variant="heading" color={n && (l === t.resultFailed || l === t.resultPending) ? S.warning : S.fg}>
                       {String(n)}
                     </T>
                     <T variant="label" color={S.mute}>
@@ -378,7 +380,7 @@ export function ExportWizard() {
             style={styles.linkBtn}
             testID="export-select-all"
           >
-            <T variant="label" color={scopeSelectable ? palette.flare : S.faint}>
+            <T variant="label" color={scopeSelectable ? S.accent : S.faint}>
               {`${allOn ? 'DESELEZIONA' : 'SELEZIONA'} IN ELENCO (${scopeSelectable})`}
             </T>
           </Pressable>
@@ -392,7 +394,7 @@ export function ExportWizard() {
               dest={dest}
               settings={set}
               categoryName={plan.categoryName}
-              color={category?.color ?? palette.flare}
+              color={category?.color ?? S.accent}
               open={expanded === r.key}
               onExpand={() => setExpanded((k) => (k === r.key ? null : r.key))}
               onChoice={(choice) => {
@@ -462,11 +464,11 @@ export function ExportWizard() {
         <Section label={t.finalTitle} hint="Titolo finale = prefisso + titolo + suffisso. Spazi e caratteri restano esattamente come li scrivi.">
           <View style={styles.titlePreview} accessible accessibilityLabel={`Anteprima del titolo: ${preview.final}`}>
             <T variant="title" color={S.fg} testID="export-title-preview">
-              <T variant="title" color={palette.flare}>
+              <T variant="title" color={S.accent}>
                 {visibleSpaces(preview.prefix)}
               </T>
               {preview.base}
-              <T variant="title" color={palette.flare}>
+              <T variant="title" color={S.accent}>
                 {visibleSpaces(preview.suffix)}
               </T>
             </T>
@@ -577,6 +579,8 @@ export function destLabel(d: Pick<PlanDestination, 'ref' | 'calendar'>): string 
 }
 
 function DestinationHeader({ d, read, labelName }: { d: PlanDestination; read: DestinationRead | null; labelName: string | null }) {
+  const S = useSurface();
+  const styles = useThemedStyles(createStyles);
   return (
     <View style={styles.destHead} testID={`export-dest-${d.ref.provider}`}>
       <T variant="label" color={S.mute}>
@@ -597,6 +601,7 @@ function DestinationHeader({ d, read, labelName }: { d: PlanDestination; read: D
 }
 
 function GateNote({ gate, onResolve, onPick }: { gate: BothGate; onResolve: () => void; onPick: (k: ProviderKind) => void }) {
+  const S = useSurface();
   const e = gate.equivalence;
   const side = (x: typeof e.details.google) => `${x.providerLabel} · account ${x.accountLabel}${x.sourceType ? ` (${x.sourceType}${x.sourceName ? `, ${x.sourceName}` : ''})` : ''} · calendario “${x.calendarTitle}”`;
   return (
@@ -624,10 +629,10 @@ function GateNote({ gate, onResolve, onPick }: { gate: BothGate; onResolve: () =
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (S: Surface) => StyleSheet.create({
   countRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap' },
   linkBtn: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 4 },
-  titlePreview: { paddingVertical: 14, paddingHorizontal: 16, borderRadius: 14, backgroundColor: 'rgba(238,232,218,0.06)' },
+  titlePreview: { paddingVertical: 14, paddingHorizontal: 16, borderRadius: 14, backgroundColor: S.raised },
   destHead: { gap: 6, paddingVertical: 10, borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: S.faint },
   counts: { flexDirection: 'row', flexWrap: 'wrap', rowGap: 12 },
   countCell: { width: '33.33%', gap: 2 },

@@ -1,0 +1,69 @@
+{
+  "suite": "v133",
+  "viewport": {
+    "width": 390,
+    "height": 844
+  },
+  "fixedTime": "2026-10-13T12:00:00.000Z",
+  "browser": "/usr/bin/chromium",
+  "browserPlugin": "not available",
+  "results": [
+    {
+      "name": "Serie renders and real saves replace hidden empty counts",
+      "ok": true,
+      "ms": 16038
+    },
+    {
+      "name": "saved counts follow Surf Corsa and neutral scope without counting a draft",
+      "ok": true,
+      "ms": 3679
+    },
+    {
+      "name": "inline trash deletes the last focused activity and red Undo restores its exact row once",
+      "ok": true,
+      "ms": 5598
+    },
+    {
+      "name": "deleting the last month record hides active and neutral zero counts then Undo restores metadata",
+      "ok": true,
+      "ms": 9440
+    },
+    {
+      "name": "native web date inputs reject reversed ranges and persist the chosen future end",
+      "ok": true,
+      "ms": 8206
+    },
+    {
+      "name": "Nuove Sessioni groups every selected date with activity colors and supports an individual edit",
+      "ok": true,
+      "ms": 12055
+    },
+    {
+      "name": "Modifica Sessioni preserves activity scope date selection and individual exclusions through a real bulk edit",
+      "ok": true,
+      "ms": 7880
+    },
+    {
+      "name": "Bozze exposes shared dates and per-activity details and discards them without touching saved sessions",
+      "ok": true,
+      "ms": 11637
+    }
+  ],
+  "errors": [],
+  "warnings": [],
+  "unitTests": 994,
+  "unitSuites": 62,
+  "typecheck": "passed",
+  "lint": "passed",
+  "nativeSimulatorExecuted": false,
+  "physicalIPhoneVerified": false,
+  "additionalViewport": {
+    "width": 320,
+    "height": 740
+  },
+  "browserTimezone": "UTC",
+  "dateHelperTimezones": [
+    "America/Los_Angeles",
+    "Pacific/Kiritimati"
+  ]
+}

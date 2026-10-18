@@ -4,6 +4,7 @@
  */
 import { Text, type TextProps, type TextStyle, StyleSheet } from 'react-native';
 import { type as scale } from './theme';
+import { useSurface } from './useTheme';
 
 export type Variant = keyof typeof scale;
 
@@ -15,13 +16,14 @@ interface Props extends TextProps {
 }
 
 export function T({ variant = 'body', color, align, upper, style, children, ...rest }: Props) {
+  const surface = useSurface();
   const base = scale[variant] as TextStyle;
   const isLabel = variant === 'label' || variant === 'labelStrong';
   return (
     <Text
       allowFontScaling
       maxFontSizeMultiplier={variant === 'monthTitle' || variant === 'hero' || variant === 'heroWide' ? 1.15 : 1.6}
-      style={[base, { color, textAlign: align }, (upper ?? isLabel) && styles.upper, style]}
+      style={[base, { color: color ?? surface.fg, textAlign: align }, (upper ?? isLabel) && styles.upper, style]}
       {...rest}
     >
       {children}

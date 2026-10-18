@@ -138,6 +138,41 @@ export interface SessionDetailsDraft {
   timing?: Timing;
 }
 
+/** A durable logging draft, isolated from every other activity's draft. */
+export interface CategoryDraft {
+  categoryId: ID;
+  dates: LocalDate[];
+  details: SessionDetailsDraft | null;
+  /** Stable until the user edits the draft; retries reuse this id. */
+  requestId: string;
+  updatedAt: Instant;
+}
+
+/** A saved view over the current sessions in an inclusive date range. */
+export interface NamedPeriod {
+  id: ID;
+  name: string;
+  startDate: LocalDate;
+  endDate: LocalDate;
+  scope: 'all' | 'selected';
+  /** Empty with selected scope means no activities, including after deletion. */
+  categoryIds: ID[];
+  note: string | null;
+  createdAt: Instant;
+  updatedAt: Instant;
+}
+
+export interface NamedPeriodInput {
+  name: string;
+  startDate: LocalDate;
+  endDate: LocalDate;
+  scope: NamedPeriod['scope'];
+  categoryIds?: ID[];
+  note?: string | null;
+}
+
+export type NamedPeriodPatch = Partial<NamedPeriodInput>;
+
 // ─── Statistics ──────────────────────────────────────────────────────────────
 
 export interface DurationSummary {

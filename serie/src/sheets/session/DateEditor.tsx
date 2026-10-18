@@ -1,3 +1,4 @@
+import { useSurface, useThemedStyles } from '@/ui/useTheme';
 /**
  * Session date: a compact AAAA-MM-GG field with ±1 day steps. Future dates
  * are refused (the step forward stops at today). Controlled on the raw text.
@@ -5,12 +6,11 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 import type { LocalDate } from '@/domain/types';
-import { fonts, HIT, palette, surfaces } from '@/ui/theme';
+import { fonts, HIT, type Surface } from '@/ui/theme';
 import { T } from '@/ui/T';
 import { t } from '@/i18n/it';
 import { checkSessionDate, longDate, shiftDate } from './drafts';
 
-const S = surfaces.night;
 const s = t.sessionSheets;
 
 interface Props {
@@ -24,6 +24,8 @@ interface Props {
 }
 
 export function DateEditor({ value, onChange, today, fallback, showErrors, testID = 'date' }: Props) {
+  const S = useSurface();
+  const styles = useThemedStyles(createStyles);
   const [focused, setFocused] = useState(false);
   const [touched, setTouched] = useState(false);
   const check = checkSessionDate(value, today);
@@ -44,21 +46,22 @@ export function DateEditor({ value, onChange, today, fallback, showErrors, testI
             setTouched(true);
           }}
           placeholder={s.datePlaceholder}
-          placeholderTextColor="rgba(238,232,218,0.55)"
-          selectionColor={palette.flare}
+          placeholderTextColor={S.mute}
+          keyboardAppearance={S.name === 'night' ? 'dark' : 'light'}
+          selectionColor={S.accent}
           keyboardType="numbers-and-punctuation"
           autoCorrect={false}
           maxLength={10}
           maxFontSizeMultiplier={1.3}
           accessibilityLabel={`${t.date}, ${s.datePlaceholder}`}
           accessibilityHint={check.ok ? longDate(check.date) : undefined}
-          style={[styles.input, { borderBottomColor: error ? palette.danger : focused ? palette.foam : S.faint }]}
+          style={[styles.input, { borderBottomColor: error ? S.danger : focused ? S.fg : S.faint }]}
           testID={testID}
         />
         <Step text="+1" label={s.dayAfter} disabled={atToday} onPress={() => onChange(shiftDate(base, 1, today))} testID={`${testID}-next`} />
       </View>
       {error ? (
-        <T variant="small" color={palette.danger} align="center" accessibilityLiveRegion="polite" testID={`${testID}-error`}>
+        <T variant="small" color={S.danger} align="center" accessibilityLiveRegion="polite" testID={`${testID}-error`}>
           {error}
         </T>
       ) : (
@@ -71,6 +74,8 @@ export function DateEditor({ value, onChange, today, fallback, showErrors, testI
 }
 
 function Step({ text, label, onPress, disabled, testID }: { text: string; label: string; onPress: () => void; disabled?: boolean; testID?: string }) {
+  const S = useSurface();
+  const styles = useThemedStyles(createStyles);
   return (
     <Pressable
       onPress={onPress}
@@ -88,8 +93,8 @@ function Step({ text, label, onPress, disabled, testID }: { text: string; label:
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (S: Surface) => StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  input: { flex: 1, minWidth: 0, textAlign: 'center', fontFamily: fonts.mono, fontSize: 24, letterSpacing: 1, color: palette.foam, paddingVertical: 8, borderBottomWidth: 1.2, minHeight: 52 },
-  step: { width: HIT + 4, height: HIT + 4, borderRadius: (HIT + 4) / 2, borderWidth: StyleSheet.hairlineWidth, borderColor: 'rgba(238,232,218,0.35)', alignItems: 'center', justifyContent: 'center' },
+  input: { flex: 1, minWidth: 0, textAlign: 'center', fontFamily: fonts.mono, fontSize: 24, letterSpacing: 1, color: S.fg, paddingVertical: 8, borderBottomWidth: 1.2, minHeight: 52 },
+  step: { width: HIT + 4, height: HIT + 4, borderRadius: (HIT + 4) / 2, borderWidth: StyleSheet.hairlineWidth, borderColor: S.faint, alignItems: 'center', justifyContent: 'center' },
 });

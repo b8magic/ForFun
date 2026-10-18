@@ -9,7 +9,7 @@ import { router, useFocusEffect } from 'expo-router';
 import type { Connection, ProviderKind } from '@/calendar/types';
 import { Sheet, Section, Row, Button, Note } from '@/ui/controls';
 import { T } from '@/ui/T';
-import { palette, surfaces } from '@/ui/theme';
+import { useSurface } from '@/ui/useTheme';
 import { Chevron } from '@/ui/glyphs';
 import { t } from '@/i18n/it';
 import { useApp } from '@/state/store';
@@ -17,7 +17,6 @@ import { refreshAll } from '@/state/actions';
 import { getRepositories } from '@/data/database';
 import { useConnections } from '@/sheets/calendar/useConnections';
 
-const S = surfaces.night;
 const NAMES: Record<ProviderKind, string> = { google: t.google, apple: t.apple };
 
 function statusText(c: Connection | undefined): string {
@@ -39,6 +38,7 @@ function statusText(c: Connection | undefined): string {
 }
 
 export default function CalendarHub() {
+  const S = useSurface();
   const { connections, busy, error, connect, disconnect, refresh } = useConnections();
   const openJobs = useApp((s) => s.openJobs);
   const [autoOn, setAutoOn] = useState(false);
@@ -66,7 +66,7 @@ export default function CalendarHub() {
                 <T variant="bodyStrong" color={S.fg}>
                   {NAMES[k]}
                 </T>
-                <T variant="label" color={c?.status === 'connected' ? palette.flare : S.mute}>
+                <T variant="label" color={c?.status === 'connected' ? S.accent : S.mute}>
                   {c?.status === 'connected' ? (c.canWrite ? 'lettura e scrittura' : 'sola lettura') : c?.status === 'write_only' ? 'solo scrittura' : ''}
                 </T>
               </View>

@@ -1,0 +1,53 @@
+{
+  "sourceCommit": "429a8a4a18971e1f4f1b69e86033f3c4933164cd",
+  "buildRun": "https://github.com/b8magic/ForFun/actions/runs/38336957498",
+  "simulatorJob": 115101127005,
+  "device": "iPhone 17 Pro",
+  "ios": "26.5",
+  "xcode": "26.6",
+  "maestro": "2.11.0",
+  "origin": "Actual native Release app; Maestro screenshots, sips max960 previews logged on the macOS runner; decoded and copied without further editing.",
+  "nativeColorCheck": {
+    "red": 1832,
+    "mutedLime": 636,
+    "sameDay": true
+  },
+  "images": [
+    {
+      "file": "calendar-cream.png",
+      "nativeCapture": "01-log--03-mixed-colors-native.png",
+      "sha256": "1ebd0afee9feef8c9551d958058e3cad7763e808b0ed537e7eff22117ff2e574",
+      "bytes": 85372
+    },
+    {
+      "file": "notes-keyboard.png",
+      "nativeCapture": "01-log--02-notes-keyboard.png",
+      "sha256": "5c6cc8c3bff2efe7c84e41cfcc7eef306b027d485dce7bab91779bb5cbdf79ac",
+      "bytes": 94645
+    },
+    {
+      "file": "year-mosaics.png",
+      "nativeCapture": "01-log--06-history-year.png",
+      "sha256": "69bdf1498974257afaf62de60c94c0cf9b140691f405b15315ececee4ed48993",
+      "bytes": 137271
+    },
+    {
+      "file": "period-preview.png",
+      "nativeCapture": "04-settings-periods--32-period-preview.png",
+      "sha256": "f5a4e9cc86a5750f96664b39e71a81a4863b4218ac03b19e2cb500a3d11e35ce",
+      "bytes": 108788
+    },
+    {
+      "file": "dark-restart.png",
+      "nativeCapture": "04-settings-periods--31-dark-after-restart.png",
+      "sha256": "6453d9dba1f6ae3a2185e0a908d8ca7104809bdb3bb86933886a39d46d5834bb",
+      "bytes": 76046
+    },
+    {
+      "file": "day-detail.png",
+      "nativeCapture": "04-settings-periods--34-day-after-edit.png",
+      "sha256": "c8a9ea571392a7fd5d428947f0a58f63925ad25e058735cbdad4e5f034fa537e",
+      "bytes": 86967
+    }
+  ]
+}

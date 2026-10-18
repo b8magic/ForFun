@@ -1,3 +1,4 @@
+import { useSurface, useThemedStyles } from '@/ui/useTheme';
 /**
  * Map preview on iOS: Apple Maps through expo-maps (AppleMaps.View, SDK 57
  * types checked in node_modules/expo-maps/build/apple/AppleMaps.types.d.ts).
@@ -8,7 +9,7 @@
 import { useEffect, useRef } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { AppleMaps } from 'expo-maps';
-import { palette } from '@/ui/theme';
+import { type Surface } from '@/ui/theme';
 import { t } from '@/i18n/it';
 import { MapCaption } from './MapCaption';
 import { coordsA11y } from './placeForm';
@@ -23,7 +24,10 @@ export function MapPreview(props: MapPreviewProps) {
   return APPLE_MAPS_OK ? <AppleMapPreview {...props} /> : <MapReadout {...props} />;
 }
 
-function AppleMapPreview({ coords, label, onPick, accent = palette.flare, testID }: MapPreviewProps) {
+function AppleMapPreview({ coords, label, onPick, accent: accentProp, testID }: MapPreviewProps) {
+  const S = useSurface();
+  const accent = accentProp ?? S.accent;
+  const styles = useThemedStyles(createStyles);
   const ref = useRef<AppleMaps.MapView>(null);
   const lat = coords?.lat;
   const lng = coords?.lng;
@@ -44,7 +48,7 @@ function AppleMapPreview({ coords, label, onPick, accent = palette.flare, testID
         <AppleMaps.View
           ref={ref}
           style={StyleSheet.absoluteFill}
-          colorScheme={AppleMaps.MapColorScheme.DARK}
+          colorScheme={S.name === 'night' ? AppleMaps.MapColorScheme.DARK : AppleMaps.MapColorScheme.LIGHT}
           cameraPosition={coords ? { coordinates: { latitude: coords.lat, longitude: coords.lng }, zoom: ZOOM } : undefined}
           markers={coords ? [{ id: 'place', coordinates: { latitude: coords.lat, longitude: coords.lng }, title: label, tintColor: accent }] : []}
           uiSettings={{ compassEnabled: false, myLocationButtonEnabled: false, scaleBarEnabled: false, togglePitchEnabled: false }}
@@ -64,13 +68,13 @@ function AppleMapPreview({ coords, label, onPick, accent = palette.flare, testID
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (S: Surface) => StyleSheet.create({
   frame: {
     height: 184,
     borderRadius: 14,
     overflow: 'hidden',
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(238,232,218,0.28)',
-    backgroundColor: palette.ink,
+    borderColor: S.faint,
+    backgroundColor: S.bg,
   },
 });

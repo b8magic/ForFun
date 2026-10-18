@@ -1,10 +1,11 @@
+import { useSurface, useThemedStyles } from '@/ui/useTheme';
 /**
  * Optional details for the CURRENT SELECTION, before saving. Nothing here is
  * required. "Applica" stores them as pendingDetails; the actual write happens
  * from the Lineup Save button (one copy per date, each editable afterwards).
  */
 import { useMemo, useRef, useState } from 'react';
-import { AccessibilityInfo, Pressable, StyleSheet, View, type ScrollView } from 'react-native';
+import { AccessibilityInfo, Keyboard, Pressable, StyleSheet, View, type ScrollView } from 'react-native';
 import { router } from 'expo-router';
 import type { Place } from '@/domain/types';
 import { deviceTimeZone } from '@/domain/zoned';
@@ -13,9 +14,10 @@ import { useApp } from '@/state/store';
 import { useActive, useMotionReduced } from '@/state/selectors';
 import { setPendingDetails } from '@/state/actions';
 import { Button, Field, Note, Section, Sheet } from '@/ui/controls';
-import { HIT, palette, surfaces } from '@/ui/theme';
+import { HIT, type Surface } from '@/ui/theme';
 import { T } from '@/ui/T';
 import { t } from '@/i18n/it';
+import { KeyboardSafe } from '@/sheets/manage/parts';
 import { PlaceEditor } from './PlaceEditor';
 import { SheetScroll } from './SheetScroll';
 import { TimingEditor } from './TimingEditor';
@@ -23,12 +25,13 @@ import { buildDetailsDraft, datesSummary } from './drafts';
 import { compactPlace } from './placeForm';
 import { emptyTimingForm, evaluateTiming, formFromTiming, isTimingFormEmpty, type TimingForm } from './timingForm';
 
-const S = surfaces.night;
 const s = t.sessionSheets;
 
 const close = () => (router.canGoBack() ? router.back() : router.replace('/'));
 
 export function DetailsSheet() {
+  const S = useSurface();
+  const styles = useThemedStyles(createStyles);
   const selection = useApp((st) => st.selection);
   const pending = useApp((st) => st.pendingDetails);
   const today = useApp((st) => st.today);
@@ -58,7 +61,7 @@ export function DetailsSheet() {
       return !e.ok || !e.timing || e.timing.state !== want;
     });
   }, [ev, selection, timing, deviceZone]);
-  const accent = active?.color ?? palette.flare;
+  const accent = active?.color ?? S.accent;
   const empty = !notes.trim() && !compactPlace(place) && isTimingFormEmpty(timing);
 
   const apply = () => {
@@ -69,6 +72,7 @@ export function DetailsSheet() {
       AccessibilityInfo.announceForAccessibility(s.fixToSave);
       return;
     }
+    Keyboard.dismiss();
     setPendingDetails(buildDetailsDraft({ notes, place, timing: ev.timing }));
     close();
   };
@@ -83,68 +87,70 @@ export function DetailsSheet() {
   };
 
   const title = n > 0 ? t.detailsForSelection(n) : s.detailsTitle;
-  const eyebrow = [t.detailsOptional, active?.name, n ? datesSummary(selection) : null].filter(Boolean).join(' · ');
+  const eyebrow = [active?.name, n ? datesSummary(selection) : null].filter(Boolean).join(' · ');
   const primary = n > 1 ? t.applyToAll(n) : n === 1 ? s.applyToOne : s.keepDetails;
 
   return (
-    <Sheet
-      title={title}
-      eyebrow={eyebrow}
-      testID="details-sheet"
-      scroll={false}
-      footer={
-        <View style={{ gap: 6 }}>
-          {attempted && !ev.ok ? <Note tone="error">{s.fixToSave}</Note> : null}
-          <Button label={primary} onPress={apply} color={accent} testID="details-apply" />
-          {pending || !empty ? (
-            <Pressable onPress={clear} accessibilityRole="button" style={styles.clear} testID="details-clear">
-              <T variant="labelStrong" color={S.mute}>
-                {s.clearDetails}
-              </T>
-            </Pressable>
-          ) : null}
-        </View>
-      }
-    >
-      <SheetScroll ref={scrollRef}>
-        {n === 0 ? <Note>{s.detailsNoSelection}</Note> : null}
+    <KeyboardSafe>
+      <Sheet
+        title={title}
+        eyebrow={eyebrow}
+        testID="details-sheet"
+        scroll={false}
+        footer={
+          <View style={{ gap: 6 }}>
+            {attempted && !ev.ok ? <Note tone="error">{s.fixToSave}</Note> : null}
+            <Button label={primary} onPress={apply} color={accent} testID="details-apply" />
+            {pending || !empty ? (
+              <Pressable onPress={clear} accessibilityRole="button" style={styles.clear} testID="details-clear">
+                <T variant="labelStrong" color={S.mute}>
+                  {s.clearDetails}
+                </T>
+              </Pressable>
+            ) : null}
+          </View>
+        }
+      >
+        <SheetScroll ref={scrollRef} testID="details-scroll">
+          {n === 0 ? <Note>{s.detailsNoSelection}</Note> : null}
 
-        <Section label={t.notes}>
-          <Field value={notes} onChangeText={setNotes} placeholder={t.notesPlaceholder} multiline accessibilityLabel={t.notes} testID="details-notes" />
-        </Section>
-
-        <Section label={t.place}>
-          <PlaceEditor key={`p${formKey}`} value={place} onChange={setPlace} accent={accent} testID="details-place" />
-        </Section>
-
-        <View onLayout={(e) => (timingY.current = e.nativeEvent.layout.y)}>
-          {badDates.length ? (
-            <Note tone="error">{`Questo orario non vale per ${datesSummary(badDates)}: in quel giorno cambia l’ora legale. Cambia l’orario o togli quella data dalla selezione.`}</Note>
-          ) : null}
-          <Section label={t.timing}>
-            <TimingEditor key={`t${formKey}`} date={refDate} value={timing} onChange={setTiming} deviceZone={deviceZone} showErrors={attempted} accent={accent} testID="details-timing" />
+          <Section label={t.notes}>
+            <Field value={notes} onChangeText={setNotes} multiline accessibilityLabel={t.notes} testID="details-notes" />
           </Section>
-        </View>
 
-        <View style={styles.notes}>
-          {n !== 1 ? (
-            <T variant="small" color={S.fg} testID="details-duration-note">
-              {n > 1 ? t.applyDurationNote(n) : s.durationEachNote}
+          <Section label={t.place}>
+            <PlaceEditor key={`p${formKey}`} value={place} onChange={setPlace} accent={accent} testID="details-place" />
+          </Section>
+
+          <View onLayout={(e) => (timingY.current = e.nativeEvent.layout.y)}>
+            {badDates.length ? (
+              <Note tone="error">{`Questo orario non vale per ${datesSummary(badDates)}: in quel giorno cambia l’ora legale. Cambia l’orario o togli quella data dalla selezione.`}</Note>
+            ) : null}
+            <Section label={t.timing}>
+              <TimingEditor key={`t${formKey}`} date={refDate} value={timing} onChange={setTiming} deviceZone={deviceZone} showErrors={attempted} accent={accent} testID="details-timing" />
+            </Section>
+          </View>
+
+          <View style={styles.notes}>
+            {n !== 1 ? (
+              <T variant="small" color={S.fg} testID="details-duration-note">
+                {n > 1 ? t.applyDurationNote(n) : s.durationEachNote}
+              </T>
+            ) : null}
+            <T variant="small" color={S.mute}>
+              {t.eachSessionEditable}
             </T>
-          ) : null}
-          <T variant="small" color={S.mute}>
-            {t.eachSessionEditable}
-          </T>
-          <T variant="small" color={S.mute}>
-            {s.detailsSaveHint}
-          </T>
-        </View>
-      </SheetScroll>
-    </Sheet>
+            <T variant="small" color={S.mute}>
+              {s.detailsSaveHint}
+            </T>
+          </View>
+        </SheetScroll>
+      </Sheet>
+    </KeyboardSafe>
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (S: Surface) => StyleSheet.create({
   notes: { gap: 6, paddingTop: 14, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: S.faint },
   clear: { minHeight: HIT, alignItems: 'center', justifyContent: 'center' },
 });

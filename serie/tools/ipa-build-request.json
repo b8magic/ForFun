@@ -1,0 +1,17 @@
+{
+  "version": "1.3.3",
+  "applicationSource": "96d04d88efd137cf50a5929e7a2dd4aca5370191",
+  "reason": "Final approved update: common multi-day Sessioni with activity colors, Bozze management, hidden zero counts, deletion Undo and native Period dates",
+  "verifiedLocally": {
+    "unitTests": 994,
+    "unitSuites": 62,
+    "focusedBrowserChecks": 8,
+    "browserErrors": 0,
+    "browserWarnings": 0,
+    "typecheck": true,
+    "lint": true
+  },
+  "nativeStatus": "No simulator cycle; native archive and packaging required. Native date picker interaction remains physical iPhone verification.",
+  "buildPolicy": "Final unsigned IPA-only job after user-approved follow-up; supersedes the earlier initial-scope build. No simulator, video or repeated browser workflow.",
+  "supersedesRun": "https://github.com/b8magic/ForFun/actions/runs/39140962311"
+}

@@ -1,7 +1,8 @@
 # Serie — iOS Simulator build + native smoke test.
 #
-# On demand only (Actions → "iOS Simulator (build + smoke test)" → Run workflow): macOS minutes on a
-# private repo are limited, so nothing runs on push. About 15 minutes.
+# On demand (Run workflow), or called by serie-candidate.yml after its web gates.
+# Normal development pushes do not run this macOS job. The full five-flow suite
+# includes native compilation, simulator boot and persisted-data/upgrade checks.
 #
 # Produces (artifacts, 7 days):
 #   - "Serie-simulator": Serie.app for the iOS Simulator (zip). On a Mac with Xcode: unzip and drag
@@ -20,6 +21,18 @@ on:
         description: Esegui anche il test automatico (video + Maestro)
         type: boolean
         default: true
+      candidate_sha:
+        description: Commit completo da verificare (vuoto = commit selezionato)
+        type: string
+        default: ''
+  workflow_call:
+    inputs:
+      smoke:
+        type: boolean
+        default: true
+      candidate_sha:
+        type: string
+        required: true
 
 concurrency:
   group: ios-sim-${{ github.ref }}
@@ -32,7 +45,8 @@ jobs:
   sim:
     name: Simulator build and smoke test
     runs-on: macos-26
-    timeout-minutes: 60
+    # A clean Release build and all five native UI flows can exceed one hour.
+    timeout-minutes: 90
     defaults:
       run:
         shell: bash # explicit → bash -eo pipefail, so `cmd | tee` fails when cmd fails
@@ -47,7 +61,16 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
+          ref: ${{ inputs.candidate_sha || github.sha }}
           persist-credentials: false
+
+      - name: Verify the immutable candidate commit
+        env:
+          CANDIDATE_SHA: ${{ inputs.candidate_sha || github.sha }}
+        run: |
+          [[ "$CANDIDATE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$(git rev-parse HEAD)" = "$CANDIDATE_SHA"
+          echo "Simulator source: $CANDIDATE_SHA" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Select Xcode 26.6 (Expo SDK 57 needs 26.4 or later)
         working-directory: .
@@ -142,6 +165,8 @@ jobs:
             ${{ env.OUT }}/serie-simulator.mp4
             ${{ env.OUT }}/screens/
             ${{ env.OUT }}/app.log
+            ${{ env.OUT }}/native-upgrade*.json
+            ${{ env.OUT }}/native-upgrade.log
             ${{ env.OUT }}/maestro-*.xml
             ${{ env.OUT }}/maestro/
             ${{ env.OUT }}/crashes/

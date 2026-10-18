@@ -1,0 +1,54 @@
+{
+  "suite": "v132",
+  "viewport": {
+    "width": 390,
+    "height": 844
+  },
+  "fixedTime": "2026-10-13T12:00:00.000Z",
+  "browser": "/usr/bin/chromium",
+  "browserPlugin": "not available",
+  "results": [
+    {
+      "name": "real UI saves count duplicate Surf and mixed date-only sessions",
+      "ok": true,
+      "ms": 9390
+    },
+    {
+      "name": "Home month counts follow activity focus and exclude unsaved draft dates",
+      "ok": true,
+      "ms": 1828
+    },
+    {
+      "name": "common history totals stay below chips and above every scale with actual partial duration",
+      "ok": true,
+      "ms": 2518
+    },
+    {
+      "name": "date-only history omits missing-duration filler in month year and progress",
+      "ok": true,
+      "ms": 1413
+    },
+    {
+      "name": "year mosaic shows twelve months December to January and drills into the correct month",
+      "ok": true,
+      "ms": 2145
+    },
+    {
+      "name": "320 pixel Home keeps month title and focused count readable without overlap",
+      "ok": true,
+      "ms": 962
+    }
+  ],
+  "errors": [],
+  "warnings": [],
+  "unitTests": 949,
+  "unitSuites": 56,
+  "typecheck": "passed",
+  "lint": "passed",
+  "nativeSimulatorExecuted": false,
+  "physicalIPhoneVerified": false,
+  "additionalViewport": {
+    "width": 320,
+    "height": 740
+  }
+}

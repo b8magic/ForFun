@@ -1,0 +1,299 @@
+# Reuse only the immutable simulator build from the duration-corrected candidate.
+# Reviewed Maestro fixes and the diagnostic driver are frozen in testCommit.
+# This separate marker does not trigger the full candidate build again.
+name: Serie native retry (existing simulator → IPA)
+
+on:
+  push:
+    branches: [codex/serie-calendar]
+    paths: [serie/tools/native-retry-request.json]
+
+concurrency:
+  group: serie-candidate-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  SOURCE_SHA: cfbfdfb599658dee24da147c5ee71f33954187ee
+  SOURCE_RUN_ID: '38413739935'
+  SOURCE_VERIFY_JOB_ID: '115352525597'
+  SOURCE_SIM_JOB_ID: '115352525873'
+  SOURCE_ARTIFACT_ID: '11823647411'
+  SOURCE_ARTIFACT_DIGEST: sha256:c09c427c3fbbd58fd86f23a1d26df2e06461e5723196054be1c4cea0117c03c7
+
+jobs:
+  retry:
+    name: Verify provenance and rerun the complete native gate
+    runs-on: macos-26
+    timeout-minutes: 90
+    outputs:
+      source_sha: ${{ steps.source.outputs.source_sha }}
+      supersedes_tag: ${{ steps.source.outputs.supersedes_tag }}
+      native_passed: ${{ steps.native.outputs.passed }}
+    defaults:
+      run:
+        shell: bash
+        working-directory: serie
+    env:
+      CI: '1'
+      EXPO_NO_TELEMETRY: '1'
+      MAESTRO_VERSION: 2.11.0
+      MAESTRO_CLI_NO_ANALYTICS: '1'
+      MAESTRO_CLI_ANALYSIS_NOTIFICATION_DISABLED: 'true'
+      MAESTRO_DRIVER_STARTUP_TIMEOUT: '180000'
+      SERIE_SMOKE_VIDEO: '0'
+    steps:
+      - name: Prepare retry evidence directory
+        working-directory: .
+        run: |
+          echo "OUT=$RUNNER_TEMP/out" >> "$GITHUB_ENV"
+          mkdir -p "$RUNNER_TEMP/out"
+
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify the original gates, artifact and unchanged app inputs
+        id: source
+        working-directory: .
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TRIGGER_SHA: ${{ github.sha }}
+          GOOGLE_CLIENT_ID: ${{ vars.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID || secrets.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID }}
+        run: |
+          python3 - <<'PY'
+          import datetime as dt
+          import json
+          import os
+          from pathlib import Path
+          import re
+          import subprocess
+          import urllib.request
+
+          def require(condition, message):
+              if not condition:
+                  raise SystemExit(message)
+
+          def git(*args):
+              return subprocess.check_output(['git', *args], text=True).strip()
+
+          def api(path):
+              request = urllib.request.Request(
+                  f"{os.environ['GITHUB_API_URL']}/repos/{os.environ['GITHUB_REPOSITORY']}/{path}",
+                  headers={
+                      'Authorization': f"Bearer {os.environ['GH_TOKEN']}",
+                      'Accept': 'application/vnd.github+json',
+                      'X-GitHub-Api-Version': '2022-11-28',
+                  },
+              )
+              with urllib.request.urlopen(request, timeout=30) as response:
+                  return json.load(response)
+
+          source = os.environ['SOURCE_SHA']
+          trigger = os.environ['TRIGGER_SHA']
+          run_id = int(os.environ['SOURCE_RUN_ID'])
+          artifact_id = int(os.environ['SOURCE_ARTIFACT_ID'])
+          digest = os.environ['SOURCE_ARTIFACT_DIGEST']
+          out = Path(os.environ['OUT'])
+          out.mkdir(parents=True, exist_ok=True)
+          require(os.environ['GITHUB_REPOSITORY'] == 'b8magic/ForFun', 'Unexpected repository')
+          require(git('rev-parse', 'HEAD') == trigger, 'Trigger checkout is not immutable')
+          marker = json.loads(Path('serie/tools/native-retry-request.json').read_text())
+          expected = {'sourceCommit': source, 'sourceRunId': run_id,
+                      'artifactId': artifact_id, 'artifactDigest': digest}
+          require(all(marker.get(key) == value for key, value in expected.items()),
+                  'Marker does not identify the pinned duration-corrected simulator build')
+          tests = marker.get('testCommit', '')
+          require(isinstance(tests, str) and re.fullmatch(r'[0-9a-f]{40}', tests),
+                  'testCommit must be a full immutable commit SHA')
+          require(subprocess.call(['git', 'merge-base', '--is-ancestor', source, tests]) == 0,
+                  'Tests must descend from the compiled candidate')
+          require(subprocess.call(['git', 'merge-base', '--is-ancestor', tests, trigger]) == 0,
+                  'The trigger must contain the frozen test commit')
+
+          def allowed(path):
+              return (path in {
+                  '.github/workflows/serie-native-retry.yml',
+                  '.github/workflows/serie-native-inspect.yml',
+                  'serie/tools/native-retry-request.json',
+                  'serie/tools/sim-smoke.sh',
+              } or path.startswith('serie/docs/')
+                  or (path.startswith('serie/maestro/') and path.endswith('.yaml')))
+
+          for revision in (tests, trigger):
+              changed = subprocess.check_output(
+                  ['git', 'diff', '--name-only', '--no-renames', '-z', source, revision]
+              ).decode().split('\0')
+              forbidden = [path for path in changed if path and not allowed(path)]
+              require(not forbidden, f'App, configuration, dependencies or existing gates changed: {forbidden}')
+          original_flows = git('ls-tree', '-r', '--name-only', source, '--', 'serie/maestro')
+          require(original_flows == git('ls-tree', '-r', '--name-only', tests, '--', 'serie/maestro'),
+                  'All original Maestro flows and subflows must remain present')
+          # The original simulator has no Google client id; do not change that build configuration.
+          require(not ''.join(os.environ['GOOGLE_CLIENT_ID'].split()),
+                  'Google client configuration differs from the compiled simulator')
+
+          run = api(f'actions/runs/{run_id}')
+          require(run['head_sha'] == source and run['run_attempt'] == 1
+                  and run['event'] == 'push' and run['status'] == 'completed'
+                  and run['conclusion'] == 'failure'
+                  and run['path'] == '.github/workflows/serie-candidate.yml'
+                  and run['repository']['id'] == 1412582800
+                  and run['head_repository']['id'] == 1412582800,
+                  'Unexpected source workflow run or commit')
+          verify = api(f"actions/jobs/{os.environ['SOURCE_VERIFY_JOB_ID']}")
+          require(verify['run_id'] == run_id and verify['run_attempt'] == 1
+                  and verify['head_sha'] == source and verify['status'] == 'completed'
+                  and verify['conclusion'] == 'success', 'Original Linux gates did not pass')
+          required_gates = {'Verify checked-out candidate', 'Unit tests', 'Typecheck', 'Lint',
+                            'Native pixel checker regression tests', 'Web UI and calendar integration checks'}
+          passed = {step['name'] for step in verify['steps'] if step['conclusion'] == 'success'}
+          require(required_gates <= passed, 'An original Linux gate was skipped or failed')
+          simulator = api(f"actions/jobs/{os.environ['SOURCE_SIM_JOB_ID']}")
+          require(simulator['run_id'] == run_id and simulator['run_attempt'] == 1
+                  and simulator['head_sha'] == source and simulator['status'] == 'completed',
+                  'Unexpected source simulator job')
+          required_build = {'Verify the immutable candidate commit',
+                            'Build for the iOS Simulator (Release, JS bundle embedded)',
+                            'Upload Serie.app (Simulator)'}
+          passed = {step['name'] for step in simulator['steps'] if step['conclusion'] == 'success'}
+          require(required_build <= passed, 'The original simulator build or upload did not pass')
+          artifact = api(f'actions/artifacts/{artifact_id}')
+          origin = artifact['workflow_run']
+          require(artifact['id'] == artifact_id and artifact['name'] == 'Serie-simulator'
+                  and artifact['digest'] == digest and artifact['expired'] is False
+                  and origin['id'] == run_id and origin['head_sha'] == source
+                  and origin['repository_id'] == 1412582800
+                  and origin['head_repository_id'] == 1412582800
+                  and dt.datetime.fromisoformat(artifact['expires_at'].replace('Z', '+00:00')) > dt.datetime.now(dt.timezone.utc),
+                  'Artifact identity, provenance, digest or expiry is invalid')
+
+          release = json.loads(git('show', f'{source}:serie/tools/release-candidate.json'))
+          tag = release.get('supersedesTag', '')
+          require(isinstance(tag, str) and (not tag or re.fullmatch(r'ipa-[0-9]+', tag))
+                  and tag != f"ipa-{os.environ['GITHUB_RUN_ID']}", 'Invalid superseded tag')
+          evidence = {
+              'sourceCommit': source, 'testCommit': tests, 'triggerCommit': trigger,
+              'sourceRunId': run_id, 'sourceVerifyJobId': verify['id'],
+              'sourceSimulatorJobId': simulator['id'], 'artifactId': artifact_id,
+              'artifactDigest': digest, 'maestroTree': git('rev-parse', f'{tests}:serie/maestro'),
+              'testDriverCommit': tests, 'testDriverBlob': git('rev-parse', f'{tests}:serie/tools/sim-smoke.sh'),
+              'applicationInputsUnchanged': True, 'originalLinuxGates': 'passed',
+              'nativeGate': 'pending',
+          }
+          (out / 'native-retry.json').write_text(json.dumps(evidence, indent=2) + '\n')
+          # HEAD remains the actual app source for native-upgrade.py's sourceCommit.
+          subprocess.run(['git', 'checkout', '--detach', source], check=True)
+          subprocess.run(['git', 'restore', '--source', tests, '--worktree', '--',
+                          'serie/maestro', 'serie/tools/sim-smoke.sh'], check=True)
+          require(git('rev-parse', 'HEAD') == source, 'Compiled source checkout changed')
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write(f'source_sha={source}\nsupersedes_tag={tag}\n')
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
+              summary.write(f'### Native retry\nApp source: `{source}`\n\nTests: `{tests}`\n\n'
+                            f'Reused simulator artifact: `{artifact_id}` from run `{run_id}`. '
+                            'Original Linux gates passed; app inputs are unchanged.\n')
+          PY
+
+      - name: Download the exact artifact and verify its digest before extraction
+        working-directory: .
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ARCHIVE=$RUNNER_TEMP/source-artifact.zip
+          curl -fsSL \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H 'Accept: application/vnd.github+json' \
+            "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/actions/artifacts/$SOURCE_ARTIFACT_ID/zip" \
+            -o "$ARCHIVE"
+          printf '%s  %s\n' "${SOURCE_ARTIFACT_DIGEST#sha256:}" "$ARCHIVE" | shasum -a 256 -c -
+          mkdir -p "$RUNNER_TEMP/source-archive" "$RUNNER_TEMP/reused-simulator"
+          ditto -x -k "$ARCHIVE" "$RUNNER_TEMP/source-archive"
+          test -f "$RUNNER_TEMP/source-archive/Serie-simulator.zip"
+          ditto -x -k "$RUNNER_TEMP/source-archive/Serie-simulator.zip" "$RUNNER_TEMP/reused-simulator"
+          APP=$RUNNER_TEMP/reused-simulator/Serie.app
+          test -f "$APP/main.jsbundle"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist")" = app.serie.ios
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Info.plist")" = 1.3.0
+          codesign -v "$APP"
+          echo "APP=$APP" >> "$GITHUB_ENV"
+
+      - name: Select Xcode 26.6 and the simulator runtime
+        working-directory: .
+        run: |
+          XC=/Applications/Xcode_26.6.app
+          test -d "$XC"
+          sudo xcode-select -s "$XC/Contents/Developer"
+          xcrun --sdk iphonesimulator --show-sdk-version
+          xcrun simctl list runtimes
+
+      - name: Install Maestro ${{ env.MAESTRO_VERSION }}
+        run: |
+          java -version 2>&1 | head -1
+          curl -fsSL 'https://get.maestro.mobile.dev' | bash
+          echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
+
+      - name: Run all five native flows, migration, pixel and crash gates
+        id: native
+        run: |
+          test "$(maestro --version | tail -1)" = "$MAESTRO_VERSION"
+          tools/sim-smoke.sh "$APP" "$OUT"
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          path = Path(os.environ['OUT']) / 'native-retry.json'
+          evidence = json.loads(path.read_text())
+          evidence['nativeGate'] = 'passed'
+          path.write_text(json.dumps(evidence, indent=2) + '\n')
+          PY
+          echo 'passed=true' >> "$GITHUB_OUTPUT"
+
+      - name: Summary (also when the test fails)
+        if: always()
+        run: |
+          if [ -f "$OUT/summary.md" ]; then
+            cat "$OUT/summary.md" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo 'Native retry did not run.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload the smoke test results and provenance
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: smoke-test
+          path: |
+            ${{ env.OUT }}/native-retry.json
+            ${{ env.OUT }}/summary.md
+            ${{ env.OUT }}/serie-simulator.mp4
+            ${{ env.OUT }}/screens/
+            ${{ env.OUT }}/app.log
+            ${{ env.OUT }}/native-upgrade*.json
+            ${{ env.OUT }}/native-upgrade.log
+            ${{ env.OUT }}/native-colors*.log
+            ${{ env.OUT }}/native-colors-preview.png
+            ${{ env.OUT }}/maestro-*.xml
+            ${{ env.OUT }}/maestro/
+            ${{ env.OUT }}/crashes/
+            ${{ env.OUT }}/recordVideo.log
+          retention-days: 3
+          if-no-files-found: ignore
+
+  ipa:
+    name: Build and publish the natively verified IPA
+    needs: retry
+    if: ${{ needs.retry.result == 'success' && needs.retry.outputs.native_passed == 'true' }}
+    permissions:
+      contents: write
+    uses: ./.github/workflows/ios-ipa.yml
+    secrets: inherit
+    with:
+      candidate_sha: ${{ needs.retry.outputs.source_sha }}
+      supersedes_tag: ${{ needs.retry.outputs.supersedes_tag }}
+      release: true

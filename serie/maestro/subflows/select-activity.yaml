@@ -1,0 +1,18 @@
+# Idempotent selection: tapping an already active activity now deselects it.
+# Call with ACTIVITY (the displayed name); restart checks must still assert the
+# remembered activity directly, without this helper repairing the state.
+appId: app.serie.ios
+---
+- runFlow:
+    when:
+      notVisible:
+        id: activity-switcher
+        text: "Attività attiva: ${ACTIVITY}.*"
+    commands:
+      - tapOn:
+          id: activity-${ACTIVITY}
+- extendedWaitUntil:
+    visible:
+      id: activity-switcher
+      text: "Attività attiva: ${ACTIVITY}.*"
+    timeout: 10000

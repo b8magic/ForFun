@@ -1,45 +1,29 @@
-# Native smoke test 1/3 (Maestro, iOS Simulator): the same checks as tools/e2e.mjs, on the real app.
-# First launch in Surf → select 2 dates → save → restart → still there → history → switch activity.
-# PREV = the previous month as YYYY-MM (passed by tools/sim-smoke.sh), so every date is in the past.
+# Native smoke: log, persistent drafts, actual mixed-day detail and history.
 appId: app.serie.ios
-name: 01 registra, riavvia, storia, attività
+name: 01 registra, bozze persistenti, giorno, storia
 ---
 - launchApp:
     clearState: true
 - extendedWaitUntil:
     visible:
       id: activity-switcher
+      text: "Attività attiva: Surf.*"
     timeout: 60000
 - assertVisible:
-    id: activity-switcher
-    text: "Attività attiva: Surf.*"
-- assertVisible:
     id: save
-    text: "Seleziona le date"
+    text: "Salva.*Nessuna data selezionata"
 - takeScreenshot: 01-first-launch
-
-- tapOn:
-    id: prev-month
-    waitToSettleTimeoutMs: 1500
+- runFlow: subflows/jump-prev.yaml
 - tapOn:
     id: day-${PREV}-10
-    waitToSettleTimeoutMs: 1500
 - tapOn:
     id: day-${PREV}-12
-    waitToSettleTimeoutMs: 1500
 - assertVisible:
     id: save
     text: "Salva 2 sessioni.*Surf"
-- takeScreenshot: 02-selection
 - tapOn:
     id: save
     waitToSettleTimeoutMs: 1500
-- extendedWaitUntil:
-    visible:
-      text: "2 sessioni salvate.*"
-    timeout: 8000
-    optional: true
-- takeScreenshot: 03-saved
 - extendedWaitUntil:
     notVisible:
       id: toast
@@ -47,29 +31,185 @@ name: 01 registra, riavvia, storia, attività
 - assertVisible:
     id: day-${PREV}-10
     text: ".*1 sessione registrata.*"
+- takeScreenshot: 02-saved
+
+# Each activity keeps an independent date + note draft.
+- tapOn:
+    id: day-${PREV}-18
+- tapOn:
+    id: details-link
+- extendedWaitUntil:
+    visible:
+      id: details-notes
+    timeout: 10000
+- tapOn:
+    id: details-notes
+- inputText: Bozza Surf nativa
+# Capture the real keyboard/footer arrangement before the direct Apply tap.
+- takeScreenshot: 02-notes-keyboard
+# The visible footer applies the exact multiline note and closes the keyboard.
+- tapOn:
+    id: details-apply
+    waitToSettleTimeoutMs: 1500
+- extendedWaitUntil:
+    notVisible:
+      id: details-sheet
+    timeout: 10000
+- runFlow:
+    file: subflows/select-activity.yaml
+    env:
+      ACTIVITY: Corsa
 - assertVisible:
     id: save
-    text: "Seleziona le date"
-
-# restart: the sessions come back from SQLite, the old selection does not
+    text: "Salva.*Nessuna data selezionata"
+- tapOn:
+    id: day-${PREV}-19
+- tapOn:
+    id: details-link
+- tapOn:
+    id: details-notes
+- inputText: Bozza Corsa nativa
+- tapOn:
+    id: details-apply
+    waitToSettleTimeoutMs: 1500
+- extendedWaitUntil:
+    notVisible:
+      id: details-sheet
+    timeout: 10000
+- runFlow:
+    file: subflows/select-activity.yaml
+    env:
+      ACTIVITY: Surf
+- assertVisible:
+    id: day-${PREV}-18
+    text: ".*selezionato.*"
+- takeScreenshot: 03-surf-before-restart
 - stopApp
 - launchApp
 - extendedWaitUntil:
     visible:
       id: activity-switcher
+      text: "Attività attiva: Surf.*"
     timeout: 60000
+- runFlow: subflows/jump-prev.yaml
 - assertVisible:
-    id: activity-switcher
-    text: "Attività attiva: Surf.*"
+    id: day-${PREV}-18
+    text: ".*selezionato.*"
 - tapOn:
-    id: prev-month
+    id: details-link
+- assertVisible:
+    id: details-notes
+    text: "Bozza Surf nativa"
+- takeScreenshot: 03-surf-draft-after-restart
+- tapOn:
+    id: details-apply
+- extendedWaitUntil:
+    notVisible:
+      id: details-sheet
+    timeout: 10000
+- tapOn:
+    id: clear-selection
+- runFlow:
+    file: subflows/select-activity.yaml
+    env:
+      ACTIVITY: Corsa
+- assertVisible:
+    id: day-${PREV}-19
+    text: ".*selezionato.*"
+- tapOn:
+    id: details-link
+- assertVisible:
+    id: details-notes
+    text: "Bozza Corsa nativa"
+- tapOn:
+    id: details-apply
+- extendedWaitUntil:
+    notVisible:
+      id: details-sheet
+    timeout: 10000
+- tapOn:
+    id: clear-selection
+# A Corsa session on an already recorded Surf day must show both real colors.
+- tapOn:
+    id: day-${PREV}-10
+- tapOn:
+    id: save
     waitToSettleTimeoutMs: 1500
+- extendedWaitUntil:
+    notVisible:
+      id: toast
+    timeout: 30000
+- runFlow:
+    file: subflows/select-activity.yaml
+    env:
+      ACTIVITY: Surf
 - assertVisible:
     id: day-${PREV}-12
     text: ".*1 sessione registrata.*"
-- takeScreenshot: 04-after-restart
+- assertVisible:
+    id: day-${PREV}-10
+    text: ".*Surf.*Corsa.*2 sessioni registrate.*"
+- takeScreenshot: 03-mixed-colors-native
 
-# history: month, year, all time
+# Tapping the active chip intentionally switches to all-activities viewing.
+# A normal day tap consults the saved sessions and leaves no logging draft.
+- tapOn:
+    id: activity-Surf
+- extendedWaitUntil:
+    notVisible:
+      id: activity-switcher
+    timeout: 10000
+- assertNotVisible:
+    id: save
+- assertNotVisible:
+    id: details-link
+- tapOn:
+    id: day-${PREV}-10
+- extendedWaitUntil:
+    visible:
+      id: day-sheet
+    timeout: 10000
+- assertVisible:
+    id: day-total
+    text: ".*2 sessioni.*"
+- assertVisible: ".*Surf, sessione.*"
+- assertVisible: ".*Corsa, sessione.*"
+- takeScreenshot: 03-neutral-day-native
+- tapOn:
+    id: sheet-close
+- runFlow:
+    file: subflows/select-activity.yaml
+    env:
+      ACTIVITY: Surf
+- assertNotVisible:
+    id: day-${PREV}-10
+    text: ".*selezionato.*"
+
+# Main-calendar tap still selects for logging; the visible detail control opens
+# the saved day without committing the newly selected draft.
+- tapOn:
+    id: day-${PREV}-10
+- tapOn:
+    id: selected-day-details
+- extendedWaitUntil:
+    visible:
+      id: day-sheet
+    timeout: 10000
+- assertVisible:
+    id: day-total
+    text: ".*2 sessioni.*"
+- assertVisible: ".*Surf, sessione.*"
+- assertVisible: ".*Corsa, sessione.*"
+- takeScreenshot: 04-day-detail
+- tapOn:
+    id: sheet-close
+- assertVisible:
+    id: day-${PREV}-10
+    text: ".*selezionato.*"
+- tapOn:
+    id: clear-selection
+
+# Populated month calendars open directly, with no disclosure tap required.
 - tapOn:
     id: history-handle
     waitToSettleTimeoutMs: 1500
@@ -77,46 +217,38 @@ name: 01 registra, riavvia, storia, attività
     visible:
       id: back-to-log
     timeout: 10000
-- tapOn:
-    id: month-${PREV}
-    waitToSettleTimeoutMs: 1500
+- scrollUntilVisible:
+    element:
+      id: mini-${PREV}-10
+    direction: DOWN
+    timeout: 15000
 - takeScreenshot: 05-history-month
+- scrollUntilVisible:
+    element:
+      id: scale-year
+    direction: UP
+    timeout: 15000
 - tapOn:
     id: scale-year
     waitToSettleTimeoutMs: 1500
+- assertVisible:
+    id: year-month-${PREV}
 - takeScreenshot: 06-history-year
 - tapOn:
     id: scale-all
     waitToSettleTimeoutMs: 1500
-- takeScreenshot: 07-history-all
+- assertVisible: Progressi
+- takeScreenshot: 07-progressi
 - tapOn:
     id: scale-month
-    waitToSettleTimeoutMs: 1500
 - tapOn:
     id: back-to-log
     waitToSettleTimeoutMs: 1500
-- extendedWaitUntil:
-    visible:
-      id: activity-switcher
-    timeout: 10000
-
-# activity switcher, remembered across a restart
-- tapOn:
-    id: activity-switcher
-    waitToSettleTimeoutMs: 1500
-- extendedWaitUntil:
-    visible:
-      id: activity-Corsa
-    timeout: 10000
-- takeScreenshot: 08-switcher
-- tapOn:
-    id: activity-Corsa
-    waitToSettleTimeoutMs: 1500
-- extendedWaitUntil:
-    visible:
-      id: activity-switcher
-      text: "Attività attiva: Corsa.*"
-    timeout: 10000
+- runFlow:
+    file: subflows/select-activity.yaml
+    env:
+      ACTIVITY: Corsa
+- takeScreenshot: 08-corsa-before-restart
 - stopApp
 - launchApp
 - extendedWaitUntil:
@@ -124,4 +256,7 @@ name: 01 registra, riavvia, storia, attività
       id: activity-switcher
       text: "Attività attiva: Corsa.*"
     timeout: 60000
-- takeScreenshot: 09-corsa-after-restart
+- assertVisible:
+    id: save
+    text: "Salva.*Nessuna data selezionata"
+- takeScreenshot: 08-corsa-after-restart

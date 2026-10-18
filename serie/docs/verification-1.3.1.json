@@ -1,0 +1,55 @@
+{
+  "suite": "v131",
+  "viewport": {
+    "width": 390,
+    "height": 844
+  },
+  "fixedTime": "2026-10-13T12:00:00.000Z",
+  "browser": "/usr/bin/chromium",
+  "browserPlugin": "not available",
+  "results": [
+    {
+      "name": "meaningful Home creates four real SQLite fixtures without framework errors",
+      "ok": true,
+      "ms": 14157
+    },
+    {
+      "name": "neutral taps select dates, Save stays disabled and real long press opens saved details",
+      "ok": true,
+      "ms": 3397
+    },
+    {
+      "name": "shared dates survive activity and mode changes including an empty date in edit mode",
+      "ok": true,
+      "ms": 4317
+    },
+    {
+      "name": "active editing scopes sessions while neutral editing keeps all activities and individual exclusions",
+      "ok": true,
+      "ms": 6622
+    },
+    {
+      "name": "a real left swipe stays in day details and explicit Elimina deletes only its row without confirmation",
+      "ok": true,
+      "ms": 3890
+    },
+    {
+      "name": "inline history hides missing timing copy while actual duration, place and notes remain visible",
+      "ok": true,
+      "ms": 3726
+    },
+    {
+      "name": "restart preserves the shared date and every surviving SQLite row without runtime errors",
+      "ok": true,
+      "ms": 4189
+    }
+  ],
+  "errors": [],
+  "warnings": [],
+  "unitTests": 949,
+  "unitSuites": 56,
+  "typecheck": "passed",
+  "lint": "passed",
+  "nativeSimulatorExecuted": false,
+  "physicalIPhoneVerified": false
+}

@@ -44,3 +44,6 @@ yarn-error.*
 dist-web/
 dist-web-e2e/
 public/*.wasm
+
+# Python native verification helpers
+__pycache__/

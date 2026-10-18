@@ -1,0 +1,19 @@
+# No clearState/launchApp: sim-smoke.sh already relaunched the v1 fixture.
+appId: app.serie.ios
+name: native v1 upgrade ready with original sessions
+---
+- extendedWaitUntil:
+    visible:
+      id: lineup
+    timeout: 60000
+- assertVisible:
+    id: activity-switcher
+    text: "Attività attiva: Corsa.*"
+- runFlow: jump-prev.yaml
+- assertVisible:
+    id: day-${PREV}-10
+    text: ".*Surf.*Corsa.*2 sessioni registrate.*"
+- assertVisible:
+    id: day-${PREV}-12
+    text: ".*Surf.*1 sessione registrata.*"
+- takeScreenshot: native-v1-upgrade
