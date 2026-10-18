@@ -2,7 +2,6 @@ import { useCallback, useLayoutEffect, useRef } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { router } from 'expo-router';
 import type { Category } from '@/domain/types';
-import { useApp } from '@/state/store';
 import { switchActivity } from '@/state/actions';
 import { IdentityDisc } from '@/graphics/IdentityDisc';
 import { useSurface } from '@/ui/useTheme';
@@ -12,7 +11,6 @@ import { softenColor } from '@/ui/calendar/DayMosaic';
 
 export function ActivityDock({ categories, activeId }: { categories: Category[]; activeId: string | null }) {
   const surface = useSurface();
-  const drafts = useApp((state) => state.drafts);
   const ref = useRef<ScrollView>(null);
   const positions = useRef(new Map<string, { x: number; width: number }>());
   const viewportWidth = useRef(0);
@@ -47,15 +45,13 @@ export function ActivityDock({ categories, activeId }: { categories: Category[];
       >
         {categories.map((category) => {
           const active = category.id === activeId;
-          const draftCount = drafts[category.id]?.dates.length ?? 0;
           const ink = active ? foregroundOn(category.color) : surface.fg;
           return (
             <View key={category.id} onLayout={(event) => { const { x, width } = event.nativeEvent.layout; positions.current.set(category.id, { x, width }); if (category.id === activeIdRef.current) reveal(); }} testID={active ? 'activity-switcher' : undefined} accessibilityLabel={active ? `Attività attiva: ${category.name}` : undefined} aria-expanded={false}>
-              <Pressable onPress={() => { void switchActivity(active ? null : category.id).catch(() => undefined); }} accessibilityRole="button" accessibilityLabel={`${category.name}${active ? ', attività attiva' : ''}${draftCount ? `, ${draftCount} date da salvare` : ''}`} accessibilityHint={active ? 'Disattiva per vedere tutte le attività a colori pieni' : 'Seleziona per registrare sessioni di questa attività'} accessibilityState={{ selected: active }} testID={`activity-${category.name}`} style={({ pressed }) => [styles.chipTarget, { opacity: pressed ? 0.7 : 1 }]}>
+              <Pressable onPress={() => { void switchActivity(active ? null : category.id).catch(() => undefined); }} accessibilityRole="button" accessibilityLabel={`${category.name}${active ? ', attività attiva' : ''}`} accessibilityHint={active ? 'Disattiva per vedere tutte le attività a colori pieni' : 'Seleziona per registrare sessioni di questa attività'} accessibilityState={{ selected: active }} testID={`activity-${category.name}`} style={({ pressed }) => [styles.chipTarget, { opacity: pressed ? 0.7 : 1 }]}>
                 <View testID={`activity-pill-${category.id}`} style={[styles.chip, { backgroundColor: active ? category.color : softenColor(category.color, surface.bg, 0.18), borderColor: active ? surface.fg : 'transparent' }]}>
                   <IdentityDisc size={22} pattern={category.pattern} color={ink} stripe={ink} animated={false} />
                   <T variant="bodyStrong" color={ink} numberOfLines={1} style={styles.chipName}>{category.name}</T>
-                  {draftCount ? <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: ink }} /> : null}
                 </View>
               </Pressable>
             </View>

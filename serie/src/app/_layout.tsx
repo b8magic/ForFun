@@ -104,6 +104,7 @@ export default function RootLayout() {
             <Stack.Screen name="session/[id]" options={{ ...sheet, sheetAllowedDetents: [1] }} />
             <Stack.Screen name="activities" options={{ ...sheet, sheetAllowedDetents: [1] }} />
             <Stack.Screen name="menu" options={{ ...sheet, sheetAllowedDetents: [0.85, 1] }} />
+            <Stack.Screen name="drafts" options={{ ...sheet, sheetAllowedDetents: [1] }} />
             <Stack.Screen name="jump" options={{ ...sheet, sheetAllowedDetents: jumpDetent < 1 ? [jumpDetent, 1] : [1] }} />
             <Stack.Screen name="day" options={{ ...sheet, sheetAllowedDetents: [0.7, 1] }} />
             <Stack.Screen name="periods" options={{ ...sheet, sheetAllowedDetents: [1] }} />

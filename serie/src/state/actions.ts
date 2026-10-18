@@ -16,6 +16,7 @@ import { t } from '@/i18n/it';
 import { afterCommit } from './hooks';
 import type { BulkDetailsInput } from '@/domain/bulkDetails';
 import { withExportLock } from '@/calendar/exportCore';
+import { hasDraftDetails } from '@/domain/drafts';
 
 const set = useApp.setState;
 const get = useApp.getState;
@@ -35,6 +36,7 @@ let activeRevision = 0;
 let viewMonthRevision = 0;
 const preferenceRevision = { motion: 0, theme: 0, activities: 0 };
 let bootTask: Promise<void> | null = null;
+let discardingDrafts = false;
 const undoing = new Set<string>();
 
 function draftProjection(drafts: AppState['drafts'], activeId: ID | null) {
@@ -45,9 +47,13 @@ function draftProjection(drafts: AppState['drafts'], activeId: ID | null) {
 function changeSelection(selection: LocalDate[], bulkSelection: ID[]) {
   selectionRevision++;
   set({ selection, bulkSelection });
+  void persistSelection(selection).catch(() => set({ saveError: t.saveFailed }));
+}
+
+function persistSelection(selection: LocalDate[]): Promise<void> {
   const repositories = getRepositories();
   selectionWrite = selectionWrite.catch(() => undefined).then(async () => (await repositories).settings.set('homeSelection', selection));
-  void selectionWrite.catch(() => set({ saveError: t.saveFailed }));
+  return selectionWrite;
 }
 
 /** Keep hidden activity choices, but only review records in the current scope. */
@@ -239,7 +245,7 @@ async function reloadPeriods() {
 
 export function toggleDate(date: LocalDate): boolean {
   const { selection, today, activeId, saving, bulkSaving, homeSessionMode, sessions, bulkSelection } = get();
-  if (saving || bulkSaving) return false;
+  if (saving || bulkSaving || discardingDrafts) return false;
   if (!isLocalDate(date) || compareDates(date, today) > 0) return false; // future dates cannot be logged
   const on = selection.includes(date);
   const next = on ? selection.filter((d) => d !== date) : [...selection, date].sort();
@@ -253,10 +259,44 @@ export function toggleDate(date: LocalDate): boolean {
 
 export function clearSelection() {
   const { activeId, saving, bulkSaving } = get();
-  if (saving || bulkSaving) return;
+  if (saving || bulkSaving || discardingDrafts) return;
   changeSelection([], []);
   if (activeId) editDraft(activeId, [], null);
 }
+
+/** Discard only unfinished work. The shared dates and activity details are independent. */
+async function discardDrafts(scope: 'selection' | 'all' | { categoryId: ID }): Promise<boolean> {
+  const state = get();
+  if (discardingDrafts || state.saving || state.bulkSaving || Object.values(state.drafts).some((draft) => draft.saving)) return false;
+  discardingDrafts = true;
+  const drafts = Object.values(state.drafts).filter((draft) => typeof scope === 'string' || draft.categoryId === scope.categoryId);
+  try {
+    // Write an explicit selection before removing snapshots. A legacy fallback
+    // must never bring cleared dates back, nor lose dates when one detail is removed.
+    await persistSelection(typeof scope === 'string' ? [] : state.selection);
+    if (typeof scope === 'string') {
+      selectionRevision++;
+      set({ selection: [], bulkSelection: [] });
+    }
+    const results = await Promise.allSettled(drafts.map(async (draft) => {
+      const details = scope === 'selection' && hasDraftDetails(draft.details) ? draft.details : null;
+      const next = { ...draft, dates: [], details, saveError: null };
+      await persistDraft(next); // No dates or details removes the stored draft.
+      changeDraft(draft.categoryId, (current) => current?.requestId === draft.requestId ? details ? next : undefined : current);
+    }));
+    if (results.some((result) => result.status === 'rejected')) throw new Error('draft_discard_failed');
+    return true;
+  } catch {
+    showToast('Non è stato possibile eliminare tutte le bozze. Riprova.', { tone: 'error' });
+    return false;
+  } finally {
+    discardingDrafts = false;
+  }
+}
+
+export const discardDraftSelection = () => discardDrafts('selection');
+export const discardActivityDraft = (categoryId: ID) => discardDrafts({ categoryId });
+export const discardAllDrafts = () => discardDrafts('all');
 
 export function setViewMonth(m: MonthRef) {
   const today = get().today;
@@ -271,6 +311,7 @@ export const shiftMonth = (n: number) => setViewMonth(addMonths(get().viewMonth,
 export const goToday = () => setViewMonth(monthOf(refreshToday()));
 
 export function setPendingDetails(d: SessionDetailsDraft | null) {
+  if (discardingDrafts) return;
   const state = get();
   if (state.activeId) editDraft(state.activeId, state.selection, d ? JSON.parse(JSON.stringify(d)) as SessionDetailsDraft : null);
 }
@@ -294,7 +335,7 @@ export const closeSwitcher = () => set({ switcherOpen: false });
 /** Commit the selection. Resolves true when the data is persisted. */
 export async function save(): Promise<boolean> {
   const s = get();
-  if (s.saving || !s.selection.length || s.homeSessionMode === 'edit') return false;
+  if (s.saving || discardingDrafts || !s.selection.length || s.homeSessionMode === 'edit') return false;
   const category = s.categories.find((c) => c.id === s.activeId);
   if (!category) {
     set({ saveError: t.noActivitiesBody });
@@ -397,7 +438,7 @@ export function setHomeSessionMode(homeSessionMode: HomeSessionMode) {
 
 export function toggleBulkSession(id: ID) {
   const state = get();
-  if (state.homeSessionMode !== 'edit' || state.bulkSaving) return;
+  if (state.homeSessionMode !== 'edit' || state.bulkSaving || discardingDrafts) return;
   const session = state.sessions.find((session) => session.id === id && (!state.activeId || session.categoryId === state.activeId));
   if (!session) return;
   const selected = state.bulkSelection.includes(id);
@@ -409,7 +450,7 @@ export function toggleBulkSession(id: ID) {
 
 export function selectBulkDay(date: LocalDate, selected: boolean) {
   const state = get();
-  if (state.homeSessionMode !== 'edit' || state.bulkSaving || !isLocalDate(date) || date > state.today) return;
+  if (state.homeSessionMode !== 'edit' || state.bulkSaving || discardingDrafts || !isLocalDate(date) || date > state.today) return;
   const ids = new Set(state.sessions.filter((session) => (!state.activeId || session.categoryId === state.activeId) && session.date === date).map((session) => session.id));
   const bulkSelection = selected ? [...new Set([...state.bulkSelection, ...ids])] : state.bulkSelection.filter((id) => !ids.has(id));
   if (selected && !state.selection.includes(date)) changeSelection([...state.selection, date].sort(), bulkSelection);
@@ -417,7 +458,7 @@ export function selectBulkDay(date: LocalDate, selected: boolean) {
 }
 
 export function clearBulkSelection() {
-  if (!get().bulkSaving) changeSelection([], []);
+  if (!get().bulkSaving && !discardingDrafts) changeSelection([], []);
 }
 
 /** Commit the exact reviewed sessions. An export already in flight finishes before this edit. */

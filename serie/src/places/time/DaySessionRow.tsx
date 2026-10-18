@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Pressable as NativePressable, StyleSheet, View } from 'react-native';
 import { Pressable } from 'react-native-gesture-handler';
 import Swipeable, { type SwipeableMethods } from 'react-native-gesture-handler/ReanimatedSwipeable';
 import { router } from 'expo-router';
@@ -20,16 +20,21 @@ interface Props {
   onDelete?: () => void;
   onOpen: (row: SwipeableMethods) => void;
   onLayoutReady?: (node: View) => void;
+  /** The same saved row can be picked for bulk editing without opening it. */
+  selection?: { checked: boolean; onToggle: () => void };
 }
 
 /** Swiping reveals an action. Only an explicit press can request deletion. */
-export function DaySessionRow({ id, title, detail, preview, color, interactive, accessibilityLabel, deleteLabel, onDelete, onOpen, onLayoutReady }: Props) {
+export function DaySessionRow({ id, title, detail, preview, color, interactive, accessibilityLabel, deleteLabel, onDelete, onOpen, onLayoutReady, selection }: Props) {
   const C = useSurface();
   const row = useRef<View>(null);
   const swipeable = useRef<SwipeableMethods>(null);
   const dragged = useRef(false);
   const [open, setOpen] = useState(false);
-  const canDelete = interactive && !!onDelete;
+  const canDelete = interactive && !!onDelete && !selection;
+  // RNGH's web Native gesture activates on role="button", not "checkbox".
+  // Selection has no swipe action and keeps the standard checkbox press path.
+  const RowPressable = selection ? NativePressable : Pressable;
   // A cancelled native pan can still deliver a trailing press callback. Keep
   // that pointer sequence blocked until a fresh press begins.
   const beginPress = () => { dragged.current = false; };
@@ -46,19 +51,25 @@ export function DaySessionRow({ id, title, detail, preview, color, interactive, 
       onLayout={onLayoutReady ? () => { if (row.current) onLayoutReady(row.current); } : undefined}
       style={[styles.row, { backgroundColor: C.bg, borderTopColor: C.faint }]}
     >
-      <Pressable
+      <RowPressable
         cancelable
         onPressIn={beginPress}
-        onPress={() => { if (interactive && !dragged.current) router.push(`/session/${id}`); }}
+        onPress={() => {
+          if (!interactive || dragged.current) return;
+          if (selection) selection.onToggle();
+          else router.push(`/session/${id}`);
+        }}
         disabled={!interactive}
-        accessibilityRole={interactive ? 'button' : undefined}
+        accessibilityRole={selection ? 'checkbox' : interactive ? 'button' : undefined}
+        aria-checked={selection?.checked}
+        aria-disabled={!interactive}
         accessibilityLabel={accessibilityLabel}
         accessibilityActions={canDelete ? [{ name: 'delete', label: deleteLabel }] : undefined}
         onAccessibilityAction={(event) => { if (event.nativeEvent.actionName === 'delete') remove(); }}
         style={styles.details}
-        testID={`session-${id}`}
+        testID={selection ? `bulk-day-session-${id}` : `session-${id}`}
       >
-        <View style={[styles.dot, { backgroundColor: color }]} />
+        <View style={[styles.dot, { backgroundColor: color }]} testID={`session-color-${id}`} />
         <View style={styles.copy}>
           <T variant="bodyStrong" color={C.fg}>{title}</T>
           {preview ? (
@@ -69,8 +80,8 @@ export function DaySessionRow({ id, title, detail, preview, color, interactive, 
             </>
           ) : detail ? <T variant="small" color={C.mute}>{detail}</T> : null}
         </View>
-        {interactive ? <Chevron dir="right" color={C.mute} size={7} /> : null}
-      </Pressable>
+        {selection ? <T variant="bodyStrong" color={C.fg}>{selection.checked ? '✓' : '○'}</T> : interactive ? <Chevron dir="right" color={C.mute} size={7} /> : null}
+      </RowPressable>
       {canDelete ? (
         <Pressable
           cancelable

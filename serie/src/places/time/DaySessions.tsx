@@ -1,4 +1,4 @@
-/** Session rows shared by the monthly archive and the day detail sheet. */
+/** Saved session rows shared by Home, the monthly archive and day details. */
 import { useCallback, useRef } from 'react';
 import { StyleSheet, View } from 'react-native';
 import type { SwipeableMethods } from 'react-native-gesture-handler/ReanimatedSwipeable';
@@ -21,13 +21,15 @@ interface Props {
   interactive?: boolean;
   /** Browsing a calendar day keeps each field visible and notes to one line. */
   preview?: boolean;
-  /** Only saved day details offer deletion; the caller confirms before writing. */
+  /** Saved session lists may offer explicit deletion; the caller owns the write. */
   onDelete?: (session: Session) => void;
   /** Only the first row bounds the initial inline reveal, however long the day is. */
   onFirstRowLayout?: (node: View) => void;
+  /** Bulk editing changes only the row action; its activity and details stay visible. */
+  selection?: { ids: ReadonlySet<string>; onToggle: (id: string) => void };
 }
 
-export function DaySessions({ date, sessions, catById, showActivity, showDate = true, interactive = true, preview = false, onDelete, onFirstRowLayout }: Props) {
+export function DaySessions({ date, sessions, catById, showActivity, showDate = true, interactive = true, preview = false, onDelete, onFirstRowLayout, selection }: Props) {
   const C = useSurface();
   const openedRow = useRef<SwipeableMethods | null>(null);
   const openRow = useCallback((row: SwipeableMethods) => {
@@ -62,11 +64,12 @@ export function DaySessions({ date, sessions, catById, showActivity, showDate = 
             preview={compact}
             color={c?.color ?? C.mute}
             interactive={interactive}
-            accessibilityLabel={`${showActivity && c ? c.name + ', ' : ''}sessione ${i + 1}${detail ? `: ${detail.replace(/\n/g, ', ')}` : ''}${interactive ? '. Apri dettagli' : ''}`}
+            accessibilityLabel={`${showActivity && c ? c.name + ', ' : ''}sessione ${i + 1}${detail ? `: ${detail.replace(/\n/g, ', ')}` : ''}${interactive && !selection ? '. Apri dettagli' : ''}`}
             deleteLabel={`Elimina ${showActivity && c ? c.name + ', ' : ''}sessione ${i + 1}`}
             onDelete={onDelete ? () => onDelete(s) : undefined}
             onOpen={openRow}
             onLayoutReady={i === 0 ? onFirstRowLayout : undefined}
+            selection={selection ? { checked: selection.ids.has(s.id), onToggle: () => selection.onToggle(s.id) } : undefined}
           />
         );
       })}

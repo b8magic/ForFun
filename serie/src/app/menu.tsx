@@ -30,6 +30,7 @@ export default function MenuSheet() {
       <View>
         <View style={[styles.top, { backgroundColor: S.faint }]} />
         <MenuItem title={t.activities} detail={String(activityCount)} onPress={() => router.replace('/activities')} testID="menu-activities" />
+        <MenuItem title="Bozze" onPress={() => router.replace('/drafts')} testID="menu-drafts" />
         <MenuItem title={t.calendars} onPress={() => router.replace('/calendar')} testID="menu-calendars" />
       </View>
 
