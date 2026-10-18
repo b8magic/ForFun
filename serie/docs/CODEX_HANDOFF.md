@@ -7,11 +7,11 @@
 - Contribution author/tool: Codex. Final implementation commits use subjects beginning `Codex: …` so a future Claude/Codex reviewer can identify the work through Git history.
 - User-approved scope: complete the calendar/appearance/draft/day/history/named-period evolution, preserve existing data and integrations, run meaningful tests, and deliver one final verified GitHub IPA. No release marker is added before local candidate checks pass.
 
-## Current update: Serie 1.3.3
+## Current delivery: Serie 1.3.3
 
 Home monthly session counts now disappear at zero, including their accessible labels. Positive counts still follow the activity focus and exclude drafts.
 
-Deleting from History's inline monthly day details offers the existing red **Annulla** action. Undo restores the exact SQLite session row, including its ID, timestamps and optional details; unchanged import/export associations are reattached atomically. It is single-use and expires with the toast (6 seconds, 12 with VoiceOver). Conflicting or missing records fail visibly. Local restoration does not create calendar export jobs or repeat save hooks. The other deletion entry points retain their existing behavior.
+Deleting from History's inline monthly day details offers the existing red **Annulla** action. Undo restores the exact SQLite session row, including its ID, timestamps and optional details; unchanged import/export associations are reattached atomically. It is single-use and expires with the toast (6 seconds, 12 with VoiceOver). Conflicting or missing records fail visibly. Local restoration does not create calendar export jobs or repeat save hooks. The long-press day sheet and saved-session editor retain their existing deletion behavior.
 
 Named Periods use the installed native iPhone date picker for inclusive start/end dates; the browser verification build uses real date inputs. Local date conversion avoids UTC day shifts and supports future endpoints. Existing validation and unsaved-change guards remain intact. No database schema or dependency changes.
 
@@ -19,9 +19,17 @@ The user approved a common **Sessioni** list for Nuove and Modifica, accessible 
 
 The trailing activity-name draft dots are removed. **Menu → Bozze** shows one real shared date selection and per-activity prepared details, with independent discard, discard-all confirmation and Home resume. Legacy per-activity date snapshots are internal save inputs, not separate current selections, so they are not misrepresented as user drafts. Discard persists an explicit homeSelection before clearing snapshots, serializes against draft writes, and preserves recorded sessions. Failed writes remain visible and retryable. The monthly History ridgeline already exists in 1.3.1 and represents daily session counts.
 
-Final local verification passed **994 tests in 62 suites**, typecheck/lint, and **8/8 focused browser journeys**, with zero errors/warnings. Tests include exact persisted-row undo, single-use/expiry/conflict behavior, zero counts for active/neutral scope, 320px layout, date range validation/future-date persistence, the common multi-date list, actual individual/bulk edits, exclusions across mode/focus, and draft discard/reload with session/period rows unchanged. Date conversion tests also passed in America/Los_Angeles and Pacific/Kiritimati. [Verification receipt](verification-1.3.3.json). One final IPA-only build follows these checks; no simulator, video or physical iPhone interaction test is claimed.
+Final local verification passed **994 tests in 62 suites**, typecheck/lint, and **8/8 focused browser journeys**, with zero errors/warnings. Tests include exact persisted-row undo, single-use/expiry/conflict behavior, zero counts for active/neutral scope, 320px layout, date range validation/future-date persistence, the common multi-date list, actual individual/bulk edits, exclusions across mode/focus, and draft discard/reload with session/period rows unchanged. Date conversion tests also passed in America/Los_Angeles and Pacific/Kiritimati. [Verification receipt](verification-1.3.3.json). The final IPA-only build succeeded after these checks; no simulator, video or physical iPhone interaction test is claimed.
 
 The initial-scope IPA-only build [39140962311](https://github.com/b8magic/ForFun/actions/runs/39140962311), source `9405e5ad3d472d6dad48774bc86db7d915cf7d05`, completed successfully while the user approved the common list and Bozze additions. Cancellation was unavailable through the connector and rejected through gh. That intermediate build 7 was not delivered and is superseded by the final build below.
+
+### Delivered IPA 1.3.3
+
+- **[Serie 1.3.3, build 8 — unsigned IPA](https://github.com/b8magic/ForFun/actions/runs/39142564518/artifacts/12142308540)**. Bundle `app.serie.ios`, minimum iOS **16.4**. **16,112,128 bytes**, retained until **2026-10-25 16:05:56 UTC**. Install as an update through SideStore/AltStore Classic with the same Apple ID to keep local data.
+- Binary source **`1310ed9476595539a358bbf034f18762c0493a7f`**; locally verified application source **`96d04d88efd137cf50a5929e7a2dd4aca5370191`**. Later receipt/documentation commits do not change the delivered binary.
+- IPA SHA-256 **`8936de0022e58e06a6106df081dbdb3b68fc0e498fa9122abcd9168703313d77`** matches packaging, raw upload and artifact metadata, including exact size. Packaging requires embedded `main.jsbundle` and logs built Info.plist identity/version/build/minimum OS.
+- [Companion ZIP](https://github.com/b8magic/ForFun/actions/runs/39142564518/artifacts/12141964499): **15,982,916 bytes**, SHA-256 `bc8dea007ab44dc140b1a22626d93a85bc4150642ca3d79f521444c956860834`. Three files: IPA, checksum and generated source/version/run/build manifest. Independent local binary/ZIP inspection is not claimed.
+- [Run 39142564518](https://github.com/b8magic/ForFun/actions/runs/39142564518), job `117719799034`, succeeded on `macos-26` with Xcode **26.6** and iPhoneOS SDK **26.5**. IPA-only publication intentionally skips the prerelease job. [Delivery receipt](ipa-1.3.3.json) · [Local verification](verification-1.3.3.json).
 
 ## Previous delivery: Serie 1.3.2
 
