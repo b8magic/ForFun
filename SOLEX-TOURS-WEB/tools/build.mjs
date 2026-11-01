@@ -121,6 +121,7 @@ const cssHref = `assets/css/site.css?v=${hash(siteCss)}`;
 html = html.replace('<link rel="stylesheet" href="assets/css/site.css" data-async>',
   `<link rel="preload" href="${cssHref}" as="style"><link rel="stylesheet" href="${cssHref}" media="print" onload="this.media='all'"><noscript><link rel="stylesheet" href="${cssHref}"></noscript>`);
 html = html.replace('src="assets/js/site.js"', `src="assets/js/site.js?v=${hash(siteJs)}"`);
+html = html.replace(/<!--(?! Proposal build)[\s\S]*?-->/g, ''); // comments (CONFIRM list, section markers, fuego markers) stay in src only; the D5 'Proposal build' launch reminder stays in the output
 html = html.replace(/\n[ \t]+/g, '\n').replace(/\n{2,}/g, '\n');
 const left = html.match(/\{\{[^}]+\}\}|data-pic=/g);
 if (left) throw new Error('unexpanded placeholders: ' + left.join(', '));

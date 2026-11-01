@@ -10,15 +10,17 @@ export const images = [
   { id: 'hero-d', src: 'media/owner/fuego-eruption-night-plume.jpg', aspect: '3:4', focus: [42, 38], widths: [640, 900, 1200], quality: { avif: 48, webp: 72, jpg: 74 } },
 
   // The Cabin Door — one view, three shows.
-  { id: 'door-afternoon', src: 'media/owner/cabin-fuego-day.jpg', aspect: '4:5', focus: [60, 52], widths: [480, 800, 1080] },
+  { id: 'door-afternoon', src: 'media/owner/cabin-fuego-day.jpg', aspect: '4:5', focus: [60, 52], widths: [480, 800, 1080], quality: { avif: 40, webp: 66, jpg: 70 } },
   // People-free left part of sunset-group-three (sun + sea of clouds, camp fence). No people, no bottle.
   { id: 'door-sunset', src: 'media/owner/sunset-group-three.jpg', crop: { left: 0, top: 150, width: 448, height: 560 }, widths: [448], quality: { avif: 60, webp: 80, jpg: 82 } },
-  { id: 'door-night', src: 'media/owner/fuego-eruption-night-lava.jpg', aspect: '4:5', focus: [52, 34], widths: [480, 800, 1080] },
+  // Cropped so Fuego's apex registers with door-afternoon (≈ 73% / 45% of the frame) for the crossfade.
+  { id: 'door-night', src: 'media/owner/fuego-eruption-night-lava.jpg', crop: { left: 38, top: 310, width: 1014, height: 1268 }, widths: [480, 800, 1014] },
 
   // The two days (timeline). Desktop sticky panel = 4:5; mobile uses two photo moments.
-  { id: 'tl-trailhead', src: 'media/site/trailhead-group.jpg', crop: { left: 560, top: 90, width: 848, height: 636 }, widths: [480, 848] },
+  // The whole sign plus the group from the chest up (never cut at the chin).
+  { id: 'tl-trailhead', src: 'media/site/trailhead-group.jpg', crop: { left: 560, top: 190, width: 848, height: 636 }, widths: [480, 848] },
   { id: 'tl-trailhead-p', src: 'media/site/trailhead-group.jpg', crop: { left: 700, top: 120, width: 560, height: 700 }, widths: [480, 560] },
-  { id: 'tl-ridge', src: 'media/site/ridge-hiker-dog.jpg', aspect: '4:5', focus: [45, 55], widths: [480, 800] },
+  { id: 'tl-ridge', src: 'media/site/ridge-hiker-dog.jpg', aspect: '4:5', focus: [45, 55], widths: [480, 800], quality: { avif: 36, webp: 66, jpg: 70 } }, // busy texture: q36 keeps the 800w AVIF under 70 KB
   { id: 'tl-camp', src: 'media/owner/cabins-path-fuego-day.jpg', aspect: '4:5', focus: [72, 62], widths: [480, 800] },
   // Sunset from camp, Fuego on the left: letterbox crop that stops above the guest's head (people-free).
   { id: 'tl-sunset-wide', src: 'media/owner/sunset-guest-fuego.jpg', crop: { left: 0, top: 380, width: 768, height: 330 }, widths: [480, 768], quality: { avif: 58, webp: 78, jpg: 80 } },

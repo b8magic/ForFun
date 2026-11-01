@@ -66,7 +66,7 @@ for (const [label, dev] of [['mobile 390', { viewport: { width: 390, height: 844
   const total = all.reduce((a, r) => a + r.bytes, 0);
   const video = reqs.filter((r) => /\.(mp4|webm)/.test(urls[r.id] ?? '')).reduce((a, r) => a + r.bytes, 0);
   const lcpEl = await page.evaluate(() => 0);
-  console.log(`${label}: LCP ${(lcp / 1000).toFixed(2)} s · CLS (load) ${clsTop.toFixed(3)} · first load ${(firstLoad / 1024).toFixed(0)} KB · full scroll excl. video ${(total / 1024).toFixed(0)} KB (video ${(video / 1024).toFixed(0)} KB) · ${all.length} requests`);
+  console.log(`${label}: LCP ${(lcp / 1000).toFixed(2)} s · CLS (load) ${clsTop.toFixed(3)} · first load ${(firstLoad / 1024).toFixed(0)} KiB · full scroll excl. video ${(total / 1024).toFixed(0)} KiB (video ${(video / 1024).toFixed(0)} KiB) · ${all.length} requests`);
   void lcpAbs; void lcpEl; void t0;
   await ctx.close();
 }
@@ -75,7 +75,7 @@ server.close();
 
 // size table
 const gz = async (f) => gzipSync(await readFile(path.join(SITE, f)), { level: 9 }).length;
-const kb = (n) => (n / 1024).toFixed(1) + ' KB';
+const kb = (n) => (n / 1024).toFixed(1) + ' KiB'; // 1 KiB = 1024 bytes
 const html = await readFile(path.join(SITE, 'index.html'), 'utf8');
 const crit = html.match(/<style>([\s\S]*?)<\/style>/)[1];
 const fonts = await readdir(path.join(SITE, 'assets/fonts'));
@@ -85,6 +85,19 @@ const heroWebp = (await stat(path.join(SITE, 'assets/img/hero-m-1080.webp'))).si
 console.log(`\nHTML gz ${kb(await gz('index.html'))} (of which inlined critical CSS ${kb(gzipSync(crit, { level: 9 }).length)})`);
 console.log(`CSS gz: critical ${kb(gzipSync(crit, { level: 9 }).length)} + site.css ${kb(await gz('assets/css/site.css'))}`);
 console.log(`JS gz ${kb(await gz('assets/js/site.js'))}`);
+// byte budgets, DESIGN_DIRECTION §4.3 (gzip -9, KiB). Critical CSS is its own budget, so the HTML budget
+// counts the markup without the inline <style> (no double counting).
+const budgets = [
+  ['HTML markup gz (without the inline <style>)', gzipSync(html.replace(/<style>[\s\S]*?<\/style>/, ''), { level: 9 }).length, 20],
+  ['critical CSS gz', gzipSync(crit, { level: 9 }).length, 12],
+  ['total CSS gz (critical + site.css)', gzipSync(crit, { level: 9 }).length + (await gz('assets/css/site.css')), 22],
+  ['JS gz', await gz('assets/js/site.js'), 14],
+];
+for (const [name, bytes, max] of budgets) {
+  const pass = bytes <= max * 1024;
+  if (!pass) process.exitCode = 1;
+  console.log(`${pass ? 'PASS' : 'FAIL'}  ${name}: ${(bytes / 1024).toFixed(2)} KiB (${bytes} B) ≤ ${max} KiB`);
+}
 console.log(`Fonts total ${kb(fontTotal)} (${fonts.join(', ')})`);
 console.log(`Hero mobile 1080w: AVIF ${kb(heroAvif)} · WebP ${kb(heroWebp)}`);
 console.log(`Video: ${kb((await stat(path.join(SITE, 'assets/video/cabin-beds.mp4'))).size)} mp4 · ${kb((await stat(path.join(SITE, 'assets/video/cabin-beds.webm'))).size)} webm`);

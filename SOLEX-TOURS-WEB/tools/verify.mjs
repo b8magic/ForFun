@@ -215,7 +215,7 @@ for (const [tag, dev, q] of [['m', MOBILE, ''], ['m-static', MOBILE, '?static=1'
       const w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
       while (w.nextNode()) {
         const n = w.currentNode, el = n.parentElement;
-        if (!n.textContent.trim() || !el || !el.offsetParent || el.closest('svg, dialog:not([open]), .vh, [hidden], noscript')) continue;
+        if (!n.textContent.trim() || !el || !el.offsetParent || el.closest('svg, dialog:not([open]), .vh, [hidden], noscript, [aria-hidden="true"]')) continue; // decorative (e.g. the stamp ring) is exempt
         const fs = parseFloat(getComputedStyle(el).fontSize);
         if (fs < 13) out.push(`${fs}px "${n.textContent.trim().slice(0, 30)}"`);
       }

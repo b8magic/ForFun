@@ -44,6 +44,6 @@ subset(instance(os.path.join(NM, '@fontsource-variable/figtree/files/figtree-lat
 hand_src = os.path.join(NM, '@fontsource/caveat-brush/files/caveat-brush-latin-400-normal.woff2')
 if HAND_TEXT:
     chars = ''.join(sorted(set(HAND_TEXT.replace('\n', ' ')) | set(' .,!?¡’“”…')))
-    subset(hand_src, f'{OUT}/caveat-brush.woff2', ','.join(f'U+{ord(c):04X}' for c in chars))
+    subset(hand_src, f'{OUT}/caveat-brush.woff2', ','.join(f'U+{ord(c):04X}' for c in chars), extra=('--layout-features=kern',))
 else:
-    subset(hand_src, f'{OUT}/caveat-brush.woff2', HAND_UNI)
+    subset(hand_src, f'{OUT}/caveat-brush.woff2', HAND_UNI, extra=('--layout-features=kern',))
