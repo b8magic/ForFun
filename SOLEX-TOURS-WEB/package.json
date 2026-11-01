@@ -1,0 +1,16 @@
+{
+  "name": "solex-tours-web",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Solex Tours — English, mobile-first website proposal (static).",
+  "type": "module",
+  "scripts": {
+    "media": "node tools/build-media.mjs",
+    "build": "node tools/build.mjs",
+    "serve": "python3 -m http.server 8080 --directory site",
+    "shots": "node tools/shoot.mjs"
+  },
+  "devDependencies": {
+    "sharp": "^0.35.5"
+  }
+}
