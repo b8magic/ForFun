@@ -18,6 +18,8 @@ npm run media               # responsive images + cabin video → site/assets/{i
 npm run build               # src/ → site/
 node tools/build.mjs --no-fuego-hike   # same, with every Fuego-hike block stripped from the HTML
 npm run serve               # http://localhost:8080 (python3 static server)
+npm run preview             # preview/solex-tours-preview.html: ONE self-contained file (assets inlined)
+                            # to look at the design without a server; not for deployment
 ```
 
 Checks and screenshots (headless Chromium via Playwright):
