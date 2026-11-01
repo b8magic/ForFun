@@ -1,14 +1,9 @@
 # ForFun
 
-## corduroy — motion trailer
+A home for micro-projects. Each project lives in its own top-level folder with its own README.
 
-A 15.6-second vertical motion-graphics trailer (1080×1920, 60 fps) for a concept surf log,
-generated entirely in code, with a synthesized score.
+| Project | What it is |
+|---|---|
+| [`SERIE-APP/`](SERIE-APP/README.md) | **Serie**, a motion-first activity log for iPhone (Expo / React Native), and **corduroy**, the code-generated motion trailer its identity comes from |
 
-- `deliverables/corduroy_trailer_1080x1920.mp4` — the film
-- `deliverables/styleframes/` — eight full-resolution style frames
-- `deliverables/corduroy_score_48k.wav` — the score
-- `trailer/` — reproducible source (`trailer/build.sh`), see `trailer/README.md`
-- `trailer/DESIGN_LANGUAGE.md` — identity and motion reference
-
-Session data shown in the film is illustrative.
+`.github/workflows/` holds the GitHub Actions workflows of every project (GitHub only reads them from the repository root). Today they are the on-demand iOS builds of Serie.

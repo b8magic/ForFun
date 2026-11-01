@@ -79,8 +79,8 @@ gh repo clone b8magic/ForFun
 Then:
 
 ```bash
-cd ForFun/serie && tools/live.sh            # iOS Simulator
-cd ForFun/serie && tools/live.sh --device   # iPhone on the cable and on the same Wi-Fi as the Mac
+cd ForFun/SERIE-APP/serie && tools/live.sh            # iOS Simulator
+cd ForFun/SERIE-APP/serie && tools/live.sh --device   # iPhone on the cable and on the same Wi-Fi as the Mac
 ```
 
 `tools/live.sh` sets up the development app **Serie Dev** (`APP_VARIANT=development`: bundle id `app.serie.ios.dev` and its own `exp+serie-dev` launch scheme, so it sits next to an installed release). On every launch it:

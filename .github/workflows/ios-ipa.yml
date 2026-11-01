@@ -34,7 +34,7 @@ jobs:
     defaults:
       run:
         shell: bash # explicit → bash -eo pipefail, so `cmd | tee` fails when cmd fails
-        working-directory: serie
+        working-directory: SERIE-APP/serie
     env:
       CI: '1'
       EXPO_NO_TELEMETRY: '1'
@@ -62,7 +62,7 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: serie/package-lock.json
+          cache-dependency-path: SERIE-APP/serie/package-lock.json
 
       - name: Install JS dependencies
         run: npm ci --no-audit --no-fund

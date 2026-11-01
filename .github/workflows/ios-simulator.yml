@@ -9,7 +9,7 @@
 #     It does NOT run on an iPhone (that is the IPA from ios-ipa.yml).
 #   - "smoke-test": screen recording, screenshots, app log, Maestro reports, crash reports (if any).
 # The smoke test (tools/sim-smoke.sh) launches the Release build on an iPhone simulator, then runs the
-# Maestro flows in serie/maestro/ (save, restart, history, activity switch, place + Apple Maps,
+# Maestro flows in SERIE-APP/serie/maestro/ (save, restart, history, activity switch, place + Apple Maps,
 # export to the simulator's own iPhone calendar).
 name: iOS Simulator (build + smoke test)
 
@@ -36,7 +36,7 @@ jobs:
     defaults:
       run:
         shell: bash # explicit → bash -eo pipefail, so `cmd | tee` fails when cmd fails
-        working-directory: serie
+        working-directory: SERIE-APP/serie
     env:
       CI: '1'
       EXPO_NO_TELEMETRY: '1'
@@ -69,7 +69,7 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: serie/package-lock.json
+          cache-dependency-path: SERIE-APP/serie/package-lock.json
 
       - name: Install JS dependencies
         run: npm ci --no-audit --no-fund
