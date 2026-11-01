@@ -1,0 +1,3 @@
+# Proposal build — remove the Disallow before launch.
+User-agent: *
+Disallow: /

@@ -3,6 +3,7 @@
 //   node tools/build-media.mjs            # everything in tools/media.config.mjs
 //   node tools/build-media.mjs hero-night # only the ids given
 //
+// EXIF/GPS is never copied (sharp drops metadata unless .withMetadata() is called).
 // Each image entry is cropped around a focal point (when an aspect is given), then written as
 // AVIF + WebP + JPEG at every width that the source can honestly provide (no upscaling).
 // site/assets/img/manifest.json records the real output sizes; tools/build.mjs reads it to
@@ -41,7 +42,10 @@ async function buildImage(e, manifest) {
   const meta = await sharp(src).rotate().metadata();
   const W = meta.autoOrient?.width ?? meta.width;
   const H = meta.autoOrient?.height ?? meta.height;
-  const box = e.aspect ? cropBox(W, H, e.aspect, e.focus) : { left: 0, top: 0, width: W, height: H };
+  // A precise pixel crop (e.g. to keep people or litter out of frame) wins over aspect + focus.
+  const box = e.crop
+    ? { left: e.crop.left, top: e.crop.top, width: Math.min(e.crop.width, W - e.crop.left), height: Math.min(e.crop.height, H - e.crop.top) }
+    : e.aspect ? cropBox(W, H, e.aspect, e.focus) : { left: 0, top: 0, width: W, height: H };
   const widths = [...new Set(e.widths.map((w) => Math.min(w, box.width)))].sort((a, b) => a - b);
   const q = e.quality ?? {};
   const out = [];
@@ -56,9 +60,9 @@ async function buildImage(e, manifest) {
     out.push({ w, h });
   }
   // Dominant colour for the placeholder background behind the image while it loads.
-  const { dominant } = await sharp(src).extract(box).stats();
+  const { dominant } = await sharp(src).rotate().extract(box).stats();
   const hex = '#' + [dominant.r, dominant.g, dominant.b].map((v) => v.toString(16).padStart(2, '0')).join('');
-  manifest[e.id] = { aspect: e.aspect ?? `${box.width}:${box.height}`, widths: out, color: hex };
+  manifest[e.id] = { aspect: e.aspect ?? `${box.width}:${box.height}`, widths: out, color: hex, bytes: Object.fromEntries(await Promise.all(out.map(async (o) => [o.w, (await import('node:fs')).statSync(path.join(IMG_OUT, `${e.id}-${o.w}.avif`)).size]))) };
   console.log(`img  ${e.id.padEnd(26)} ${box.width}×${box.height} → ${out.map((o) => o.w).join(', ')}  ${hex}`);
 }
 

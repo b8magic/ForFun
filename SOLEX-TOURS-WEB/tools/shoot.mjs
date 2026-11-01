@@ -59,7 +59,7 @@ for (const key of only) {
   page.on('console', (m) => m.type() === 'error' && errors.push(`[${key}] console ${m.text()}`));
   page.on('requestfailed', (r) => errors.push(`[${key}] requestfailed ${r.url()}`));
   page.on('response', (r) => r.status() >= 400 && errors.push(`[${key}] ${r.status()} ${r.url()}`));
-  await page.goto(base + urlPath, { waitUntil: 'networkidle' });
+  await page.goto(base + urlPath, { waitUntil: 'networkidle', timeout: 30000 }).catch(() => {});
   await page.evaluate(() => document.fonts.ready);
   await page.screenshot({ path: path.join(outDir, `${key}-first.png`) });
   if (full) {
@@ -67,14 +67,18 @@ for (const key of only) {
     await page.evaluate(async () => {
       const step = innerHeight * 0.6;
       for (let y = 0; y < document.documentElement.scrollHeight; y += step) {
-        scrollTo(0, y);
+        scrollTo({ top: y, behavior: 'instant' });
         await new Promise((r) => setTimeout(r, 120));
       }
-      scrollTo(0, 0);
+      scrollTo({ top: 0, behavior: 'instant' });
       await new Promise((r) => setTimeout(r, 400));
     });
-    await page.waitForLoadState('networkidle');
-    await page.evaluate(() => Promise.all([...document.images].filter((i) => !i.complete).map((i) => new Promise((r) => { i.onload = i.onerror = r; }))));
+    await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {});
+    // Wait only for images that are actually rendered (lazy images inside display:none never load).
+    await page.evaluate(() => Promise.race([
+      Promise.all([...document.images].filter((i) => !i.complete && i.getClientRects().length).map((i) => new Promise((r) => { i.onload = i.onerror = r; }))),
+      new Promise((r) => setTimeout(r, 8000)),
+    ]));
     await page.screenshot({ path: path.join(outDir, `${key}-full.png`), fullPage: true });
   }
   await ctx.close();

@@ -7,10 +7,23 @@
   "scripts": {
     "media": "node tools/build-media.mjs",
     "build": "node tools/build.mjs",
+    "build:no-fuego": "node tools/build.mjs --no-fuego-hike",
     "serve": "python3 -m http.server 8080 --directory site",
-    "shots": "node tools/shoot.mjs"
+    "shots": "node tools/shoot.mjs",
+    "states": "node tools/shoot-states.mjs",
+    "verify": "node tools/verify.mjs",
+    "perf": "node tools/perf.mjs",
+    "textile": "node tools/gen-textile.mjs",
+    "brand": "node tools/build-brand.mjs",
+    "fonts": "python3 tools/hand-text.py && python3 tools/build-fonts.py"
   },
   "devDependencies": {
+    "@fontsource-variable/figtree": "^5.3.0",
+    "@fontsource-variable/fraunces": "^5.3.0",
+    "@fontsource/caveat-brush": "^5.3.0",
+    "axe-core": "^4.14.0",
+    "esbuild": "^0.28.2",
+    "lightningcss": "^1.33.0",
     "sharp": "^0.35.5"
   }
 }
