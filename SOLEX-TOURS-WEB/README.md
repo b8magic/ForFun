@@ -39,6 +39,15 @@ node tools/shoot-states.mjs docs/screens       # Cabin Door afternoon / sunset /
 `site/` is the deployable folder. All URLs are relative, so it works at a domain root or in a
 sub-folder of any static host.
 
+## Publish a preview on Cloudflare Pages
+
+With `CLOUDFLARE_API_TOKEN` (permission *Account › Cloudflare Pages › Edit*) and `CLOUDFLARE_ACCOUNT_ID`
+set in the environment:
+
+```bash
+npm run deploy:cf            # → https://solex-tours-preview.pages.dev (noindex while it's a proposal)
+```
+
 ## Folder layout
 
 ```
