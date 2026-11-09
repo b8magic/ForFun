@@ -1,0 +1,13 @@
+/* Spanish page only (tools/build.mjs appends critical-<lang>.css to that page's inlined critical CSS).
+   Spanish runs ~5–10% longer than English: "Duerme frente / al Fuego." keeps two lines on phones, the hero
+   price note keeps its bold line. */
+@media (max-width: 599px) { :root { --t-h1: clamp(36px, 11.2vw, 56px); } }
+@media (max-width: 429px) { .price__meta b { font-size: 15px; } }
+/* small phones (360, 375): the price note keeps two lines and the rating clears the bottom of the first screen */
+@media (max-width: 379px) {
+  .lede, .price { margin-bottom: 10px; }
+  .price { gap: 10px; padding-inline: 12px 10px; }
+  .price__meta { font-size: 14px; }
+  .hero__pickup { margin: 4px 0 -2px; }
+}
+@media (min-width: 340px) and (max-width: 379px) { .btn--l { padding-inline: 14px; gap: 8px; font-size: 16px; white-space: nowrap; } } /* "Consulta tu fecha por WhatsApp" on one line at 375 too (320 may wrap) */

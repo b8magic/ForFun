@@ -4,19 +4,25 @@ Il sito è una **proposta**: tutto ciò che è scritto viene dalle parole di Ale
 
 ## Scelte predefinite usate nel sito (da confermare)
 
-| Tema | Nel sito | Perché / alternativa |
+| Tema | Nel sito | Stato |
 |---|---|---|
-| Ritrovo tour 2 giorni | **~8:00** a Café Condesa o Café La Parada | Vocale più recente: "a las ocho". Il sito attuale dice 6:30 |
-| Pasti | **3** (pranzo, cena, colazione) + cioccolata calda e caffè | Alexander dice 3; il sito attuale ne indica 4 |
-| Prezzo | **Q750 ≈ US$100** (express Q675 ≈ US$90) | Il sito attuale usa $100; al cambio Banguat del 31/10 Q750 ≈ US$98 |
-| Guanti e berretto | **Non** elencati tra gli inclusi | Solo sul sito attuale, Alexander non li cita |
-| Altri tour (mezzanotte, tramonto, express) | Mostrati come secondari, con orari e prezzi del sito attuale | Alexander non li cita nei vocali |
-| Portatore | Q250 salita + Q250 discesa, fino a 13 kg | Solo sito attuale |
-| Noleggio | Giacche, zaini, frontali, bastoncini, scarpe: prezzi "su WhatsApp" | Nessun prezzo pubblicato |
-| Escursione Fuego | Come la propone Alexander: opzionale, ~4 h, +Q300, si decide e si paga al campo | Direttiva del cliente; nessuna frase su leggi/divieti. Vedi nota sotto |
-| Famiglia / 100% locale / guide con anni nelle grandi agenzie / 20+ anni / fondata 2019 | Presenti nella sezione "storia" | Direttive del cliente + descrizione scritta da Alexander su Google |
-| Recensioni | 6 citazioni testuali da Google (5,0 · 25 recensioni, verificato 1 nov 2026) | Le spagnole sono tradotte e marcate come tali |
-| Lago Atitlán | "la catena di vulcani verso il lago Atitlán, con cielo limpido" | Dal campo si vede la catena; la superficie del lago potrebbe vedersi poco |
+| Ritrovo tour 2 giorni | **8:00** a Café Condesa o Café La Parada, **dalle 6:30 su richiesta** | ✅ Confermato (round 2) |
+| Pasti | **4**: colazione, pranzo e cena il giorno 1, colazione il giorno 2 · cioccolata calda la sera, caffè o tè al mattino | ✅ Confermato (round 2). Da chiarire solo dove si fa la colazione del giorno 1 |
+| Pagamento | **Solo contanti** | ✅ Confermato (round 2) |
+| Panajachel / Lago Atitlán | Add-on opzionale su richiesta, fa risparmiare **fino a 90 minuti** | ✅ Confermato (round 2). Da chiarire chi fa il trasporto e quanto costa |
+| Escursione Fuego | Opzionale, circa 4 ore (2 h andata, 30 min lassù, 2 h ritorno), +Q300, si decide e si paga al campo | ✅ Come da tue indicazioni. Vedi nota sotto |
+| Cabina privata | Su richiesta e se il campo è tranquillo: per una persona, una coppia o un piccolo gruppo | ✅ Come da tue indicazioni |
+| Temperatura notturna al campo | Di solito tra −2 °C e +5 °C | ✅ Confermato (round 2) |
+| Piattaforma privata con panche e sedie davanti al Fuego | Presente nel testo del pomeriggio | ✅ Confermato (round 2) |
+| Prezzo | **Q750 ≈ US$100** (express Q675 ≈ US$90) | Da confermare se accetta dollari e a quanto |
+| Guanti e berretto | **Non** elencati tra gli inclusi | Da confermare |
+| Altri tour (mezzanotte, tramonto, express) | Mostrati come "Our other tours", con orari e prezzi del sito attuale | Da confermare che siano ancora attivi |
+| Portatore | Q250 salita + Q250 discesa, fino a 13 kg (su richiesta, non incluso) | Da confermare |
+| Noleggio | Giacche, zaini, frontali, bastoncini, scarpe: su richiesta, non inclusi, prezzi "su WhatsApp" | Da confermare i prezzi |
+| Famiglia / 100% locale / guide con anni nelle grandi agenzie / 20+ anni / fondata 2019 | Presenti nella sezione "storia" | Da far approvare il testo ad Alexander |
+| Recensioni | 6 citazioni testuali da Google (5,0 · 25 recensioni, verificato 1 nov 2026) | Da far approvare ad Alexander |
+| Versione spagnola | Tutto il sito tradotto, con il "tú" come sul sito attuale | Da far rileggere ad Alexander |
+| Lago Atitlán dal campo | "la catena di vulcani verso il lago Atitlán, con cielo limpido" | Dal campo si vede la catena; la superficie del lago potrebbe vedersi poco |
 
 ## Nota sull'escursione al Fuego (solo per te, non per il sito)
 
@@ -33,18 +39,18 @@ I link sono in `docs/research/03_regulations_facts.md` (sezione Fuego). Alcuni c
 - `CONFIG.features.fuegoAddon = false`, oppure
 - `node tools/build.mjs --no-fuego-hike`.
 
-In entrambi i casi spariscono tutte e tre le menzioni e il resto del sito non cambia.
+In entrambi i casi spariscono tutte le menzioni (in inglese e in spagnolo) e il resto del sito non cambia.
 
 ## Messaggio per Alexander (spagnolo, pronto da inviare)
 
 ```
-Hola Alexander 👋 Ya tenemos lista la propuesta del nuevo sitio web en inglés. Antes de publicarlo necesitamos confirmar estos datos:
+Hola Alexander 👋 Ya tenemos lista la propuesta del nuevo sitio web, en inglés y en español. Antes de publicarlo necesitamos confirmar estos datos:
 
-1. Tour 2 días / 1 noche: ¿la salida en Antigua es a las 8:00 AM o a las 6:30 AM? ¿La misma hora en Café Condesa y en Café La Parada?
+1. ¿La recogida de las 8:00 AM (o 6:30 AM a solicitud) es a la misma hora en Café Condesa y en Café La Parada? ¿Dónde se sirve el desayuno del primer día?
 2. ¿A qué hora suelen empezar a caminar, llegar al campamento, salir a la cumbre y regresar a Antigua?
-3. Comidas: ¿son 3 (almuerzo, cena, desayuno) o 4? ¿Los guantes y gorros están incluidos?
+3. ¿Los guantes y gorros están incluidos?
 4. ¿Siguen los otros tours y precios? Media Noche Q750 (10:30 PM), Atardecer Q750 (10:30 AM), Un Día Q675 (5:00 AM).
-5. Pago y reservas: ¿piden anticipo? ¿Cómo se paga (efectivo Q o US$, transferencia, tarjeta)? ¿Qué pasa si el cliente cancela, cambia la fecha o hay mal tiempo?
+5. Pago en efectivo: ¿en quetzales y también en dólares? ¿Piden anticipo? ¿Qué pasa si el cliente cancela, cambia la fecha o hay mal tiempo?
 6. ¿Qué número recibe las reservas del sitio (4834 7003 o 4946 8883)? ¿Quién contesta los mensajes en inglés?
 7. Precios de alquiler: chaqueta, mochila, linterna, bastones, zapatos. Porteador: ¿sigue Q250 subida y Q250 bajada (13 kg)?
 8. Campamento: ¿hay baño? ¿Se puede comprar agua o comida?
@@ -54,6 +60,7 @@ Hola Alexander 👋 Ya tenemos lista la propuesta del nuevo sitio web en inglés
 12. En el sitio decimos: "pequeña empresa familiar, 100% local y comunitaria de La Soledad; guías locales con experiencia, muchos trabajaron años en las agencias grandes; fundada en 2019 por Alexander, con más de 20 años de experiencia como guía". ¿Está bien así?
 13. Fotos: ¿las fotos del Fuego de noche y del atardecer se tomaron desde su campamento? ¿Tenemos permiso de los turistas que salen en las fotos? Si puede, mándenos las fotos originales como "Documento" (mejor calidad), una foto suya y de los guías, y fotos de la comida, del baño y del comedor.
 14. ¿Podemos mostrar en el sitio frases de sus reseñas de Google?
+15. ¿Puede leer la versión en español del sitio y decirnos si algo no suena bien?
 
 ¡Muchas gracias!
 ```

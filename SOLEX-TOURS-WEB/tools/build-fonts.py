@@ -16,7 +16,8 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 NM = os.path.join(ROOT, 'node_modules')
 OUT = os.path.join(ROOT, 'src/assets/fonts')
 os.makedirs(OUT, exist_ok=True)
-TEXT_UNI = 'U+0020-007E,U+00A0,U+00A1,U+00A9,U+00B7,U+00BF,U+00C1,U+00C9,U+00CD,U+00D1,U+00D3,U+00DA,U+00E1,U+00E9,U+00ED,U+00F1,U+00F3,U+00FA,U+00FC,U+2013,U+2014,U+2018,U+2019,U+201C,U+201D,U+2022,U+2026,U+2032,U+2033,U+2190-2193,U+2248,U+00D7,U+2713,U+2605,U+20AC'
+# Latin-1 letters and marks used in English and Spanish (á é í ó ú ü ñ, capitals, ¿ ¡ « » ª º) plus typography.
+TEXT_UNI = 'U+0020-007E,U+00A0,U+00A1,U+00A9,U+00AA,U+00AB,U+00B0,U+00B7,U+00BA,U+00BB,U+00BF,U+00C1,U+00C9,U+00CD,U+00D1,U+00D3,U+00DA,U+00DC,U+00E1,U+00E9,U+00ED,U+00F1,U+00F3,U+00FA,U+00FC,U+2013,U+2014,U+2018,U+2019,U+201C,U+201D,U+2022,U+2026,U+2032,U+2033,U+2190-2193,U+2212,U+2248,U+00D7,U+2713,U+2605,U+20AC'
 # Caveat Brush is only used for a handful of short notes: subset to exactly the glyphs they need.
 HAND_TEXT = open(os.path.join(ROOT, 'tools/hand-text.txt'), encoding='utf-8').read() if os.path.exists(os.path.join(ROOT, 'tools/hand-text.txt')) else None
 HAND_UNI = 'U+0020-007E,U+00A1,U+2019,U+201C,U+201D,U+2026'
@@ -43,7 +44,7 @@ subset(instance(os.path.join(NM, '@fontsource-variable/figtree/files/figtree-lat
        f'{OUT}/figtree-var.woff2', TEXT_UNI)
 hand_src = os.path.join(NM, '@fontsource/caveat-brush/files/caveat-brush-latin-400-normal.woff2')
 if HAND_TEXT:
-    chars = ''.join(sorted(set(HAND_TEXT.replace('\n', ' ')) | set(' .,!?¡’“”…')))
+    chars = ''.join(sorted(set(HAND_TEXT.replace('\n', ' ')) | set(' .,!?¡¿’“”…')))
     subset(hand_src, f'{OUT}/caveat-brush.woff2', ','.join(f'U+{ord(c):04X}' for c in chars), extra=('--layout-features=kern',))
 else:
     subset(hand_src, f'{OUT}/caveat-brush.woff2', HAND_UNI, extra=('--layout-features=kern',))

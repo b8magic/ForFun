@@ -32,12 +32,13 @@ await new Promise((r) => server.listen(0, '127.0.0.1', r));
 const base = `http://127.0.0.1:${server.address().port}/`;
 const browser = await playwright.chromium.launch();
 
-for (const [label, dev] of [['mobile 390', { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true }], ['desktop 1440', { viewport: { width: 1440, height: 900 } }]]) {
+const PHONE = { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true };
+for (const [label, dev, pagePath] of [['mobile 390', PHONE, ''], ['desktop 1440', { viewport: { width: 1440, height: 900 } }, ''], ['es mobile 390', PHONE, 'es/']]) {
   const ctx = await browser.newContext({ ...dev, reducedMotion: 'no-preference' });
   const page = await ctx.newPage();
   const cdp = await ctx.newCDPSession(page);
   await cdp.send('Network.enable');
-  if (label.startsWith('mobile')) {
+  if (label.includes('mobile')) {
     await cdp.send('Network.emulateNetworkConditions', { offline: false, latency: 150, downloadThroughput: 1.6 * 1024 * 1024 / 8, uploadThroughput: 750 * 1024 / 8 });
     await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 });
   }
@@ -51,7 +52,7 @@ for (const [label, dev] of [['mobile 390', { viewport: { width: 390, height: 844
     new PerformanceObserver((l) => { for (const e of l.getEntries()) if (!e.hadRecentInput) window.__cls += e.value; }).observe({ type: 'layout-shift', buffered: true });
   });
   const t0 = Date.now();
-  await page.goto(base, { waitUntil: 'load' });
+  await page.goto(base + pagePath, { waitUntil: 'load' });
   await page.waitForTimeout(2500);
   const lcp = await page.evaluate(() => window.__lcp);
   const nav = await page.evaluate(() => performance.timeOrigin);
@@ -73,30 +74,33 @@ for (const [label, dev] of [['mobile 390', { viewport: { width: 390, height: 844
 await browser.close();
 server.close();
 
-// size table
+// size table + byte budgets, DESIGN_DIRECTION §4.3 (gzip -9, KiB), for every language page (site/index.html,
+// site/es/index.html). Critical CSS is its own budget, so the HTML budget counts the markup without the inline
+// <style> (no double counting).
 const gz = async (f) => gzipSync(await readFile(path.join(SITE, f)), { level: 9 }).length;
 const kb = (n) => (n / 1024).toFixed(1) + ' KiB'; // 1 KiB = 1024 bytes
-const html = await readFile(path.join(SITE, 'index.html'), 'utf8');
-const crit = html.match(/<style>([\s\S]*?)<\/style>/)[1];
 const fonts = await readdir(path.join(SITE, 'assets/fonts'));
 let fontTotal = 0; for (const f of fonts) fontTotal += (await stat(path.join(SITE, 'assets/fonts', f))).size;
 const heroAvif = (await stat(path.join(SITE, 'assets/img/hero-m-1080.avif'))).size;
 const heroWebp = (await stat(path.join(SITE, 'assets/img/hero-m-1080.webp'))).size;
-console.log(`\nHTML gz ${kb(await gz('index.html'))} (of which inlined critical CSS ${kb(gzipSync(crit, { level: 9 }).length)})`);
-console.log(`CSS gz: critical ${kb(gzipSync(crit, { level: 9 }).length)} + site.css ${kb(await gz('assets/css/site.css'))}`);
-console.log(`JS gz ${kb(await gz('assets/js/site.js'))}`);
-// byte budgets, DESIGN_DIRECTION §4.3 (gzip -9, KiB). Critical CSS is its own budget, so the HTML budget
-// counts the markup without the inline <style> (no double counting).
-const budgets = [
-  ['HTML markup gz (without the inline <style>)', gzipSync(html.replace(/<style>[\s\S]*?<\/style>/, ''), { level: 9 }).length, 20],
-  ['critical CSS gz', gzipSync(crit, { level: 9 }).length, 12],
-  ['total CSS gz (critical + site.css)', gzipSync(crit, { level: 9 }).length + (await gz('assets/css/site.css')), 22],
-  ['JS gz', await gz('assets/js/site.js'), 14],
-];
-for (const [name, bytes, max] of budgets) {
-  const pass = bytes <= max * 1024;
-  if (!pass) process.exitCode = 1;
-  console.log(`${pass ? 'PASS' : 'FAIL'}  ${name}: ${(bytes / 1024).toFixed(2)} KiB (${bytes} B) ≤ ${max} KiB`);
+const siteCss = await gz('assets/css/site.css');
+console.log(`\nCSS gz site.css ${kb(siteCss)} (shared) · JS gz ${kb(await gz('assets/js/site.js'))} (shared)`);
+for (const page of ['index.html', 'es/index.html']) {
+  const html = await readFile(path.join(SITE, page), 'utf8');
+  const crit = html.match(/<style>([\s\S]*?)<\/style>/)[1];
+  const critGz = gzipSync(crit, { level: 9 }).length;
+  console.log(`\n${page}: HTML gz ${kb(await gz(page))} (of which inlined critical CSS ${kb(critGz)})`);
+  const budgets = [
+    ['HTML markup gz (without the inline <style>)', gzipSync(html.replace(/<style>[\s\S]*?<\/style>/, ''), { level: 9 }).length, 20],
+    ['critical CSS gz', critGz, 12],
+    ['total CSS gz (critical + site.css)', critGz + siteCss, 22],
+    ['JS gz', await gz('assets/js/site.js'), 14],
+  ];
+  for (const [name, bytes, max] of budgets) {
+    const pass = bytes <= max * 1024;
+    if (!pass) process.exitCode = 1;
+    console.log(`${pass ? 'PASS' : 'FAIL'}  ${page} · ${name}: ${(bytes / 1024).toFixed(2)} KiB (${bytes} B) ≤ ${max} KiB`);
+  }
 }
 console.log(`Fonts total ${kb(fontTotal)} (${fonts.join(', ')})`);
 console.log(`Hero mobile 1080w: AVIF ${kb(heroAvif)} · WebP ${kb(heroWebp)}`);

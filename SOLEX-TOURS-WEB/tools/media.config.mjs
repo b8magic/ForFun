@@ -16,6 +16,10 @@ export const images = [
   // Cropped so Fuego's apex registers with door-afternoon (≈ 73% / 45% of the frame) for the crossfade.
   { id: 'door-night', src: 'media/owner/fuego-eruption-night-lava.jpg', crop: { left: 38, top: 310, width: 1014, height: 1268 }, widths: [480, 800, 1014] },
 
+  // The optional Fuego hike block in the camp section (R2-D): Fuego erupting at dawn, tighter
+  // than tl-morning (plume + whole cone, a fence post bottom right). 4:5 for the print / side thumbnail.
+  { id: 'fuego-hike', src: 'media/site/fuego-eruption-dawn.jpg', crop: { left: 40, top: 100, width: 640, height: 800 }, widths: [320, 480, 640], quality: { avif: 50, webp: 72, jpg: 74 } },
+
   // The two days (timeline). Desktop sticky panel = 4:5; mobile uses two photo moments.
   // The whole sign plus the group from the chest up (never cut at the chin).
   { id: 'tl-trailhead', src: 'media/site/trailhead-group.jpg', crop: { left: 560, top: 190, width: 848, height: 636 }, widths: [480, 848] },

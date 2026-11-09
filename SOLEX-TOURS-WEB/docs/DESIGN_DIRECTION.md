@@ -26,7 +26,7 @@ Nothing on the site may go beyond these sources. Every item marked **[CONFIRM]**
 The site has two doors and one day:
 - **Alexander's door in La Soledad**, where the trip and the page start: the "¡Hola! I'm Alexander" note, the letter, luggage that "doesn't go missing here".
 - **Your cabin door facing Fuego**, where the trip pays off. A frame built from the cabin's red-and-cream curtain walls holds the same view at afternoon, sunset and after dark.
-- **The 24 hours in between.** The two-day itinerary changes colour with the time of day (manta morning, sky midday, gold sunset, night, blue hour, lavender dawn). The logo's sun travels down the woven thread of the timeline.
+- **The 24 hours in between.** The two-day itinerary changes colour with the time of day (pale-sky morning, logo-sky afternoon, gold sunset, night, blue hour, lavender dawn). The logo's sun travels down the woven thread of the timeline.
 
 Tone: warm, plain-spoken, honest, handmade. It should feel like a small local operator, not a slick agency, a film festival or a gear brand.
 
@@ -78,28 +78,39 @@ Put all tokens in `:root` in `css/tokens.css`, which is inlined into the critica
 
 ### 2.1 Colour
 
-Colours are sampled from the logo (`/tmp/solex_raw/site/logo.png`), the cabin video blankets and the camp photos (B's sampling, kept).
+**Brand colour (client round 2, §E, 9 Nov 2026): the logo's light blue.** It is sampled from
+`media/site/logo.png` (346,370 of its opaque pixels are exactly `#ABD4EA`; the logo webps in
+`src/assets/brand/` re-encode it as `#ACD4EB`) and is now the colour the site reads as at first glance:
+header, hero ground, dock, booking sheet, the overnight, other-tours, gear and booking sections. A family
+is derived from it in the logo's own hue (201°): two tints for grounds, a deep blue for text, checks,
+selected states and the footer. The warm colours are accents only (cabin red for the booking CTA, prices
+and kickers; the logo sun for highlights), and the night/dusk/dawn colours stay where they tell the time
+of day (camp, Cabin Door, timeline). Everything else (blankets, cabin walls, camp photos) is B's sampling,
+kept. The same values live in `src/assets/css/critical.css` (`:root`), `tools/gen-textile.mjs` (`s`),
+`tools/build-brand.mjs` (favicon/app icons), `<meta name="theme-color">` and `site.webmanifest`.
 
 | Token | Hex | Source | Role |
 |---|---|---|---|
-| `--manta` | `#F7EFE4` | Blanket and wall cream | Page ground, with canvas weave |
-| `--manta-2` | `#EFE3D2` | — | Alternate sections |
-| `--paper` | `#FFFBF4` | — | Letter, ticket, booking slip, cards, inputs |
-| `--ink` | `#1E1D18` | Logo peaks | Text, dock, footer, chips (checked) |
-| `--ink-2` | `#5A4A44` | Cabin shadow brown | Secondary text |
-| `--line` | `#D9C7B3` | — | Decorative rules only (never control borders) |
-| `--control` | `#8A7A70` | — | Input and radio-card borders (non-text 3:1) |
-| `--sky` | `#A8D1E6` | Logo circle | "Now" loom card, gear section, Afternoon phase |
-| `--sky-pale` | `#DCEEF7` | Logo sky tint | Midday phase, info notes |
-| `--sun` | `#F4C06A` | Logo sun | Accents on dark, focus halo, timeline sun |
+| `--sky` | `#ABD4EA` | **Logo circle (exact)** | Brand ground: header, hero (full-bleed), compact header, dock, sheet header, overnight / other tours / gear / book sections, guides card, loom "now" panel, water note, stepper buttons, ticket badge, Afternoon phase, `theme-color` |
+| `--sky-2` | `#C4E1F0` | Logo sky, 30 % white | Timeline morning, Fitness card, hover on sky controls |
+| `--sky-pale` | `#DDEEF7` | Logo sky, 60 % white | **Page ground** (legend, story, reviews, timeline, cabin, getting there, FAQ, menu), "What you bring" card, the ticket's "Optional upgrade" card (2 px `--night` edge, `--red-deep` +Q300; round-2 review VIS-F3/F9), totals, selected radio card fill, info notes |
+| `--sky-deep` | `#1D5472` | Logo hue, 28 % lightness | Footer band, checks and ticks, selected radio border/dot, checked chips, flexible-date checkbox, guide-count line, "sent" button, focus halo |
+| `--paper` | `#FFFBF4` | — | Letter, ticket, booking slip, cards, inputs, price box |
+| `--manta` | `#F7EFE4` | Blanket and wall cream | The "Hecho en La Soledad" block only (with canvas weave): the one warm, handmade ground |
+| `--manta-2` | `#EFE3D2` | — | Loom "how Alexander used to guide" panel (the old way stays warm grey, Solex is blue) |
+| `--ink` | `#1E1D18` | Logo peaks | Text, header WhatsApp disc, dock edge, door chips, toast |
+| `--ink-2` | `#3D4F5C` | Logo ink cooled toward the sky (205°) | Secondary text, captions (was the brown `#5A4A44`, which turned muddy on blue) |
+| `--wood` | `#5A4A44` | Cabin shadow brown | Door-frame sill and caption plate (the old ink-2, kept for the cabin wall only) |
+| `--line` | `rgb(29 84 114 / .24)` | Deep blue at 24 % | Decorative rules and card edges only (tints itself on any ground; never control borders) |
+| `--control` | `#586E7E` | Slate in the logo hue | Input, radio-card and chip borders (non-text ≥ 3:1) |
+| `--sun` | `#F4C06A` | Logo sun | Accents on dark, timeline sun, hero sun glow (phones), upgrade buttons |
 | `--gold` | `#F3C46E` | Sunset band (`sunset_group_three.jpg`) | Sunset phase start |
 | `--dusk` | `#E9A15B` | Sunset sky | Sunset phase end |
-| `--red` | `#A8232B` | Cabin wall stripe | **Primary CTA**, kickers, stamp, selected border |
-| `--red-deep` | `#7A1A21` | — | CTA pressed edge, hover |
-| `--red-text` | `#9A1F27` | — | Error text, red text on manta (AA small) |
-| `--selected` | `#FBE8E4` | — | Selected radio-card fill |
+| `--red` | `#A8232B` | Cabin wall stripe | **Primary CTA**, prices, H2 italic line, stamp, timeline thread |
+| `--red-deep` | `#7A1A21` | — | CTA pressed edge, hover; italic line on sky in the gear section and Door states 1–2 |
+| `--red-text` | `#9A1F27` | — | Kickers (every ground), error text, live total in the dock |
 | `--pink` | `#D97F95` | Blanket pink | Rombo motif (decorative only) |
-| `--teal` / `--teal-ink` | `#1F8F8B` / `#0F6461` | Sleeping bag | Check icons (decorative) / teal text |
+| `--teal` | `#1F8F8B` | Sleeping bag | WhatsApp double tick in the message preview (decorative) |
 | `--cobalt` | `#2F6F8F` | Sleeping bag | Lined-paper rules (decorative) |
 | `--mauve` | `#5E3A40` | Fret blanket ground | "What we won't promise" card, fret band |
 | `--stripe` | `#EFD9C6` | Curtain-wall cream | Door frame stripes |
@@ -107,44 +118,77 @@ Colours are sampled from the logo (`/tmp/solex_raw/site/logo.png`), the cabin vi
 | `--night-2` | `#1A2440` | Night sky | Cards on night |
 | `--bluehour` | `#22305A` | Pre-dawn sky | Before-dawn phase |
 | `--dawn` | `#C8CEF3` | Sunrise lavender, lightened | Sunrise phase (ink text) |
-| `--mist` | `#A9B4C8` | Night cloud | Secondary text on dark |
+| `--mist` | `#A9B4C8` | Night cloud | Secondary text on night |
 | `--lava` | `#F76852` | Red plume | Plume pixels and glints on dark only (never text on light) |
 | `--bubble` | `#E2F7CB` | WhatsApp-like | Message preview bubble |
-| `--bubble-bg` | `#E9DFD0` | — | Preview well |
+| `--bubble-bg` | `#E9DFD0` | WhatsApp wallpaper | Preview well (kept beige on purpose: it reads as WhatsApp) |
 
-**Contrast-checked pairs** (WCAG 2.x, computed). Use only these pairs for text.
+Removed in round 2: `--selected` (now `--sky-pale`) and `--teal-ink` (now `--sky-deep`).
+
+**Section rhythm (mobile order).** Sky header + hero → fret band → pale legend and story → night camp,
+Cabin Door and Fuego block → sky overnight (paper ticket) → pale reviews → manta "Hecho en La Soledad" →
+the timeline (pale morning → sky-2 → sky afternoon → sunset → night → blue hour → dawn → pale) → pale
+cabin → sky other tours → pale getting there → sky gear → pale FAQ (and prepare, ≥ 600 px) → sky booking
+→ volcano band → deep-blue footer. Sky and pale alternate so the brand blue is on screen at every scroll
+position; paper cards sit on both.
+
+**Booking CTA: red stays.** On a blue page the cabin-wall red is the only large warm, saturated shape, so
+the button is the first thing the eye lands on (hue contrast plus the isolation effect); an ink button on
+blue would read as neutral, compete with the ink header disc, text and logo peaks, and lose the "this is
+the action" cue the conversion judge credited. Numbers: red vs sky 4.54:1 and vs sky-pale 6.0:1 (the
+component boundary, ≥ 3:1), white label on red 7.1:1, and the dashed paper stitch inside (paper on red
+6.9:1). The dock is now a sky patch with a 2 px ink edge, which raises the Send button's boundary from
+2.4:1 (red on ink) to 4.54:1 and makes the dock itself a brand-blue element on every phone screen
+(ink edge ≥ 10:1 on every light ground; sky on night 11.6:1).
+
+**Focus ring.** `--focus: 0 0 0 2px var(--paper), 0 0 0 5px var(--sky-deep)`: a paper gap and a deep-blue
+halo (halo 5.2:1 on sky, 6.9:1 on pale, 7.9:1 on paper; the paper gap separates it from red and deep-blue
+controls). On dark grounds: `0 0 0 2px <ground>, 0 0 0 5px var(--sun)`.
+
+**Contrast-checked pairs** (WCAG 2.x, computed from the hex values; `node tools/verify.mjs` runs axe on
+mobile, desktop, static, sheet and menu). Use only these pairs for text.
 
 | Text on background | Ratio | Allowed use |
 |---|---|---|
-| ink on manta / manta-2 / paper | 14.8 / 13.3 / 16.4 | All text |
-| ink-2 on manta / manta-2 / paper | 7.4 / 6.6 / 8.2 | Secondary text, captions |
+| ink on sky / sky-2 / sky-pale | 10.7 / 12.4 / 14.2 | All text on blue grounds |
+| ink on paper / manta / manta-2 | 16.4 / 14.8 / 13.3 | All text on cards and the community block |
+| ink-2 on sky / sky-2 / sky-pale | 5.4 / 6.2 / 7.1 | Secondary text on blue |
+| ink-2 on paper / manta / manta-2 | 8.2 / 7.5 / 6.7 | Secondary text, captions |
+| ink-2 on bubble-bg / gold / dawn | 6.5 / 5.2 / 5.5 | Preview label, sunset and sunrise phases |
 | white on red (`#FFF` / `#A8232B`) | 7.1 | CTA labels |
 | paper on red | 6.9 | Stitch outline and label alternative |
-| red on manta / paper | 6.3 / 6.9 | Kickers, prices, links |
-| red-text on manta / paper | 7.1 / 7.8 | Error text |
-| ink on sky / sky-pale | 10.4 / 14.2 | Text on sky sections |
-| ink-2 on sky / sky-pale | 5.2 / 7.1 | Secondary on sky |
+| red on paper / manta / sky-pale | 6.9 / 6.3 / 6.0 | Prices, H2 italic lines, links |
+| red on sky | 4.54 | H2 italic lines (≥ 30 px) only |
+| red-text on sky / sky-pale / paper / manta | 5.1 / 6.8 / 7.8 / 7.1 | Kickers, error text, dock live total |
+| red-deep on sky / dusk | 6.7 / 4.9 | Italic lines on sky, Door states 1–2 |
+| sky-deep on sky / sky-pale / paper | 5.2 / 6.9 / 7.9 | Guide-count line, checks |
+| paper / white / sky / sun on sky-deep | 7.9 / 8.2 / 5.2 / 4.9 | Footer, checked chips, "sent" button |
 | ink on sun / gold / dusk | 10.1 / 10.4 / 7.8 | Sun chips, sunset phase |
-| ink-2 on gold | 5.2 | Secondary on sunset phase |
 | paper / sun / stripe on mauve | 9.5 / 5.8 / 7.2 | Honest card |
+| paper / sun on wood | 8.2 / 5.0 | Door caption plate |
 | paper / mist / sun on night | 17.7 / 8.7 / 10.9 | Night sections |
 | lava on night | 6.1 | Accent text on night (≥ 15 px) |
 | paper / mist / sun on bluehour | 12.4 / 6.1 / 7.7 | Before-dawn phase |
-| ink / ink-2 on dawn | 10.9 / 5.4 | Sunrise phase |
-| paper / sun / mist on ink | 16.4 / 10.1 / 8.1 | Dock, footer |
-| ink / ink-2 / red on selected | 14.3 / 7.1 / 6.0 | Selected radio card |
-| teal-ink on manta / sky-pale | 6.1 / 5.8 | Guide-count helper text |
+| ink / ink-2 on dawn | 10.9 / 5.5 | Sunrise phase |
+| paper / sun on ink | 16.4 / 10.1 | Toast, skip link, door chip |
 | ink on bubble | 14.8 | Message preview |
-| control border on paper / manta | 4.0 / 3.6 | Input borders (≥ 3:1 non-text) |
+
+Non-text (WCAG 1.4.11, ≥ 3:1): control border on paper / sky-pale / sky 5.2 / 4.5 / 3.4; selected border
+and checked chip (sky-deep) on paper 7.9; red button on sky / sky-pale 4.54 / 6.0; dock edge (ink) on
+sky-pale / sky 14.2 / 10.7; focus halo as above.
 
 **Forbidden pairs:**
-- red on sky (4.4): large text only, so avoid it entirely.
-- sun on manta (1.5).
+- red as small text on sky (4.54 is too close to the line): kickers use `--red-text` everywhere.
+- sun on sky (1.1), sun on manta or sky-pale (≤ 1.5): sun is never text on a light ground.
+- paper or white text on sky (1.5).
+- red on ink or sky-deep as a boundary without the stitch outline (2.4 / 1.2).
 - lava as text on light backgrounds.
 - paper on lavender or periwinkle (C's 2.28:1 failure).
 - Any text over the mid-point of a dark↔light gradient (see 3.7).
 
-**Red CTA on ink (dock), 2.4:1 boundary.** The button must carry the 1.5 px dashed paper "running stitch" inset outline (paper on red 6.9:1), so it stays identifiable as a component (WCAG 1.4.11).
+**Red CTA on dark (Fuego cards use the sun button instead).** Wherever a red button sits on night or ink
+it carries the 1.5 px dashed paper "running stitch" inset outline (paper on red 6.9:1), so it stays
+identifiable as a component (WCAG 1.4.11).
 
 ### 2.2 Typography
 
@@ -224,12 +268,12 @@ Typography rules:
 
 | Token | Value |
 |---|---|
-| `--sh-paper` | `0 1px 0 rgb(30 29 24 / .05), 0 6px 18px -10px rgb(30 29 24 / .28)` |
-| `--sh-lift` | `0 18px 40px -18px rgb(30 29 24 / .38)` (photo "prints", ticket) |
+| `--sh-paper` | `0 1px 0 rgb(20 52 72 / .06), 0 6px 18px -10px rgb(20 52 72 / .32)` (blue-ink shadow, R2) |
+| `--sh-lift` | `0 18px 40px -18px rgb(20 52 72 / .45)` (photo "prints", ticket) |
 | `--sh-cta` | `inset 0 -3px 0 var(--red-deep), 0 8px 18px -10px rgb(168 35 43 / .6)` |
 | `--sh-dock` | `0 10px 30px -8px rgb(15 21 36 / .55)` |
 
-**Texture: canvas weave on `--manta` sections only.**
+**Texture: canvas weave on `--manta` sections only** (since round 2 that is the "Hecho en La Soledad" block; the blue grounds are flat, so sections and timeline segments meet without a tone step).
 - Value: `repeating-linear-gradient(0deg, rgb(94 58 64 / .028) 0 1px, transparent 1px 3px), repeating-linear-gradient(90deg, same)`.
 - No SVG noise, no grain overlay, never on photos or night sections.
 
@@ -270,14 +314,14 @@ This is one page with anchors. The order below is the mobile order and the DOM o
 **Purpose:** identity, persistent access to booking and navigation.
 
 **Mobile header:**
-- 64 px tall, `--manta` background, 4 px selvedge on top.
+- 64 px tall, `--sky` background (the logo's blue, continuous with the hero ground), 4 px selvedge on top. The logo roundel's own sky ring melts into it, so the badge reads by its white ring.
 - Left: logo patch (44 px roundel, `logo-96.webp`), then "Solex Tours" (Fraunces 700, 20 px) and "La Soledad · Acatenango" (`--t-kicker`, ink-2).
 - Right: a **"Menu"** text button (44 px, Figtree 700 15 px, hamburger glyph and the word) and a 44 px ink round WhatsApp icon button (`aria-label="Book on WhatsApp"`). The icon button opens the booking sheet.
 - Behaviour: the header is static at the top. After 600 px of scroll it becomes `position: sticky` in compact mode (56 px, no subtitle). It hides on scroll-down (`translateY(-100%)`, 250 ms) and shows on scroll-up (> 8 px delta).
 - Never show both the sticky header and the dock covering more than 15% of the viewport.
 
 **Desktop header (≥ 960):**
-- Sticky, 72 px, solid `--manta` with a 1 px `--line` bottom border. No backdrop-filter.
+- Sticky, 72 px, solid `--sky` with a 1 px `--line` bottom border. No backdrop-filter.
 - Nav links: The camp · The overnight · The two days · Getting there · Questions.
 - Right: primary button "Book on WhatsApp" (M size).
 
@@ -305,7 +349,7 @@ This is one page with anchors. The order below is the mobile order and the DOM o
 
 **Content (exact copy):**
 - Kicker, inside the arch above the H1, sun-coloured on the photo's dark slope: `OVERNIGHT FROM ANTIGUA · 2 DAYS, 1 NIGHT`
-- H1: `Sleep facing` / *`Fuego.`* (italic line in `--sun` on the photo; `--red` on desktop manta)
+- H1: `Sleep facing` / *`Fuego.`* (italic line in `--sun` on the photo; `--red` on the desktop sky ground, large text 4.54:1)
 - Lede (≤ 2 lines at 390): `Local guides from La Soledad, 2–8 hikers per guide, and a cabin that faces Fuego.`
 - Price box (paper, `--r-lg`, 1 px `--line`): **Q750** (`--t-price-m`, red) on the left. On the right: `per person · ≈ US$100` (Figtree 700, 16 px) and `transport, guide, entry, cabin & 3 meals` (`--t-small`, ink-2).
 - Primary CTA (L, full width on mobile): WhatsApp glyph + `Check a date on WhatsApp`. It opens the booking sheet. The no-JS href is in 6.6.
@@ -323,6 +367,7 @@ This is one page with anchors. The order below is the mobile order and the DOM o
 - Arch: full content width (viewport − 40 px), height `clamp(280px, 42svh, 360px)`, containing kicker + H1 at the bottom.
 - Then the lede, the price box (64 px), the CTA (56 px), the pickup line and the trust line.
 - **No logo patch on the arch below 600 px**, so the logo isn't duplicated.
+- Ground (R2): the hero sits on full-bleed `--sky` (continuous with the header). On phones the logo's sun (a CSS radial glow in `--sun`, decorative) rises behind the arch's right shoulder, echoing the logo's sun behind the peaks: day outside, the night through the arch.
 
 **Desktop layout:**
 - Height `min(100svh − 72px, 900px)`.
@@ -392,7 +437,7 @@ Under the grid (`--t-meta`): `Real photos from our camp, no stock.` · `Find us 
 
    - Footnote (`--t-meta`): `Left column: what Alexander saw in his years guiding for big agencies. Not every agency works like this.`
 
-5. **Guides card** (`--manta-2`, `--r-lg`):
+5. **Guides card** (`--sky`, `--r-lg`):
    > **Our guides are from the area. They speak mainly Spanish and a little English.** Alexander wants you to know that before you book.
    >
    > What they do have: they know this mountain, they're warm, good-hearted and very entertaining, and they've been told one thing above all: make sure people leave happy.
@@ -447,8 +492,9 @@ This section is the core differentiator and holds signature 1. It runs on dark b
 - Below the door, a line (`--t-small`): `On clear days you also see the chain of volcanoes and Lake Atitlán.`
 - **[CONFIRM photo-door]** All three photos must have been taken at the Solex camp.
 
-**D. "Our honest bit"** card (`--night-2`, 1 px `--mist` at 30%):
-- `Our honest bit:` in `--sun`, then: `we can't promise clear skies or eruptions. The clouds and the volcano decide. What we can promise is the seat facing Fuego.`
+**D. "Our honest bit"** card: **removed** in the round-2 review (DIR-04, R2 tone rule): the "What we won't promise"
+card (3.5b) says the same one section later. The camp section ends with the platform line only.
+~~`Our honest bit:` … `What we can promise is the seat facing Fuego.`~~
 
 **Layout:**
 - Mobile: A → B → C (sticky track) → D.
@@ -458,7 +504,7 @@ This section is the core differentiator and holds signature 1. It runs on dark b
 
 This block contains, in order: 3.5a the ticket, 3.5b straight talk (honest notes), 3.5c the two days, and 3.5d inside a cabin.
 
-**Block-level note.** The rombo band opens the block. Background is `--manta-2`.
+**Block-level note.** The rombo band opens the block. Background is `--sky` (the paper ticket sits on the logo blue; the perforation notches are cut in `--sky`).
 
 #### 3.5a The ticket: "Our word" (`#overnight`)
 
@@ -487,7 +533,7 @@ This block contains, in order: 3.5a the ticket, 3.5b straight talk (honest notes
 - Microcopy: `Pickup around 8:00 AM. Alexander confirms the exact time on WhatsApp. Nothing is charged on this website.`
 
 **Beside the ticket:**
-- **"What you bring"** card (`--sky`, `--r-lg`):
+- **"What you bring"** card (`--sky-pale` with `--sh-paper` on the sky ground, `--r-lg`):
   - `4 litres of water per person.` `Our golden rule. Not optional.`
   - `Extra warm clothes.` `Nights at camp are cold.`
   - `A day pack.` `No gear? Rent it from us.`
@@ -528,17 +574,17 @@ This holds signature 4, "The day in light".
 
 | Seg. | Phase bg / text | Label | Title | Body |
 |---|---|---|---|---|
-| Day 1 | `--manta` / ink | `~8:00 AM · ANTIGUA` | Pickup at the café | `Café Condesa (Parque Central) or Café La Parada (Parque La Merced). Bring your suitcase; it rides with us.` |
-| | `--manta` | `~9:00 AM · LA SOLEDAD` | Alexander opens his door | `About an hour's drive. Bathroom, instructions, rent gear if you need it, meet your guide. Leave your luggage: "Things don't go missing here."` |
-| | `--sky-pale` / ink | `MIDDAY` | The climb | `At your group's pace, with lunch on the way. Nobody gets hurried along.` |
+| Day 1 | `--sky-pale` / ink | `~8:00 AM · ANTIGUA` | Pickup at the café | `Café Condesa (Parque Central) or Café La Parada (Parque La Merced). Bring your suitcase; it rides with us.` |
+| | `--sky-pale` | `~9:00 AM · LA SOLEDAD` | Alexander opens his door | `About an hour's drive. Bathroom, instructions, rent gear if you need it, meet your guide. Leave your luggage: "Things don't go missing here."` |
+| | `--sky-2` / ink | `MIDDAY` | The climb | `At your group's pace, with lunch on the way. Nobody gets hurried along.` |
 | | `--sky` / ink | `AFTERNOON` | Camp, right side | `Your cabin is ready: mattress, sleeping bag, pillow. Fuego is straight ahead.` |
 | | `--gold`→`--dusk` / ink | `SUNSET` | Sunset from camp | `No extra hike, as long as it isn't cloudy.` |
 | | `--night` / paper, mist | `NIGHT` | Dinner, hot chocolate, and Fuego | `On clear nights you see the small eruptions as well as the big ones. It gets cold: layers on.` |
 | Day 2 | `--bluehour` / paper | `BEFORE DAWN` | About an hour to 3,976 m | `Leave your things at camp and climb by headlamp to the summit of Acatenango.` |
 | | `--dawn` / ink | `SUNRISE` | First light from the top | `The volcanoes line up along the horizon on clear mornings.` |
-| | `--manta` / ink | `MORNING` | Back to camp | `Coffee, breakfast, pack up.` |
-| | `--manta` | `DESCENT` | Down to La Soledad | `Collect your luggage at Alexander's house.` |
-| | `--manta` | `RETURN` | Same café in Antigua | `Or ask about heading on toward Panajachel: it can save you about 40 minutes.` |
+| | `--sky-pale` / ink | `MORNING` | Back to camp | `Coffee, breakfast, pack up.` |
+| | `--sky-pale` | `DESCENT` | Down to La Soledad | `Collect your luggage at Alexander's house.` |
+| | `--sky-pale` | `RETURN` | Same café in Antigua | `Or ask about heading on toward Panajachel: it can save you about 40 minutes.` |
 
 **Day markers:** `Day 1` and `Day 2` are Fraunces 700 italic 28 px with a red stitched dot on the thread. This replaces B's hand font.
 
@@ -629,7 +675,7 @@ Do not say "certified guide": it's on the current site but unverified.
   2. `~1 hour` **Drive to La Soledad**: `the main entrance to Acatenango.`
   3. **Alexander's house**: `bathroom, instructions, gear, meet your guide. Leave your suitcase: "Things don't go missing here."`
   4. **Next day**: `collect your luggage, back to the same café, or head on toward Panajachel.`
-- Panajachel note (sky-pale card): `Going to Lake Atitlán next? On the way back you don't have to go all the way into Antigua: it can save you about 40 minutes. Ask Alexander how it works for your plans.` Who provides onward transport is not stated **[CONFIRM panajachel]**.
+- Panajachel note (sky card on the pale ground): `Going to Lake Atitlán next? On the way back you don't have to go all the way into Antigua: it can save you about 40 minutes. Ask Alexander how it works for your plans.` Who provides onward transport is not stated **[CONFIRM panajachel]**.
 
 ### 3.8 Rent gear and porters (`#gear`)
 
@@ -655,8 +701,8 @@ Do not say "certified guide": it's on the current site but unverified.
      - `A day pack for your things.`
      - `Headlamp and good shoes (or rent them).`
      - `Your suitcase can stay at Alexander's house.`
-  2. **Weather** (sky-pale): `Views need clear skies, and clouds come and go. Sunset, eruptions and the summit view all depend on the weather on the day. We can promise the seat facing Fuego, not the show.`
-  3. **Fitness** (manta-2): `It's a steep climb at altitude, up to the 3,976 m summit. You walk at your group's pace with 2–8 people per guide, so nobody gets rushed. Not sure? Ask Alexander on WhatsApp before you book.` Hike durations are not stated, so don't invent them **[CONFIRM difficulty]**.
+  2. **Weather** (sky): `Views need clear skies, and clouds come and go. Sunset, eruptions and the summit view all depend on the weather on the day.` (round-2 review, DIR-04: the "we can't promise" line lives in the honest card only)
+  3. **Fitness** (sky-2): `It's a steep climb at altitude, up to the 3,976 m summit. You walk at your group's pace with 2–8 people per guide, so nobody gets rushed. Not sure? Ask Alexander on WhatsApp before you book.` Hike durations are not stated, so don't invent them **[CONFIRM difficulty]**.
 - Layout: cards are stacked on mobile; 3 columns on desktop.
 
 ### 3.10 Reviews (`#reviews`): hidden until real
@@ -702,7 +748,7 @@ Full spec in section 6.
 
 ### 3.13 Footer
 
-- Volcano band on top, then an `--ink` background.
+- Volcano band on top, then a `--sky-deep` background (the logo blue at night depth: the white peaks and the sun of the mark sit on it like the logo). Text paper, secondary text `--sky` (5.2:1), kickers and the hand line `--sun` (4.9:1).
 - Logo patch (96 px), `Solex Tours · Expedición Volcán Acatenango` (Fraunces 700, paper), `La Soledad, main entrance to Acatenango volcano, Guatemala.`
 - Hand line (Caveat Brush, `--sun`): `Gracias for supporting community guides.` (from the current site).
 - Links (each ≥ 44 px tall, paper, underlined):
@@ -715,12 +761,12 @@ Full spec in section 6.
 
 ### 3.14 Sticky dock (mobile < 960 only)
 
-- A floating `--ink` card, 10 px from the left, right and bottom edges (`bottom: calc(10px + env(safe-area-inset-bottom))`), 68 px tall, `--r-lg`, `--sh-dock`, 4 px selvedge on top.
+- A floating `--sky` patch with a 2 px `--ink` edge (the logo roundel's colours), 10 px from the left, right and bottom edges (`bottom: calc(10px + env(safe-area-inset-bottom))`), 68 px tall, `--r-lg`, `--sh-dock`, 4 px selvedge on top. Red Send on sky 4.54:1 (was 2.4:1 on ink).
 - **Default state:**
-  - Left: `Overnight · Q750` (Fraunces 700, 20 px, paper) and `per person · ≈ US$100` (`--t-meta`, mist).
+  - Left: `Overnight hike · Q750` (Fraunces 700, 20 px, ink) and `per person · ≈ US$100` (`--t-meta`, ink-2).
   - Right: red button (M, 52 px tall, stitched paper inset outline) with glyph + `Check a date`. It opens the sheet.
 - **Live state** (after any builder field changes, C's graft):
-  - Left: `Sun 8 Nov · 3 people` (Figtree 700, 15 px, paper) and `Q2,250 ≈ US$300` (Fraunces 700, 18 px, sun). With no date it shows `Date flexible · 3 people`.
+  - Left: `Sun 8 Nov · 3 people` (Figtree 700, 15 px, ink) and `Q2,250 ≈ US$300` (Fraunces 700, 18 px, `--red-text`, 5.1:1). With no date it shows `Date flexible · 3 people`.
   - Right: `Send` + arrow, a real `<a href="https://wa.me/…">` with the current message.
   - Tapping the left half reopens the sheet.
 - **Visibility:**
@@ -731,7 +777,7 @@ Full spec in section 6.
 
 ### 3.15 Booking sheet (`<dialog id="note">`)
 
-- Mobile: a bottom sheet, max height 92svh, `--r-xl` top corners, selvedge on top, decorative grab handle.
+- Mobile: a bottom sheet, max height 92svh, `--r-xl` top corners, selvedge on top, decorative grab handle. Header on `--sky`, the form on paper.
 - Header: title `Note to Alexander` (Fraunces 700, 22 px; **not** the hand font) and a 44 px close button.
 - The form scrolls inside. The **Send bar is sticky** at the bottom: full-width red L button `Send on WhatsApp · Q1,500`, with `Nothing is charged here.` (`--t-meta`) under it.
 - Desktop: a centred dialog, 960 px wide, max 88vh, with two columns (fields | sticky preview).
@@ -849,22 +895,22 @@ Measured on Lighthouse mobile (Moto G Power class, Slow 4G, 4× CPU) and on a re
 Every interactive element has a **≥ 44 × 44 px** hit area and a visible `:focus-visible` ring.
 
 **Focus ring** (global token `--focus`):
-- On light: `box-shadow: 0 0 0 2px var(--ink), 0 0 0 5px var(--sun)`.
-- On dark: `0 0 0 2px var(--night), 0 0 0 5px var(--sun)`.
+- On light (R2): `box-shadow: 0 0 0 2px var(--paper), 0 0 0 5px var(--sky-deep)`: a paper gap and a deep logo-blue halo (5.2:1 on sky, 6.9:1 on sky-pale, 7.9:1 on paper).
+- On dark: `0 0 0 2px var(--night), 0 0 0 5px var(--sun)` (mauve and sky-deep cards use their own ground for the gap).
 - `outline: 2px solid transparent` for forced-colors mode.
 
 | Component | Anatomy | States |
 |---|---|---|
 | **Button: primary** (L 56 px / M 48 px, radius 14 px) | Red background, white label (Figtree 700), WhatsApp glyph 22 px left, 1.5 px dashed paper inset "stitch" outline (inset 5 px, radius 10 px), `--sh-cta` | default · hover (bg `--red-deep`) · focus-visible (ring) · active (`translateY(2px)`, shadow edge 1 px) · "sent" (label `WhatsApp opened ✓`, 6 s) · never disabled |
-| **Button: secondary** | Transparent, 2 px `--ink` border, ink label (on dark: paper border and label) | default · hover (bg `--manta-2` / `--night-2`) · focus · active |
+| **Button: secondary** | Transparent, 2 px `--ink` border, ink label (on dark: paper border and label) | default · hover (bg `--sky-2` / `--night-2`) · focus · active |
 | **Text link** | Underline 2 px, offset 4 px, `currentColor` | default · hover (thickness 3 px) · focus (ring) · visited (same) |
 | **Icon button** (menu, close, play/pause, header WhatsApp) | 44 px circle; ink background with paper icon, or transparent | default · hover · focus · pressed (`aria-pressed` for play/pause) |
 | **Chip: static** | Pill, paper background, 1 px `--line`, Figtree 600, 15 px | — |
-| **Chip: toggle** (extras, rentals) | `<label>` + visually hidden checkbox; pill 44 px | unchecked (paper, `--control` border) · hover · focus (ring on pill) · checked (ink bg, paper text, ✓ glyph) |
-| **Radio card** (tour, pickup, after-tour) | `<label>` + hidden radio; `--r-md`, 1 px `--control`; title (Figtree 700, 16 px) + sub (`--t-small` ink-2) | unchecked · hover (border ink) · focus (ring) · checked (2 px `--red` border, `--selected` fill, red radio dot) |
-| **Stepper** | − / value / +; buttons 48 × 48, 2 px ink border, radius 12 px; value in Fraunces 700, 32 px; `<output aria-live="polite">` | default · hover · focus · at min/max (`aria-disabled="true"`, 40% opacity, still focusable, announces "Minimum 1 person") |
+| **Chip: toggle** (extras, rentals) | `<label>` + visually hidden checkbox; pill 44 px | unchecked (paper, `--control` border) · hover · focus (ring on pill) · checked (`--sky-deep` bg, paper text, sun ✓ glyph) |
+| **Radio card** (tour, pickup, after-tour) | `<label>` + hidden radio; `--r-md`, 1 px `--control`; title (Figtree 700, 16 px) + sub (`--t-small` ink-2) | unchecked · hover (border ink) · focus (ring) · checked (2 px `--sky-deep` border, `--sky-pale` fill, deep-blue radio dot); the Fuego opt-in is the same card with a square box |
+| **Stepper** | − / value / +; buttons 48 × 48, `--sky` fill, 2 px ink border, radius 12 px (hover `--sky-2`); value in Fraunces 700, 32 px; `<output aria-live="polite">` | default · hover · focus · at min/max (`aria-disabled="true"`, 40% opacity, still focusable, announces "Minimum 1 person") |
 | **Text input / date input** | Label above (`--t-label`), 52 px field, paper, 1.5 px `--control`, radius 14 px, `--t-input` | default · hover (border ink-2) · focus (ring + border ink) · filled · error (2 px `--red-text` border, error text below with an icon, `aria-invalid="true"`, `aria-describedby`) |
-| **Checkbox** ("My dates are flexible") | 24 px box inside a 44 px label row | unchecked · focus · checked (ink fill, paper ✓) |
+| **Checkbox** ("My dates are flexible") | 24 px box inside a 44 px label row | unchecked · focus · checked (`accent-color: --sky-deep`) |
 | **Card** | Paper, `--r-lg`, 1 px `--line`, `--sh-paper`, padding 20 px mobile / 28 px desktop | static |
 | **Photo print** | 8 px paper border, `--sh-lift`, rotation ±2° (desktop only) | static |
 | **Ticket** | Paper, volcano band, perforation notches, stamp slot | static + stamp animation |
@@ -947,7 +993,7 @@ Is there space? Could you confirm the pickup time? Thank you!
 | Key | tourNameEN | tourES | priceQ / USD |
 |---|---|---|---|
 | overnight | `Acatenango Overnight (2 days / 1 night)` | `Tour 2D/1N (acampar)` | 750 / 100 |
-| midnight | `Midnight sunrise tour (leaves 10:30 PM)` | `Tour de media noche` | 750 / 100 |
+| midnight | `Midnight sunrise tour (leaves 10:30 PM)` | `Tour de medianoche` (round-2 review, ES-17; was `Tour de media noche`) | 750 / 100 |
 | sunset | `Sunset tour (leaves 10:30 AM)` | `Tour de atardecer` | 750 / 100 |
 | express | `One-day express (leaves 5:00 AM)` | `Tour de un día` | 675 / 90 |
 
@@ -1157,7 +1203,7 @@ ffmpeg -i /tmp/solex_raw/owner/cabin_interior_beds.mp4 -an -vf "scale=848:-2,fps
 12. No duplicated logo on the mobile first screen (no patch over the arch below 600 px).
 13. No crosshair or reticle on the volcano. No topo or contour masks. No neo-brutalist hard offset shadows. No seven-colour patchwork: section backgrounds come only from the token list, and the phase colours appear only in the door and timeline.
 14. Never blow the 848×474 cabin video beyond 640 px wide. Never upscale the 768 px sources.
-15. No text over dark↔light gradient midpoints. No paper text on lavender. No sun-yellow text on manta. No red text on sky.
+15. No text over dark↔light gradient midpoints. No paper text on lavender. No sun-yellow text on any light ground (manta, sky, sky-pale). No small red text on sky (kickers use `--red-text`; red only for H2 italic lines there).
 
 **Mobile UX and performance**
 

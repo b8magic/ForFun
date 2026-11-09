@@ -2,7 +2,7 @@
   "name": "solex-tours-web",
   "private": true,
   "version": "0.1.0",
-  "description": "Solex Tours — English, mobile-first website proposal (static).",
+  "description": "Solex Tours — mobile-first website proposal in English and Spanish (static).",
   "type": "module",
   "scripts": {
     "media": "node tools/build-media.mjs",

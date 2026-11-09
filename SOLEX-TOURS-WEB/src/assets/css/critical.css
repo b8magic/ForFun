@@ -13,13 +13,16 @@
 @font-face { font-family: "Figtree Fallback"; src: local("Arial"), local("ArialMT"), local("Liberation Sans"), local("Roboto"); size-adjust: 101.5%; ascent-override: 93.6%; descent-override: 24.6%; line-gap-override: 0%; }
 
 :root {
-  /* colour (sampled from the logo, the cabin walls and blankets, the camp photos) */
+  /* colour. The brand colour is the logo's light blue, sampled from media/site/logo.png (#ABD4EA), with a
+     family derived from it in the logo's hue (201°): mid and pale tints, a deep blue for text, checks and
+     selected states. Warm accents (sun, cabin red) and the night/dusk phases come from the photos. */
+  --sky: #ABD4EA; --sky-2: #C4E1F0; --sky-pale: #DDEEF7; --sky-deep: #1D5472;
   --manta: #F7EFE4; --manta-2: #EFE3D2; --paper: #FFFBF4;
-  --ink: #1E1D18; --ink-2: #5A4A44; --line: #D9C7B3; --control: #8A7A70;
-  --sky: #A8D1E6; --sky-pale: #DCEEF7; --sun: #F4C06A; --gold: #F3C46E; --dusk: #E9A15B;
-  --red: #A8232B; --red-deep: #7A1A21; --red-text: #9A1F27; --selected: #FBE8E4;
-  --pink: #D97F95; --teal: #1F8F8B; --teal-ink: #0F6461; --cobalt: #2F6F8F; --mauve: #5E3A40; --stripe: #EFD9C6;
-  --night: #0F1524; --night-2: #1A2440; --bluehour: #22305A; --dawn: #C8CEF3; --mist: #A9B4C8; --lava: #F76852;
+  --ink: #1E1D18; --ink-2: #3D4F5C; --line: rgb(29 84 114 / .24); --control: #586E7E; --wood: #5A4A44;
+  --sun: #F4C06A; --gold: #F3C46E; --dusk: #E9A15B;
+  --red: #A8232B; --red-deep: #7A1A21; --red-text: #9A1F27;
+  --pink: #D97F95; --teal: #1F8F8B; --mauve: #5E3A40; --stripe: #EFD9C6;
+  --night: #0F1524; --night-2: #1A2440; --bluehour: #22305A; --dawn: #C8CEF3; --mist: #A9B4C8;
   --bubble: #E2F7CB; --bubble-bg: #E9DFD0;
 
   --f-display: "Fraunces", "Fraunces Fallback", Georgia, serif;
@@ -32,13 +35,13 @@
   --t-lede: 18px; --t-body: 17px; --t-small: 15px; --t-meta: 13.5px; --t-kicker: 13px; --t-label: 13px;
   --t-hand: 24px; --t-signature: 36px;
 
-  --s-1: 4px; --s-2: 8px; --s-3: 12px; --s-4: 16px; --s-5: 20px; --s-6: 24px; --s-7: 32px; --s-8: 40px;
-  --s-9: 48px; --s-10: 64px; --s-11: 80px; --s-12: 96px; --s-13: 112px;
+  --s-2: 8px; --s-3: 12px; --s-4: 16px; --s-5: 20px; --s-6: 24px; --s-7: 32px; --s-8: 40px;
+  --s-9: 48px; --s-10: 64px; --s-11: 80px;
   --gutter: 20px; --maxw: 1240px; --sec: 48px; --sec-c: 40px;
-  --r-xs: 6px; --r-md: 14px; --r-lg: 18px; --r-xl: 28px; --r-pill: 999px;
+  --r-md: 14px; --r-lg: 18px; --r-xl: 28px; --r-pill: 999px;
 
-  --sh-paper: 0 1px 0 rgb(30 29 24 / .05), 0 6px 18px -10px rgb(30 29 24 / .28);
-  --sh-lift: 0 18px 40px -18px rgb(30 29 24 / .38);
+  --sh-paper: 0 1px 0 rgb(20 52 72 / .06), 0 6px 18px -10px rgb(20 52 72 / .32);
+  --sh-lift: 0 18px 40px -18px rgb(20 52 72 / .45);
   --sh-cta: inset 0 -3px 0 var(--red-deep), 0 8px 18px -10px rgb(168 35 43 / .6);
   --sh-dock: 0 10px 30px -8px rgb(15 21 36 / .55);
   --weave: repeating-linear-gradient(0deg, rgb(94 58 64 / .028) 0 1px, transparent 1px 3px), repeating-linear-gradient(90deg, rgb(94 58 64 / .028) 0 1px, transparent 1px 3px);
@@ -46,7 +49,7 @@
   --ease-out: cubic-bezier(.2,.7,.2,1); --ease-in-out: cubic-bezier(.65,0,.35,1); --ease-spring: cubic-bezier(.34,1.56,.64,1);
   --d-fast: 160ms; --d-base: 300ms; --d-slow: 600ms; --d-scene: 700ms;
   --px: 2px; /* one stitch */
-  --focus: 0 0 0 2px var(--ink), 0 0 0 5px var(--sun);
+  --focus: 0 0 0 2px var(--paper), 0 0 0 5px var(--sky-deep); /* on dark: night + sun */
   --top-h: 64px;
 }
 @media (min-width: 600px) {
@@ -60,11 +63,11 @@
 *, *::before, *::after { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; scroll-padding-top: 76px; }
 @media (max-width: 959px) { html { scroll-padding-bottom: 112px; } } /* focus never hides under the sticky dock */
-@media (prefers-reduced-motion: no-preference) { html:not(.static) { scroll-behavior: smooth; } }
+@media (prefers-reduced-motion: no-preference) { html:not(.static):not(.jump) { scroll-behavior: smooth; } } /* .jump (a page opened at a #hash, e.g. from the language switcher): the first scroll is instant */
 body {
   margin: 0; min-width: 320px; overflow-x: clip;
   font: 400 var(--t-body)/1.6 var(--f-text); color: var(--ink);
-  background-color: var(--manta); background-image: var(--weave);
+  background: var(--sky-pale);
   -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
 }
 img, video, svg, picture { display: block; max-width: 100%; }
@@ -73,16 +76,26 @@ a { color: inherit; text-decoration-thickness: 2px; text-underline-offset: 4px; 
 a:hover { text-decoration-thickness: 3px; }
 b, strong { font-weight: 700; }
 p { margin: 0 0 .9em; text-wrap: pretty; }
-h1, h2, h3, h4 { margin: 0; font-family: var(--f-display); font-weight: 700; text-wrap: balance; }
+h1, h2, h3 { margin: 0; font-family: var(--f-display); font-weight: 700; text-wrap: balance; }
 li, figcaption, small { text-wrap: pretty; }
 h1 em, h2 em, h3 em, .quote em { font-style: italic; font-weight: 600; }
 h2 { font-size: var(--t-h2); line-height: 1.04; letter-spacing: -.015em; }
 h3 { font-size: var(--t-h3); line-height: 1.2; letter-spacing: -.005em; }
 button, input, select, textarea { font: inherit; color: inherit; }
-button { cursor: pointer; }
+button, summary { cursor: pointer; }
+summary { list-style: none; } /* every disclosure on the page draws its own marker (FAQ +, language flag, Show/Hide, Original) */
+summary::-webkit-details-marker { display: none; }
+/* iOS Safari: two quick taps (stepper + / −, chips, door chips) must never trigger double-tap zoom.
+   Set on every element, not only <html>: the effective touch-action is resolved up to the nearest
+   scroll container (booking sheet, menu, swipe rows), so an html-only rule would not reach the controls
+   inside them. "manipulation" keeps panning and pinch-zoom (no maximum-scale / user-scalable=no). */
+* { touch-action: manipulation; }
+input { font-size: max(16px, 1em); } /* < 16 px would make iOS zoom in on focus */
+/* …and a quick double tap on a control never selects its label text */
+.btn, .stepper, .chip, .rc, .check, .sight__switch, .door__chips, .dock__info { user-select: none; } /* lightningcss adds -webkit- for Safari */
 ul, ol { margin: 0; padding: 0; list-style: none; }
 figure, blockquote { margin: 0; }
-.sprite { position: absolute; width: 0; height: 0; overflow: hidden; }
+/* (the inline .sprite of src never ships: tools/build.mjs moves its symbols to assets/svg/sprite.svg) */
 .vh { position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 .nowrap { white-space: nowrap; }
 .wrap { width: 100%; max-width: calc(var(--maxw) + 2 * var(--gutter)); margin: 0 auto; padding: 0 var(--gutter); }
@@ -95,7 +108,7 @@ figure, blockquote { margin: 0; }
 .skip + .skip:focus { top: 64px; }
 
 /* ---------- kicker ---------- */
-.kicker { display: flex; align-items: center; gap: 10px; margin: 0 0 14px; font: 800 var(--t-kicker)/1.25 var(--f-text); letter-spacing: .12em; text-transform: uppercase; color: var(--red); text-wrap: balance; }
+.kicker { display: flex; align-items: center; gap: 10px; margin: 0 0 14px; font: 800 var(--t-kicker)/1.25 var(--f-text); letter-spacing: .12em; text-transform: uppercase; color: var(--red-text); text-wrap: balance; }
 .kicker::before { content: ""; flex: none; width: 14px; height: 6px; background: var(--tx-selvedge) 0 0 / auto 6px repeat-x; }
 
 /* ---------- buttons (with a sewn running stitch inside) ---------- */
@@ -111,12 +124,12 @@ figure, blockquote { margin: 0; }
 @media (max-width: 339px) { .btn--l { white-space: normal; } } /* 320: let a long label wrap instead of scrolling the page sideways */
 .btn--m { min-height: 48px; }
 .btn--primary { background: var(--red); color: #fff; box-shadow: var(--sh-cta); }
-.btn--primary::after { content: ""; position: absolute; inset: 5px; border: 1.5px dashed rgb(255 251 244 / .62); border-radius: 10px; pointer-events: none; }
+.btn--primary::after, .btn--sun::after { content: ""; position: absolute; inset: 5px; border: 1.5px dashed var(--stitch, rgb(255 251 244 / .62)); border-radius: 10px; pointer-events: none; }
 .btn--primary:hover { background: var(--red-deep); }
 .btn--primary:active { transform: translateY(2px); box-shadow: inset 0 -1px 0 var(--red-deep), 0 4px 10px -8px rgb(168 35 43 / .6); }
 .btn--primary .ico { width: 22px; height: 22px; }
 .btn--secondary { background: transparent; color: var(--ink); box-shadow: inset 0 0 0 2px var(--ink); }
-.btn--secondary:hover { background: var(--manta-2); }
+.btn--secondary:hover { background: var(--sky-2); }
 .btn--secondary:active { transform: translateY(2px); }
 /* the button shadows above would otherwise override the global focus ring (same specificity, later) */
 .btn--primary:focus-visible, .btn.is-sent:focus-visible { box-shadow: var(--focus), var(--sh-cta); }
@@ -136,7 +149,7 @@ figure, blockquote { margin: 0; }
    HEADER
    ===================================================================== */
 .top-slot { height: var(--top-h); position: relative; z-index: 30; }
-.top { position: relative; height: var(--top-h); background: var(--manta); }
+.top { position: relative; height: var(--top-h); background: var(--sky); }
 .top::before { content: ""; position: absolute; inset: 0 0 auto; height: 4px; background: var(--tx-selvedge) 0 0 / auto 4px repeat-x; }
 .top__in { display: flex; align-items: center; gap: 8px; height: 100%; max-width: calc(var(--maxw) + 2 * var(--gutter)); margin: 0 auto; padding: 4px var(--gutter) 0; }
 .brand { display: flex; align-items: center; gap: 10px; min-height: 44px; margin-right: auto; text-decoration: none; border-radius: 12px; }
@@ -148,8 +161,20 @@ figure, blockquote { margin: 0; }
 .top__menu .ico { width: 20px; height: 20px; }
 .top__wa { display: inline-grid; place-items: center; flex: none; width: 44px; height: 44px; border-radius: 50%; background: var(--ink); color: var(--paper); text-decoration: none; }
 .top__wa .ico { width: 22px; height: 22px; }
-.top__wa-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.top__wa-label { display: none; } /* phones: icon only (aria-label names the link) */
 @media (max-width: 374px) { .brand__name small { display: none; } } /* 360: the subtitle would run into Menu */
+/* language switcher (tools/build.mjs writes it from LANGS): the current language's round flag (+ a small chevron:
+   it opens a menu) and a list of the languages, the current one ticked */
+.lang { position: relative; }
+.lang__btn { display: grid; place-items: center; width: 44px; height: 44px; }
+.lang__btn::after { content: ""; position: absolute; right: 1px; bottom: 9px; width: 6px; height: 6px; border: solid var(--sky-deep); border-width: 0 2.5px 2.5px 0; transform: rotate(45deg); }
+.flag { border-radius: 50%; box-shadow: 0 0 0 1px var(--line); } /* sizes: width/height in the markup; the hairline keeps the round shape where a white band meets the paper list */
+.lang__btn .flag { box-shadow: 0 0 0 2px var(--paper), 0 0 0 3px var(--line); }
+.lang__list { position: absolute; top: 100%; right: 0; width: max-content; padding: 6px; border-radius: var(--r-md); background: var(--paper); box-shadow: var(--sh-lift); }
+.lang__list a { display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 0 12px; text-decoration: none; }
+.lang__list [aria-current]::after { content: "✓"; }
+@media (max-width: 429px) { .top__in { gap: 4px; } .top__menu { padding: 0 12px; } .top__menu-label { display: none; } } /* room for the flag: the menu is an icon (aria-label keeps its name) */
+@media (max-width: 339px) { .top__in { padding-inline: 12px; } } /* 320: brand, flag, menu and WhatsApp still fit */
 /* compact sticky header after 600 px (mobile): shown on scroll-up only */
 .top.is-fixed { position: fixed; inset: 0 0 auto; height: 56px; transform: translateY(-110%); box-shadow: 0 1px 0 var(--line); }
 .top.is-fixed .brand__name small { display: none; }
@@ -159,8 +184,8 @@ figure, blockquote { margin: 0; }
 /* =====================================================================
    HERO
    ===================================================================== */
-.hero { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-areas: "media" "body"; max-width: calc(var(--maxw) + 2 * var(--gutter)); margin: 0 auto; padding: 4px var(--gutter) 28px; }
-.hero__media { grid-area: media; position: relative; container-type: inline-size; }
+.hero { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-areas: "media" "body"; max-width: calc(var(--maxw) + 2 * var(--gutter)); margin: 0 auto; padding: 4px var(--gutter) 32px; border-image: conic-gradient(var(--sky) 0 0) fill 0 // 0 100vw; } /* full-bleed logo sky behind the constrained grid */
+.hero__media { grid-area: media; position: relative; z-index: 0; container-type: inline-size; }
 .arch {
   position: relative; overflow: hidden; height: clamp(280px, 42svh, 360px);
   border-radius: calc(50vw - 20px) calc(50vw - 20px) 24px 24px / calc(50vw - 20px) calc(50vw - 20px) 24px 24px;
@@ -171,20 +196,23 @@ figure, blockquote { margin: 0; }
 .arch__img { object-fit: cover; object-position: 45% 28%; }
 .arch::after { content: ""; position: absolute; inset: 0; background: linear-gradient(to top, rgb(15 21 36 / .92) 0%, rgb(15 21 36 / .7) 42%, rgb(15 21 36 / .45) 58%, transparent 74%); pointer-events: none; }
 .arch__stitch { position: absolute; inset: 8px; z-index: 2; border: 1.5px dashed rgb(247 239 228 / .5); border-radius: calc(50cqi - 8px) calc(50cqi - 8px) 17px 17px / calc(50cqi - 8px) calc(50cqi - 8px) 17px 17px; pointer-events: none; }
-.arch__note { position: absolute; z-index: 3; right: 9%; top: 27%; margin: 0; color: var(--sun); font-size: 22px; line-height: 1.05; transform: rotate(-5deg); text-shadow: 0 1px 2px rgb(0 0 0 / .85), 0 0 8px rgb(10 14 30 / .9), 0 0 18px rgb(10 14 30 / .8); }
-.arch__note svg { position: absolute; left: -56px; top: 30px; width: 54px; height: 44px; fill: none; stroke: var(--sun); stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; transform: scaleX(-1) rotate(-8deg); filter: drop-shadow(0 1px 1px rgb(0 0 0 / .5)); }
+.arch__note { position: absolute; z-index: 3; right: 9%; top: 27%; margin: 0; color: var(--sun); font-size: 22px; line-height: 1.05; transform: rotate(-5deg); text-shadow: 0 0 6px rgb(15 21 36 / .85), 0 0 2px rgb(15 21 36 / .9), 0 1px 2px rgb(0 0 0 / .85), 0 0 8px rgb(10 14 30 / .9), 0 0 18px rgb(10 14 30 / .8); } /* a dark halo: >= 3:1 on the lightest cloud behind the glyphs */
+.arch__note svg { position: absolute; left: -56px; top: 30px; width: 54px; height: 44px; fill: none; stroke: var(--sun); stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; transform: scaleX(-1) rotate(-8deg); filter: drop-shadow(0 0 2px rgb(15 21 36 / .9)) drop-shadow(0 1px 1px rgb(0 0 0 / .5)); }
 @media (max-width: 599px) and (max-height: 700px) { .arch__note svg { top: 4px; } } /* short phones: the arrow would cross the kicker */
 .arch__tag { position: absolute; z-index: 3; left: 50%; top: 22px; transform: translateX(-50%); margin: 0; padding: 4px 10px; border-radius: var(--r-pill); background: rgb(30 29 24 / .7); color: var(--paper); font: 600 var(--t-meta)/1.3 var(--f-text); white-space: nowrap; }
 .hero__patch, .arch__spine { display: none; }
+/* phones: the logo's sun rising behind the arch's shoulder (the photo inside is the night) */
+@media (max-width: 599px) { .hero__media::before { content: ""; position: absolute; z-index: -1; right: -18px; top: 4px; width: 112px; height: 112px; border-radius: 50%; background: radial-gradient(closest-side, #FFF2C9 24%, var(--sun) 44%, rgb(244 192 106 / .35) 60%, rgb(244 192 106 / 0)); } }
 .hero__title { grid-area: media; align-self: end; position: relative; z-index: 3; padding: 0 22px 22px; color: var(--paper); }
 .hola { display: none; }
+.tape { position: absolute; top: -13px; left: 36px; width: 104px; height: 26px; transform: rotate(-4deg); background: var(--tx-rombo) center / auto 26px repeat-x; box-shadow: 0 2px 4px rgb(0 0 0 / .14); } /* hero note + letter */
 .kicker--hero { color: var(--sun); margin-bottom: 8px; }
 .kicker--hero::before { display: none; }
 .hero h1 { font-size: var(--t-h1); line-height: .95; letter-spacing: -.025em; text-wrap: balance; }
 .hero h1 em { display: block; color: var(--sun); }
 .hero__body { grid-area: body; padding-top: 16px; }
 .lede { margin: 0 0 14px; font-size: var(--t-lede); line-height: 1.45; }
-.price { display: flex; align-items: center; gap: 14px; min-height: 64px; margin: 0 0 14px; padding: 6px 14px 6px 12px; border-radius: var(--r-lg); background: var(--paper); box-shadow: inset 0 0 0 1px var(--line); }
+.price { display: flex; align-items: center; gap: 14px; min-height: 64px; margin: 0 0 14px; padding: 6px 14px 6px 12px; border-radius: var(--r-lg); background: var(--paper); box-shadow: inset 0 0 0 1px var(--line), var(--sh-paper); }
 .price p { margin: 0; }
 .price__q { font: 800 var(--t-price-m)/.95 var(--f-display); letter-spacing: -.03em; color: var(--red); font-variant-numeric: lining-nums tabular-nums; }
 .price__meta { font-size: var(--t-small); line-height: 1.35; color: var(--ink-2); }
@@ -198,8 +226,6 @@ figure, blockquote { margin: 0; }
 .rating-link { display: inline-flex; align-items: center; gap: 4px; min-height: 44px; font-weight: 700; color: var(--ink); text-decoration-thickness: 1.5px; }
 .ico--star { width: 16px; height: 16px; color: #C98A1B; }
 
-/* first band under the hero */
-.hero + .band { margin-top: 4px; }
 
 /* reveal: only when motion is allowed (safety net in JS) */
 @media (prefers-reduced-motion: no-preference) {
@@ -240,21 +266,21 @@ html:not(.js) .slip__fields, html:not(.js) .preview, html:not(.js) .film { displ
   .top__in { gap: 20px; }
   .brand { margin-right: 0; }
   .top__nav { display: flex; gap: 4px; margin: 0 auto; }
-  .top__nav a { display: inline-flex; align-items: center; min-height: 44px; padding: 0 12px; border-radius: 10px; font: 600 15.5px/1 var(--f-text); white-space: nowrap; text-decoration: none; background: linear-gradient(var(--red), var(--red)) 12px calc(100% - 8px) / 0 2px no-repeat; transition: background-size var(--d-base) var(--ease-out); }
+  .top__nav a { display: inline-flex; align-items: center; min-height: 44px; padding: 0 12px; border-radius: 10px; font: 600 15.5px/1 var(--f-text); white-space: nowrap; text-decoration: none; background: linear-gradient(var(--red) 0 0) 12px calc(100% - 8px) / 0 2px no-repeat; transition: background-size var(--d-base) var(--ease-out); }
   .top__nav a:hover { background-size: calc(100% - 24px) 2px; }
   .top__menu { display: none; }
   .top__wa { width: auto; height: 48px; display: inline-flex; gap: 10px; padding: 0 20px 0 16px; border-radius: var(--r-md); background: var(--red); color: #fff; font: 700 16px/1 var(--f-text); box-shadow: var(--sh-cta); position: relative; }
   .top__wa::after { content: ""; position: absolute; inset: 5px; border: 1.5px dashed rgb(255 251 244 / .62); border-radius: 10px; pointer-events: none; }
   .top__wa:hover { background: var(--red-deep); }
   .top__wa:focus-visible { box-shadow: var(--focus), var(--sh-cta); }
-  .top__wa-label { position: static; width: auto; height: auto; overflow: visible; clip: auto; }
+  .top__wa-label { display: inline; }
 
   .hero {
     grid-template-columns: repeat(12, minmax(0, 1fr)); grid-template-areas: none; grid-template-rows: auto auto;
-    column-gap: 24px; align-content: center; min-height: min(calc(100svh - var(--top-h)), 900px); padding-top: 28px; padding-bottom: 48px;
+    column-gap: 24px; align-content: center; min-height: min(100svh - var(--top-h), 900px); padding-top: 28px; padding-bottom: 48px;
   }
   .hero__media { grid-column: 8 / 13; grid-row: 1 / 3; align-self: center; }
-  .arch { height: clamp(600px, calc(100svh - 150px), 780px); }
+  .arch { height: clamp(600px, 100svh - 150px, 780px); }
   .arch::after { background: linear-gradient(to top, rgb(15 21 36 / .55), transparent 30%); }
   .arch__img { object-position: 42% 38%; }
   .arch__note { left: 9%; right: auto; top: 21%; font-size: 30px; transform: rotate(-6deg); }
@@ -267,8 +293,7 @@ html:not(.js) .slip__fields, html:not(.js) .preview, html:not(.js) .film { displ
   .hola { display: block; position: relative; max-width: 400px; margin: 0 0 clamp(28px, 6vh, 64px) 4px; padding: 26px 26px 22px; border-radius: 4px; background: var(--paper); transform: rotate(-1.5deg); font-size: 16px; line-height: 1.5; color: var(--ink-2); box-shadow: 0 0 0 1px var(--line), var(--sh-lift); }
   .hola p { margin: 0; }
   .hola__hi { margin-bottom: 6px !important; font-size: 34px; color: var(--red); }
-  .tape { position: absolute; top: -13px; left: 36px; width: 104px; height: 26px; transform: rotate(-4deg); background: var(--tx-rombo) center / auto 26px repeat-x; box-shadow: 0 2px 4px rgb(0 0 0 / .14); }
-  .kicker--hero { color: var(--red); }
+  .kicker--hero { color: var(--red-text); }
   .kicker--hero::before { display: block; }
   .hero h1 { line-height: .92; }
   .hero h1 em { color: var(--red); }

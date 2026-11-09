@@ -1,5 +1,5 @@
 // Brand assets → src/ (run once; the outputs are committed):
-//   logo roundels (webp), favicon.svg/.ico, apple-touch-icon, PWA icons and the 1200×630 share image.
+//   logo roundels (webp), favicon.svg/.ico, apple-touch-icon, PWA icons and the 1200×630 share images (EN, ES).
 //
 //   node tools/build-brand.mjs
 //
@@ -20,10 +20,10 @@ const [sun, peaks] = paths;
 await writeFile(path.join(ROOT, 'tools/mark-paths.json'), JSON.stringify({ viewBox: '205 280 670 385', sun, peaks }, null, 0));
 
 // favicon.svg — the mark on the logo-sky disc.
-const fav = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><circle cx="32" cy="32" r="32" fill="#A8D1E6"/><svg x="6" y="13" width="52" height="34" viewBox="205 280 670 385"><g transform="${sun.t}" fill="#E9A15B"><path d="${sun.d}"/></g><g transform="${peaks.t}" fill="#1E1D18"><path d="${peaks.d}"/></g></svg></svg>`;
+const fav = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><circle cx="32" cy="32" r="32" fill="#ABD4EA"/><svg x="6" y="13" width="52" height="34" viewBox="205 280 670 385"><g transform="${sun.t}" fill="#E9A15B"><path d="${sun.d}"/></g><g transform="${peaks.t}" fill="#1E1D18"><path d="${peaks.d}"/></g></svg></svg>`;
 await writeFile(path.join(SRC, 'favicon.svg'), fav);
 
-const square = (size, pad = 0.14, round = true) => Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 100 100">${round ? '<circle cx="50" cy="50" r="50" fill="#A8D1E6"/>' : '<rect width="100" height="100" fill="#A8D1E6"/>'}<svg x="${pad * 100}" y="${50 - (100 - 2 * pad * 100) * 385 / 670 / 2}" width="${100 - 2 * pad * 100}" height="${(100 - 2 * pad * 100) * 385 / 670}" viewBox="205 280 670 385"><g transform="${sun.t}" fill="#E9A15B"><path d="${sun.d}"/></g><g transform="${peaks.t}" fill="#1E1D18"><path d="${peaks.d}"/></g></svg></svg>`);
+const square = (size, pad = 0.14, round = true) => Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 100 100">${round ? '<circle cx="50" cy="50" r="50" fill="#ABD4EA"/>' : '<rect width="100" height="100" fill="#ABD4EA"/>'}<svg x="${pad * 100}" y="${50 - (100 - 2 * pad * 100) * 385 / 670 / 2}" width="${100 - 2 * pad * 100}" height="${(100 - 2 * pad * 100) * 385 / 670}" viewBox="205 280 670 385"><g transform="${sun.t}" fill="#E9A15B"><path d="${sun.d}"/></g><g transform="${peaks.t}" fill="#1E1D18"><path d="${peaks.d}"/></g></svg></svg>`);
 
 // favicon.ico = one 32×32 PNG wrapped in an ICO container (PNG-in-ICO works in every current browser).
 const png32 = await sharp(square(32, 0.1)).png().toBuffer();
@@ -44,17 +44,26 @@ for (const s of [96, 192, 360]) await logo.clone().resize(s, s).webp({ quality: 
 const photo = await sharp(path.join(ROOT, 'media/owner/fuego-eruption-night-plume.jpg'))
   .extract({ left: 0, top: Math.round(1600 * 0.36 - 450), width: 1200, height: 900 }).resize(840, 630).toBuffer();
 const logoPng = await logo.clone().resize(132, 132).png().toBuffer();
-const overlay = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630">
+// One share image per language (og-image.jpg, og-image-es.jpg); the build points each page's og:image at its own.
+const SHARE = [
+  { out: 'og-image.jpg', kicker: 'OVERNIGHT HIKE FROM ANTIGUA · 2 DAYS, 1 NIGHT', h: ['Sleep facing', 'Fuego.'], size: 92,
+    l1: 'Local guides from La Soledad · 2–8 per guide', l2: 'Q750 per person · cabin, 4 meals, transport' },
+  { out: 'og-image-es.jpg', kicker: 'CAMINATA DESDE ANTIGUA · 2 DÍAS, 1 NOCHE', h: ['Duerme frente', 'al Fuego.'], size: 84,
+    l1: 'Guías locales de La Soledad · de 2 a 8 por guía', l2: 'Q750 por persona · cabaña, 4 comidas, transporte' },
+];
+for (const t of SHARE) {
+  const overlay = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630">
   <defs><linearGradient id="g" x1="0" x2="1"><stop offset=".42" stop-color="#0F1524"/><stop offset=".62" stop-color="#0F1524" stop-opacity="0"/></linearGradient></defs>
   <rect width="1200" height="630" fill="url(#g)"/>
   <rect y="0" width="1200" height="8" fill="#A8232B"/>
-  <text x="64" y="232" font-family="Figtree" font-weight="800" font-size="22" letter-spacing="3" fill="#F4C06A">OVERNIGHT FROM ANTIGUA · 2 DAYS, 1 NIGHT</text>
-  <text x="60" y="330" font-family="Fraunces" font-weight="700" font-size="92" fill="#FFFBF4" letter-spacing="-2">Sleep facing</text>
-  <text x="60" y="424" font-family="Fraunces" font-weight="700" font-size="92" fill="#F4C06A" letter-spacing="-2">Fuego.</text>
-  <text x="64" y="500" font-family="Figtree" font-weight="500" font-size="27" fill="#A9B4C8">Local guides from La Soledad · 2–8 per guide</text>
-  <text x="64" y="546" font-family="Figtree" font-weight="800" font-size="27" fill="#FFFBF4">Q750 per person · cabin, 3 meals, transport</text>
+  <text x="64" y="232" font-family="Figtree" font-weight="800" font-size="22" letter-spacing="3" fill="#F4C06A">${t.kicker}</text>
+  <text x="60" y="330" font-family="Fraunces" font-weight="700" font-size="${t.size}" fill="#FFFBF4" letter-spacing="-2">${t.h[0]}</text>
+  <text x="60" y="424" font-family="Fraunces" font-weight="700" font-size="${t.size}" fill="#F4C06A" letter-spacing="-2">${t.h[1]}</text>
+  <text x="64" y="500" font-family="Figtree" font-weight="500" font-size="27" fill="#A9B4C8">${t.l1}</text>
+  <text x="64" y="546" font-family="Figtree" font-weight="800" font-size="27" fill="#FFFBF4">${t.l2}</text>
 </svg>`);
-await sharp({ create: { width: 1200, height: 630, channels: 3, background: '#0F1524' } })
-  .composite([{ input: photo, left: 360, top: 0 }, { input: overlay, left: 0, top: 0 }, { input: logoPng, left: 60, top: 52 }])
-  .jpeg({ quality: 82, mozjpeg: true }).toFile(path.join(SRC, 'og-image.jpg'));
+  await sharp({ create: { width: 1200, height: 630, channels: 3, background: '#0F1524' } })
+    .composite([{ input: photo, left: 360, top: 0 }, { input: overlay, left: 0, top: 0 }, { input: logoPng, left: 60, top: 52 }])
+    .jpeg({ quality: 82, mozjpeg: true }).toFile(path.join(SRC, t.out));
+}
 console.log('brand assets written');
