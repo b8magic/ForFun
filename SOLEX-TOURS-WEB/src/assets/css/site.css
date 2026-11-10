@@ -606,13 +606,13 @@
 dialog { max-width: none; max-height: none; padding: 0; border: 0; color: var(--ink); }
 dialog::backdrop { background: rgb(15 21 36 / .62); }
 .sheet { width: 100%; max-height: 92svh; margin: auto 0 0; border-radius: var(--r-xl) var(--r-xl) 0 0; background: var(--sky); overflow: hidden; }
-.sheet[open] { display: flex; flex-direction: column; }
-.sheet__head { position: relative; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 20px 14px 10px 20px; border-bottom: 1.5px dashed var(--line); }
+.sheet[open] { display: flex; flex-flow: column; height: 92svh; } /* a definite height: iOS Safari collapses a flex:1 body inside a max-height-only column */
+.sheet__head { flex: none; position: relative; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 20px 14px 10px 20px; border-bottom: 1.5px dashed var(--line); }
 .sheet__head::before { content: ""; position: absolute; inset: 0 0 auto; height: 4px; background: var(--tx-selvedge) 0 0 / auto 4px repeat-x; }
 .sheet__grip { position: absolute; top: 9px; left: 50%; width: 44px; height: 5px; margin-left: -22px; border-radius: 3px; background: var(--line); }
 .sheet__h { font: 700 22px/1.1 var(--f-display); }
 .sheet__h:focus { outline: none; box-shadow: none; }
-.sheet__body { flex: 1; overflow-y: auto; overscroll-behavior: contain; padding: 0; scroll-padding-bottom: 200px; }
+.sheet__body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 0; scroll-padding-bottom: 200px; }
 .sheet .slip { border-radius: 0; box-shadow: none; padding-top: 18px; background: var(--paper); }
 .sheet .slip__edge { display: none; }
 .sheet .slip__out { display: contents; } /* lets the Send bar stick to the bottom of the whole sheet */
@@ -1009,6 +1009,7 @@ html:not(.js) .stepper__btn, html:not(.js) .sight__switch { display: none; }
 
   .dock { display: none; }
   .sheet { max-width: 960px; width: calc(100% - 48px); max-height: 88vh; margin: auto; border-radius: var(--r-xl); }
+  .sheet[open] { height: auto; }
   .sheet__grip { display: none; }
   .sheet .slip { padding: 26px 28px 24px; }
   .sheet .slip__send, .sheet .slip__after--alt { position: static; margin: 0; padding: 0; box-shadow: none; }
