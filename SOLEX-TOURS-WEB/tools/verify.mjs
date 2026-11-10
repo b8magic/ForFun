@@ -189,7 +189,17 @@ const FALLBACK_OK = new Set(['≈', '→']);
   const dock = await page.evaluate(() => ({ on: document.querySelector('#dock').classList.contains('is-on'), live: document.querySelector('#dock').classList.contains('is-live'), l1: document.querySelector('[data-dock-l1]').textContent, l2: document.querySelector('[data-dock-l2]').textContent, href: document.querySelector('[data-dock-cta]').href, label: document.querySelector('[data-dock-cta-label]').textContent }));
   ok('dock visible + live after the note was filled', dock.on && dock.live, JSON.stringify({ l1: dock.l1, l2: dock.l2, label: dock.label }));
   ok('dock live text', dock.l1 === `${EX_EN} · 3 people` && dock.l2 === 'Q2,250 ≈ US$300', `${dock.l1} / ${dock.l2}`);
-  ok('dock Send = same message', decodeURIComponent(dock.href.split('?text=')[1]) === EXPECTED);
+  ok('dock CTA reads "Review →" once the note has content', dock.label === 'Review →', dock.label);
+  {
+    const pop = page.waitForEvent('popup', { timeout: 1200 }).then(() => true).catch(() => false);
+    await page.click('[data-dock-cta]');
+    await page.waitForTimeout(400);
+    const opened = await page.evaluate(() => document.querySelector('#note').open);
+    ok('dock CTA opens the note (never WhatsApp directly), also after the stepper was used', opened && !(await pop));
+    await page.click('#note [data-close]');
+    await page.evaluate(() => scrollTo(0, document.querySelector('#reviews').offsetTop));
+    await page.waitForTimeout(400);
+  }
   if (shotsDir) await page.screenshot({ path: path.join(shotsDir, 'm-dock-live.png') });
   // past date blocks; today shows the info note
   await page.click('[data-dock-cta]', { trial: true });
@@ -394,8 +404,15 @@ for (const url of ['/', '/es/']) for (const dev of [MOBILE, DESKTOP]) {
   await page.evaluate(() => scrollTo(0, document.querySelector('#reviews').offsetTop));
   await page.waitForTimeout(500);
   const dock = await page.evaluate(() => ({ l1: document.querySelector('[data-dock-l1]').textContent, l2: document.querySelector('[data-dock-l2]').textContent, label: document.querySelector('[data-dock-cta-label]').textContent, href: document.querySelector('[data-dock-cta]').href }));
-  ok('es: dock live text in Spanish', dock.l1 === `${EX_ES_SHORT} · 3 personas` && dock.l2 === 'Q2,250 ≈ US$300' && dock.label === 'Enviar →', `${dock.l1} / ${dock.l2} / ${dock.label}`);
-  ok('es: dock Send = same Spanish message', decodeURIComponent(dock.href.split('?text=')[1]) === EXPECTED_ES);
+  ok('es: dock live text in Spanish', dock.l1 === `${EX_ES_SHORT} · 3 personas` && dock.l2 === 'Q2,250 ≈ US$300' && dock.label === 'Revisar →', `${dock.l1} / ${dock.l2} / ${dock.label}`);
+  {
+    await page.click('[data-dock-cta]');
+    await page.waitForTimeout(400);
+    ok('es: dock CTA opens the note', await page.evaluate(() => document.querySelector('#note').open));
+    await page.click('#note [data-close]');
+    await page.evaluate(() => scrollTo(0, document.querySelector('#reviews').offsetTop));
+    await page.waitForTimeout(400);
+  }
   await page.click('.dock__info');
   await page.fill('#f-date', '2026-10-01');
   await page.dispatchEvent('#f-date', 'change');

@@ -183,10 +183,12 @@ every CTA is a working, prefilled `wa.me` link even without JavaScript.
   On phones (< 600 px, with JS) the `#book` section shows a compact card (tour, people, live total
   and one button) that opens the same form in the sheet, and the packing list lives in the ticket's
   "What you bring" card; tablet and desktop keep the inline form and the `#prepare` section.
-- **Sticky dock** (phones): "Overnight hike · Q750"; appears after the hero CTA, turns into "Sun 20 Dec · 3 people · Q2,250 →
-  Send" once the note has content, hides near the form/footer, under the keyboard and while the
-  compact header is shown. A past or out-of-range date reads "Check your date" and its Send opens
-  the sheet with the error instead of WhatsApp.
+- **Sticky dock** (phones): "Overnight hike · Q750"; appears after the hero CTA and shows a live summary
+  ("Sun 20 Dec · 3 people · Q2,250", button "Review →") once the note has content. Its button
+  **always opens the note**: the WhatsApp message is only ever sent from the note's own Send button
+  (an earlier version sent straight to WhatsApp once the people stepper had been touched). It hides
+  near the form/footer, under the keyboard and while the compact header is shown; a past or
+  out-of-range date reads "Check your date" and the note opens on the date error.
 - **Motion is opt-in** (`prefers-reduced-motion: no-preference` and JS); `?static=1` forces the
   static layout for screenshots. Only opacity/transform/clip-path animate.
 - **The Cabin Door**: one sticky stage, three photos crossfading afternoon → sunset → after dark while

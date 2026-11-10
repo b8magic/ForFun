@@ -104,7 +104,7 @@ const TXT = {
     today: 'Today? Message Alexander right away; he’ll tell you if there’s still space.',
     send: (q) => `Send on WhatsApp · Q${q}`, sent: 'WhatsApp opened ✓', copied: 'Message copied', hold: 'Press and hold to copy',
     min: 'Minimum 1 person', max: 'Maximum 60 people',
-    day: (d) => dateEN(d, false), flexible: 'Date flexible', check: 'Check your date', dockSend: 'Send →', dockCta: 'Check a date',
+    day: (d) => dateEN(d, false), flexible: 'Date flexible', check: 'Check your date', dockSend: 'Review →', dockCta: 'Check a date',
     perPerson: (usd) => `per person · ≈ US$${usd}`,
     play: 'Play cabin video', playSave: 'Play cabin video (≈ 0.4 MB)', pause: 'Pause cabin video',
   },
@@ -117,7 +117,7 @@ const TXT = {
     today: '¿Hoy? Escríbele a Alexander ya mismo y te dirá si todavía hay espacio.',
     send: (q) => `Enviar por WhatsApp · Q${q}`, sent: 'WhatsApp abierto ✓', copied: 'Mensaje copiado', hold: 'Mantén presionado para copiar',
     min: 'Mínimo 1 persona', max: 'Máximo 60 personas',
-    day: dateEsShort, flexible: 'Fecha flexible', check: 'Revisa la fecha', dockSend: 'Enviar →', dockCta: 'Consultar',
+    day: dateEsShort, flexible: 'Fecha flexible', check: 'Revisa la fecha', dockSend: 'Revisar →', dockCta: 'Consultar',
     perPerson: (usd) => `por persona · ≈ US$${usd}`,
     play: 'Reproducir el video de la cabaña', playSave: 'Reproducir el video de la cabaña (≈ 0.4 MB)', pause: 'Pausar el video de la cabaña',
   },
@@ -241,9 +241,7 @@ function render() {
     const ok = d && (dateCheck() === 'ok' || dateCheck() === 'today');
     $('[data-dock-l1]').textContent = live ? `${ok ? TXT.day(d) : (dateCheck() === 'empty' ? TXT.flexible : TXT.check)} · ${TXT.people(state.people)}` : `${TXT.tour(t)} · Q${money(t.q)}`;
     $('[data-dock-l2]').textContent = live ? `Q${money(q)} ≈ US$${money(usd)}` : TXT.perPerson(t.usd);
-    const cta = $('[data-dock-cta]');
     $('[data-dock-cta-label]').textContent = live ? TXT.dockSend : TXT.dockCta;
-    if (live) { cta.href = waLink(); cta.target = '_blank'; cta.rel = 'noopener'; } else cta.removeAttribute('target');
   }
   save();
 }
@@ -385,9 +383,9 @@ on(document, 'click', (e) => {
     setDock();
     return;
   }
-  if (a.matches('[data-dock-cta]') && dock.classList.contains('is-live')) { // live dock = real send link, unless the date is wrong
+  if (a.matches('[data-dock-cta]')) { // the dock always opens the note (with its summary); sending happens from the note itself
     const k = dateCheck();
-    if (k === 'past' || k === 'invalid' || k === 'far') { e.preventDefault(); openSheet(a); setDateMsg(k, true); dateIn.focus(); }
+    if (openSheet(a)) { e.preventDefault(); if (k === 'past' || k === 'invalid' || k === 'far') { setDateMsg(k, true); dateIn.focus(); } }
     return;
   }
   if (menu.open) { menu._nav = true; menu.close(); }
