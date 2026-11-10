@@ -10,4 +10,4 @@
   .price__meta { font-size: 14px; }
   .hero__pickup { margin: 4px 0 -2px; }
 }
-@media (min-width: 340px) and (max-width: 379px) { .btn--l { padding-inline: 14px; gap: 8px; font-size: 16px; white-space: nowrap; } } /* "Consulta tu fecha por WhatsApp" on one line at 375 too (320 may wrap) */
+/* (one-line .btn--l up to 389 px: critical.css, both languages) */

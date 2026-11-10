@@ -5,15 +5,15 @@
 const CONFIG = {
   wa: { primary: '50248347003', secondary: '50249468883' },
   pickupOvernight: { en: '8:00 AM', es: '8:00 a. m.' }, // confirmed by the client (R2, 9 Nov 2026); from 6:30 AM on request
-  // en: English message · es: the (ES) summary line of the English message · esMsg: the Spanish page's message
-  pickupTimes: { 800: { en: '8:00 AM (standard)', es: '8:00 AM', esMsg: '8:00 a. m. (estándar)' }, 630: { en: '6:30 AM (on request)', es: '6:30 AM (a solicitud)', esMsg: '6:30 a. m. (a solicitud)' } },
+  // en / es: the line in the English / Spanish page's message (R2: the English message has no "(ES)" summary line)
+  pickupTimes: { 800: { en: '8:00 AM (standard)', es: '8:00 a. m. (estándar)' }, 630: { en: '6:30 AM (on request)', es: '6:30 a. m. (a solicitud)' } },
   fuego: { q: 300 }, // optional Fuego hike, decided and paid at camp: never in the website total
-  // en / esMsg: the tour in the English / Spanish message · es: in the (ES) summary line · name / nameEs: short name (dock, card)
+  // en / es: the tour in the English / Spanish message · name / nameEs: short name (dock, card)
   tours: {
-    overnight: { q: 750, usd: 100, en: 'Acatenango Overnight Hike (2 days / 1 night)', es: 'Tour 2D/1N (acampar)', name: 'Overnight hike', esMsg: 'Caminata de 2 días al Acatenango (1 noche en cabaña)', nameEs: 'Caminata de 2\u00a0días' },
-    midnight: { q: 750, usd: 100, en: 'Midnight sunrise tour (leaves 10:30 PM)', es: 'Tour de medianoche', name: 'Midnight sunrise', esMsg: 'Tour de medianoche (sale a las 10:30 p. m.)', nameEs: 'Tour de medianoche' },
-    sunset: { q: 750, usd: 100, en: 'Sunset tour (leaves 10:30 AM)', es: 'Tour de atardecer', name: 'Sunset tour', esMsg: 'Tour de atardecer (sale a las 10:30 a. m.)', nameEs: 'Tour de atardecer' },
-    express: { q: 675, usd: 90, en: 'One-day express (leaves 5:00 AM)', es: 'Tour de un día', name: 'One-day express', esMsg: 'Tour exprés de un día (sale a las 5:00 a. m.)', nameEs: 'Tour exprés' },
+    overnight: { q: 750, usd: 100, en: 'Acatenango Overnight Hike (2 days / 1 night)', es: 'Caminata de 2 días al Acatenango (1 noche en cabaña)', name: 'Overnight hike', nameEs: 'Caminata de 2\u00a0días' },
+    midnight: { q: 750, usd: 100, en: 'Midnight sunrise tour (leaves 10:30 PM)', es: 'Tour de medianoche (sale a las 10:30 p. m.)', name: 'Midnight sunrise', nameEs: 'Tour de medianoche' },
+    sunset: { q: 750, usd: 100, en: 'Sunset tour (leaves 10:30 AM)', es: 'Tour de atardecer (sale a las 10:30 a. m.)', name: 'Sunset tour', nameEs: 'Tour de atardecer' },
+    express: { q: 675, usd: 90, en: 'One-day express (leaves 5:00 AM)', es: 'Tour exprés de un día (sale a las 5:00 a. m.)', name: 'One-day express', nameEs: 'Tour exprés' },
   },
   porter: { kg: 13, up: 250, down: 250 },
   features: {
@@ -85,14 +85,13 @@ const MO_ES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', '
 const pad = (n) => String(n).padStart(2, '0');
 const parseDate = (v) => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v || ''); if (!m) return null; const d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3])); return isNaN(d) ? null : d; };
 const dateEN = (d, year = true) => `${WD_EN[d.getUTCDay()]} ${d.getUTCDate()} ${MO_EN[d.getUTCMonth()]}${year ? ' ' + d.getUTCFullYear() : ''}`;
-const dateES = (d) => `${WD_ES[d.getUTCDay()]} ${pad(d.getUTCDate())}/${pad(d.getUTCMonth() + 1)}/${d.getUTCFullYear()}`; // (ES) summary line
 const dateEsLong = (d) => `${WD_ES_L[d.getUTCDay()]} ${d.getUTCDate()} de ${MO_ES[d.getUTCMonth()]} de ${d.getUTCFullYear()}`;
 const dateEsShort = (d) => `${WD_ES[d.getUTCDay()]} ${d.getUTCDate()} ${MO_ES[d.getUTCMonth()].slice(0, 3)}`;
 let GT; // the formatter is built once, on first use (Intl setup is costly during module evaluation)
 const todayGT = () => (GT ||= new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Guatemala', year: 'numeric', month: '2-digit', day: '2-digit' })).format(new Date());
 const maxDate = () => { const t = parseDate(todayGT()); const day = t.getUTCDate(); t.setUTCMonth(t.getUTCMonth() + 18); if (t.getUTCDate() !== day) t.setUTCDate(0); return t.toISOString().slice(0, 10); };
 const money = (n) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ','); // integers only (prices × people); avoids toLocaleString's ICU cost
-const PICKUP = { condesa: { en: 'Café Condesa, Parque Central (Antigua)', es: 'Café Condesa' }, parada: { en: 'Café La Parada, Parque La Merced (Antigua)', es: 'Café La Parada' } };
+const PICKUP = { condesa: 'Café Condesa, Parque Central (Antigua)', parada: 'Café La Parada, Parque La Merced (Antigua)' }; // place names: the same in both messages
 
 // Runtime strings, one table per language (the HTML strings are translated at build time).
 const TXT = {
@@ -145,7 +144,6 @@ function message() {
   const xs = state.x || [];
   const rent = Object.keys(RENT).filter((k) => xs.includes(k));
   const xEN = [xs.includes('porterUp') && `porter up (${CONFIG.porter.kg} kg)`, xs.includes('porterDown') && `porter down (${CONFIG.porter.kg} kg)`, rent.length && 'rent: ' + rent.map((k) => RENT[k][0]).join(', ')].filter(Boolean);
-  const xES = [xs.includes('porterUp') && 'porteador subida', xs.includes('porterDown') && 'porteador bajada', rent.length && 'alquiler: ' + rent.map((k) => RENT[k][1]).join(', ')].filter(Boolean);
   const ov = state.tour === 'overnight'; // pickup time, Panajachel and the Fuego hike belong to the overnight hike
   const pana = ov && state.after === 'pana';
   const time = ov ? CONFIG.pickupTimes[state.time] || CONFIG.pickupTimes[800] : null;
@@ -158,12 +156,12 @@ function message() {
     const M = [
       '¡Hola, Alexander! Encontré Solex Tours en tu página web y quiero reservar.',
       '',
-      `Tour: ${t.esMsg}`,
+      `Tour: ${t.es}`,
       `Fecha: ${d ? dateEsLong(d) : 'todavía sin definir'}${state.flex ? ' (mis fechas son flexibles)' : ''}`,
       `Personas: ${n}`,
-      `Recogida: ${pk ? pk.en : 'todavía no sé (Café Condesa o Café La Parada)'}`,
+      `Recogida: ${pk || 'todavía no sé (Café Condesa o Café La Parada)'}`,
     ];
-    if (time) M.push(`Hora de recogida: ${time.esMsg}`);
+    if (time) M.push(`Hora de recogida: ${time.es}`);
     if (pana) M.push('Después del tour: seguir hacia Panajachel / Lago de Atitlán (extra a solicitud)');
     if (fuego) M.push(`Caminata opcional al Fuego: me interesa (+Q${CONFIG.fuego.q} por persona, se paga en el campamento)`);
     if (xMsg.length) M.push(`Extras: ${xMsg.join(', ')}`);
@@ -177,15 +175,15 @@ function message() {
     `Tour: ${t.en}`,
     `Date: ${d ? dateEN(d) : 'not fixed yet'}${state.flex ? ' (my dates are flexible)' : ''}`,
     `People: ${n}`,
-    `Pickup: ${pk ? pk.en : 'not sure yet (Café Condesa or Café La Parada)'}`,
+    `Pickup: ${pk || 'not sure yet (Café Condesa or Café La Parada)'}`,
   ];
   if (time) L.push(`Pickup time: ${time.en}`);
   if (pana) L.push('After the tour: on toward Panajachel / Lake Atitlán (add-on on request)');
   if (fuego) L.push(`Optional Fuego hike: I'm interested (+Q${CONFIG.fuego.q} per person, paid at camp)`);
   if (xEN.length) L.push(`Extras: ${xEN.join(', ')}`);
   if (name) L.push(`Name: ${name}`);
-  L.push('', `Website price: Q${money(t.q)} per person = Q${money(q)} total (≈ US$${money(usd)}).`, 'Is there space? Could you confirm the exact pickup time and place? Thank you!', '');
-  L.push(`(ES) Hola Alexander: ${t.es} · ${d ? dateES(d) : 'fecha por confirmar'}${state.flex ? ' (fechas flexibles)' : ''} · ${n} ${n === 1 ? 'persona' : 'personas'} · ${pk ? pk.es : 'recogida por confirmar'}${time ? ' · ' + time.es : ''} · Total Q${money(q)}${pana ? ' · después: Panajachel' : ''}${fuego ? ` · interesados en la caminata al Fuego (+Q${CONFIG.fuego.q} p/p, se paga en el campamento)` : ''}${xES.length ? ' · extras: ' + xES.join(', ') : ''}`);
+  // R2 (client): no "(ES)" summary line: anything suggesting the site is separate from Alexander looks bad
+  L.push('', `Website price: Q${money(t.q)} per person = Q${money(q)} total (≈ US$${money(usd)}).`, 'Is there space? Could you confirm the exact pickup time and place? Thank you!');
   return L.join('\n');
 }
 const waLink = (num = CONFIG.wa.primary) => `https://wa.me/${num}?text=${encodeURIComponent(message())}`;
@@ -226,11 +224,7 @@ function renderPeople() {
 
 function render() {
   const { t, q, usd } = totals();
-  const msg = message();
-  // the (ES) summary line of the English message is marked as Spanish for screen readers
-  const b = $('#bubble'), i = msg.lastIndexOf('(ES) ');
-  b.textContent = i < 0 ? msg : msg.slice(0, i);
-  if (i >= 0) { const es = document.createElement('span'); es.lang = 'es'; es.textContent = msg.slice(i); b.append(es); }
+  $('#bubble').textContent = message();
   send.href = waLink();
   for (const a of $$('[data-send-alt]')) a.href = waLink(CONFIG.wa.secondary);
   $('[data-send-label]').textContent = TXT.send(money(q));
@@ -570,6 +564,9 @@ if (langMenu) {
   on(window, 'touchmove', moved, { passive: true });
   const SCROLL_KEYS = new Set(['PageUp', 'PageDown', 'Home', 'End', ' ', 'ArrowUp', 'ArrowDown']);
   on(document, 'keydown', (e) => {
+    // the first Tab soon after a wheel / swipe focuses "Skip to content" and scrolls the page to the top (before any
+    // focus event, with reduced motion): save the place on the key, and let no scroll that follows overwrite it
+    if (e.key === 'Tab' && performance.now() - userT < 1500) { clearTimeout(settleT); lastPlace = sectionInView(); userT = -1e9; }
     if (SCROLL_KEYS.has(e.key) && !(e.target.closest && e.target.closest('input, select, textarea, button, summary, [contenteditable], [data-lang-menu], dialog'))) moved();
   });
   on(window, 'scroll', () => { if (performance.now() - userT < 1500) settle(); }, { passive: true }); // smooth / momentum scrolling
@@ -591,6 +588,9 @@ if (langMenu) {
     on(a, 'click', (e) => { if (a.getAttribute('aria-current')) { e.preventDefault(); langMenu.open = false; } else aim(); });
   }
   on(document, 'click', (e) => { if (langMenu.open && !langMenu.contains(e.target)) langMenu.open = false; });
+  // Tab out of the list closes it (only when focus lands on something else: a tap on a link that Safari does not
+  // focus gives no relatedTarget, and closing then would hide the link before its click)
+  on(langMenu, 'focusout', (e) => { if (langMenu.open && e.relatedTarget && !langMenu.contains(e.relatedTarget)) langMenu.open = false; });
   on(langMenu, 'keydown', (e) => {
     if (e.key === 'Escape' && langMenu.open) { e.preventDefault(); langMenu.open = false; $('summary', langMenu).focus(); }
     if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && langMenu.open) { // arrow keys move between the languages
@@ -601,6 +601,17 @@ if (langMenu) {
       items[(i + (e.key === 'ArrowDown' ? 1 : items.length - 1)) % items.length].focus();
     }
   });
+}
+
+// ---------------------------------------------------------------- the ticket's Fuego-hike card: "How it works"
+// Phones keep the explanation one tap away (it is in #fuego and the FAQ too); from 600 px it is simply open,
+// without its summary. (Without JS it stays a working <details> at every width.)
+const upMore = $('.upgrade__more');
+if (upMore) {
+  const wide = matchMedia('(min-width: 600px)');
+  const sync = () => { if (wide.matches) upMore.open = true; upMore.firstElementChild.style.display = wide.matches ? 'none' : ''; };
+  sync();
+  on(wide, 'change', sync);
 }
 
 // ---------------------------------------------------------------- FAQ deep links open their answer

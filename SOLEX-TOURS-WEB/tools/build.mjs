@@ -109,7 +109,7 @@ const WA = {
   }),
   es: waTable({
     ask: (what) => `¡Hola, Alexander! Quiero consultar una fecha para ${what}.\nFecha: \nPersonas: \nRecogida: Café Condesa o Café La Parada`,
-    overnight: 'la caminata de 2 días al Acatenango (1 noche en cabaña, Q750 por persona)', time: '\nHora de recogida: 8:00 a. m. (o 6:30 a. m. a solicitud)',
+    overnight: 'la caminata de 2 días al Acatenango (1 noche en cabaña, Q750 por persona)', time: '\nHora de recogida: 8:00 a. m. (o 6:30 a. m., a solicitud)',
     midnight: 'el tour de medianoche (sale a las 10:30 p. m., Q750 por persona)', sunset: 'el tour de atardecer (sale a las 10:30 a. m., Q750 por persona)',
     express: 'el tour exprés de un día (sale a las 5:00 a. m., Q675 por persona)',
     gear: '\nAlquiler de equipo: me interesa (chaqueta, mochila, linterna, bastones o zapatos)',
@@ -203,13 +203,16 @@ for (const [L, src] of pages) {
   html = html.replace(/<meta property="og:locale" content="[^"]*">/, `<meta property="og:locale" content="${L.locale}">` + LANGS.filter((o) => o !== L).map((o) => `\n<meta property="og:locale:alternate" content="${o.locale}">`).join(''));
   html = html.replace(/(<meta property="og:image" content=")[^"]*"/, `$1${ORIGIN + L.og}"`);
   html = html.replace(/("offers":\{[^}]*"url":")[^"]*"/, `$1${url}"`);
-  // JSON-LD: this page's share image and the payment method in its language (TravelAgency)
+  // JSON-LD: this page's share image and the payment method in its language (TravelAgency), and a WebPage node
+  // that carries the page's language (inLanguage belongs to pages, not to the agency or the trip)
+  const pageTitle = html.match(/<title>([^<]*)<\/title>/)[1].replace(/&amp;/g, '&');
   html = html.replace(/(<script type="application\/ld\+json">)([\s\S]*?)(<\/script>)/, (_, a, json, b) => {
     const data = JSON.parse(json);
     for (const n of data['@graph'] ?? [data]) {
       if (n.image === ORIGIN + LANGS[0].og) n.image = ORIGIN + L.og;
       if (n.paymentAccepted) n.paymentAccepted = L.cash;
     }
+    data['@graph'].push({ '@type': 'WebPage', '@id': url + '#page', url, name: pageTitle, inLanguage: L.code, about: { '@id': ORIGIN + '#agency' } });
     return a + '\n' + JSON.stringify(data) + '\n' + b;
   });
   html = html.replace('<!--lang-switcher-->', switcher(L));
@@ -230,7 +233,8 @@ for (const [L, src] of pages) {
   const left = html.match(/\{\{[^}]+\}\}|data-pic=|<!--lang-/g);
   if (left) throw new Error(`${L.code}: unexpanded placeholders: ` + left.join(', '));
   if (NO_FUEGO) { // every Fuego-hike mention (both languages) must sit inside the markers
-    const stray = html.match(/Fuego hike|caminata (opcional )?al Fuego|Q300|fuegoAddon|data-fuego|id="(fuego|upgrade)"|#fuego\b|f-fuego|legal and safety|legales y de seguridad/gi);
+    // (R2-C1: "No extra hike needed" may only lead into the Fuego offer, so it goes with it)
+    const stray = html.match(/Fuego(&nbsp;| )hike|caminata (opcional )?al(&nbsp;| )Fuego|Q300|fuegoAddon|data-fuego|id="(fuego|upgrade)"|#fuego\b|f-fuego|legal and safety|legales y de seguridad|No extra hike|otra caminata|upgrade__more/gi);
     if (stray) throw new Error(`--no-fuego-hike left Fuego-hike content outside <!--fuego:start/end--> (${L.code}): ` + [...new Set(stray)].join(', '));
   }
   L.html = html;
@@ -252,8 +256,10 @@ for (const dir of ['fonts', 'brand']) await cp(path.join(SRC, 'assets', dir), pa
 for (const f of ['favicon.svg', 'favicon.ico', 'apple-touch-icon.png', 'og-image.jpg', 'og-image-es.jpg', 'robots.txt', 'site.webmanifest', 'icon-192.png', 'icon-512.png']) {
   await cp(path.join(SRC, f), path.join(SITE, f)).catch(() => {});
 }
-// each other language gets its own manifest (name/description in that language, icons from the root)
+// the source language's manifest says its language too; each other language gets its own manifest
+// (name/description in that language, icons from the root)
 const webmanifest = JSON.parse(await read('site.webmanifest'));
+await writeFile(path.join(SITE, 'site.webmanifest'), JSON.stringify({ lang: LANGS[0].code, ...webmanifest }, null, 2) + '\n');
 for (const L of LANGS.slice(1)) {
   const t = (s) => dicts[L.code].manifest?.[s] ?? s;
   const m = { ...webmanifest, lang: L.code, name: t(webmanifest.name), description: t(webmanifest.description), icons: webmanifest.icons.map((i) => ({ ...i, src: '../' + i.src })) };

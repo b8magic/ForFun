@@ -46,6 +46,12 @@ node tools/verify.mjs [--shots=docs/screens]   # booking message byte-for-byte (
                                                # covers no link; English head (canonical, hreflang, og:locale); English-only
                                                # no-JS texts; every preset button (tour, Fuego box, rentals) and the default
                                                # pickup-time line, both pages; no dead stepper / camp-switch without JS
+                                               # R2 final: no "(ES)" line in the English message; keyboard place kept with
+                                               # 200 ms between keys right after a wheel / swipe (both motion modes); the
+                                               # language list closes on Tab-out, tick not in link names, manifest lang +
+                                               # JSON-LD inLanguage; menu scroll shadows + focus ring inside the list at
+                                               # 390×844 / 844×390 / 360×640; "How it works" on the phone upgrade card;
+                                               # header and booking CTA at 360–430; no-Fuego SUNSET row text
                                                # (open: "page ≤ 18 screens" fails at ~22 at 390×844; an
                                                # accepted deviation: reviews, community and Fuego blocks were added to the spec)
 node tools/perf.mjs                            # LCP / CLS / transfer (Slow-4G-like + 4× CPU), EN + ES phone
@@ -137,16 +143,19 @@ every CTA is a working, prefilled `wa.me` link even without JavaScript.
   - `data-lang="es"` / `"en"` keeps an element on one page only (the "Original in English" of a translated review;
     the "Original in Spanish" of Tania's review, which the Spanish page shows in the original).
   - Runtime strings (dock, guide notes, date errors, toasts, the WhatsApp message, video button) come from the
-    `TXT` table in `site.js`, chosen by `<html lang>`. On the Spanish page the message is entirely Spanish (no
-    "(ES)" line), dates read "sábado 19 de diciembre de 2026" / "sáb 19 dic". The no-JS `{{wa:…}}` texts are
-    per language in `tools/build.mjs`.
+    `TXT` table in `site.js`, chosen by `<html lang>`. Each page's message is entirely in its language (R2: the
+    English message no longer ends with an "(ES)" summary line); Spanish dates read "sábado 19 de diciembre de 2026"
+    / "sáb 19 dic". The no-JS `{{wa:…}}` texts are per language in `tools/build.mjs`.
   - Switcher: a round flag (the current language: the UK flag for English, Guatemala's for the es_GT page) in the
     header opens a list of languages (a `<details>`, so it works without JS; Esc / outside click close it, arrow
     keys move, starting from the current language). Switching keeps the place: the `#hash` if its target is on
     screen (or the visitor has not scrolled since following it), else the section in view (hidden sections, such as
     `#prepare` on phones, are skipped). A keyboard visitor who tabs back up to the flag gets the section they last
-    scrolled to (wheel, touch or scroll keys) or the `#hash`, not the top of the page the focus scrolled to. Each page has its canonical, `hreflang` en / es /
-    x-default, `og:locale` (+ alternate), its own share image and manifest.
+    scrolled to (wheel, touch or scroll keys; a Tab right after scrolling saves it before the focus jump) or the
+    `#hash`, not the top of the page the focus scrolled to. Tab out of the open list closes it; the tick on the current
+    language is decorative (not part of the link's name). Each page has its canonical, `hreflang` en / es /
+    x-default, `og:locale` (+ alternate), its own share image and manifest (both with `lang`), and a JSON-LD
+    `WebPage` with `inLanguage`.
   - **Add a language**: an entry in `LANGS` (tools/build.mjs), `src/i18n/<code>.json`, a round flag
     `<symbol id="f-<code>">` in the sprite of src/index.html, a `TXT` table in site.js, a `WA` table in build.mjs,
     optionally `src/assets/css/critical-<code>.css`, then `npm run fonts`.
@@ -163,11 +172,12 @@ every CTA is a working, prefilled `wa.me` link even without JavaScript.
   inputs ≥ 16 px; pinch-zoom stays (no `maximum-scale`).
 
 - **Booking**: every "Check a date" button opens one form (`form#slip`) in a bottom sheet; the form
-  writes the WhatsApp message live (on the English page: English + a one-line Spanish summary for Alexander; on the
-  Spanish page: all Spanish; with the
+  writes the WhatsApp message live (all English on the English page, all Spanish on the Spanish page, with the
   website price and group total). For the overnight hike it also asks the pickup time (8:00 AM
   standard / 6:30 AM on request), the Panajachel add-on and the opt-in Fuego hike (a message line
-  only). "Add it to my note" on the Fuego cards opens the sheet with that box ticked. Links marked `data-send-alt` send the same note to the second
+  only). "Add it to my note" on the Fuego cards opens the sheet with that box ticked. On phones the ticket's
+  "Optional upgrade" card keeps its explanation behind "How it works" (the same words are in `#fuego` and the FAQ);
+  from 600 px it is open. Links marked `data-send-alt` send the same note to the second
   number (+502 4946 8883). Nothing is charged or stored beyond the tab (sessionStorage). Without JS
   the form is hidden and the Send link is the prefilled static message.
   On phones (< 600 px, with JS) the `#book` section shows a compact card (tour, people, live total

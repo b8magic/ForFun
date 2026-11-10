@@ -22,6 +22,10 @@
 //    and the language list open; the menu CTA never covers a link; the English head (canonical, hreflang,
 //    og:locale); English-only no-JS texts; every preset button (tour, Fuego box, rentals) and the default
 //    pickup-time line; no dead controls without JS.
+// 9. Round-2 final review: no "(ES)" line in the English message; the language list closes on Tab-out and its tick
+//    is not in the link names; manifest "lang" and JSON-LD WebPage.inLanguage; menu scroll shadows, focus ring kept
+//    inside the scrolling list, padded rows; the phone upgrade card's "How it works"; header / booking CTA at 360–430;
+//    in the no-Fuego build, the SUNSET row without its "No extra hike needed" lead.
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
@@ -64,7 +68,6 @@ const GT_TODAY = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Guatemala
 const EX = new Date(Date.parse(GT_TODAY + 'T00:00:00Z') + 42 * 864e5);
 const EX_ISO = EX.toISOString().slice(0, 10);
 const EX_EN = `${['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][EX.getUTCDay()]} ${EX.getUTCDate()} ${['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][EX.getUTCMonth()]}`;
-const EX_ES = `${['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'][EX.getUTCDay()]} ${EX_ISO.slice(8, 10)}/${EX_ISO.slice(5, 7)}/${EX_ISO.slice(0, 4)}`;
 // The site may be built with or without the optional Fuego hike (node tools/build.mjs --no-fuego-hike):
 // detected from the HTML, so the same suite gates both builds.
 const HAS_FUEGO = (await readFile(path.join(SITE, 'index.html'), 'utf8')).includes('id="f-fuego"');
@@ -80,9 +83,7 @@ ${HAS_FUEGO ? "Optional Fuego hike: I'm interested (+Q300 per person, paid at ca
 Name: Maria
 
 Website price: Q750 per person = Q2,250 total (≈ US$300).
-Is there space? Could you confirm the exact pickup time and place? Thank you!
-
-(ES) Hola Alexander: Tour 2D/1N (acampar) · ${EX_ES} · 3 personas · Café Condesa · 6:30 AM (a solicitud) · Total Q2,250 · después: Panajachel${HAS_FUEGO ? ' · interesados en la caminata al Fuego (+Q300 p/p, se paga en el campamento)' : ''} · extras: porteador subida, alquiler: linterna`;
+Is there space? Could you confirm the exact pickup time and place? Thank you!`; // R2 (client): no "(ES)" summary line
 // The Spanish page writes the whole message in Spanish (site.js TXT/LANG).
 const EX_ES_LONG = `${['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'][EX.getUTCDay()]} ${EX.getUTCDate()} de ${['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'][EX.getUTCMonth()]} de ${EX.getUTCFullYear()}`;
 const EX_ES_SHORT = `${['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'][EX.getUTCDay()]} ${EX.getUTCDate()} ${['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'][EX.getUTCMonth()]}`;
@@ -104,7 +105,7 @@ const enc = (t) => encodeURIComponent(t).replace(/[!'()*]/g, (c) => '%' + c.char
 const NOJS_OVERNIGHT = "Hi Alexander! I'd like to check a date for the Acatenango Overnight Hike (2 days / 1 night, Q750 per person).\nDate: \nPeople: \nPickup: Café Condesa or Café La Parada\nPickup time: 8:00 AM (or 6:30 AM on request)";
 const HERO_HREF = 'https://wa.me/50248347003?text=' + enc(NOJS_OVERNIGHT);
 const FUEGO_HREF = 'https://wa.me/50248347003?text=' + enc(NOJS_OVERNIGHT + "\nOptional Fuego hike: I'm interested (+Q300 per person, paid at camp)");
-const NOJS_OVERNIGHT_ES = '¡Hola, Alexander! Quiero consultar una fecha para la caminata de 2 días al Acatenango (1 noche en cabaña, Q750 por persona).\nFecha: \nPersonas: \nRecogida: Café Condesa o Café La Parada\nHora de recogida: 8:00 a. m. (o 6:30 a. m. a solicitud)';
+const NOJS_OVERNIGHT_ES = '¡Hola, Alexander! Quiero consultar una fecha para la caminata de 2 días al Acatenango (1 noche en cabaña, Q750 por persona).\nFecha: \nPersonas: \nRecogida: Café Condesa o Café La Parada\nHora de recogida: 8:00 a. m. (o 6:30 a. m., a solicitud)';
 const HERO_HREF_ES = 'https://wa.me/50248347003?text=' + enc(NOJS_OVERNIGHT_ES);
 const FUEGO_HREF_ES = 'https://wa.me/50248347003?text=' + enc(NOJS_OVERNIGHT_ES + '\nCaminata opcional al Fuego: me interesa (+Q300 por persona, se paga en el campamento)');
 // "No English left" on the Spanish page: words that are English and never Spanish (names, brands and
@@ -162,7 +163,9 @@ const FALLBACK_OK = new Set(['≈', '→']);
     ok('Fuego-hike interest is not added to the website total', (await page.textContent('#note [data-total]')) === totalBefore && totalBefore === 'Q2,250 ≈ US$300', totalBefore);
   } else {
     const txt = await page.evaluate(() => document.body.innerText + document.head.innerHTML);
-    ok('no-Fuego build: no Fuego-hike content anywhere (page, meta, sheet)', !/Fuego hike|Q300|optional upgrade|closer to Fuego|legal and safety/i.test(txt));
+    ok('no-Fuego build: no Fuego-hike content anywhere (page, meta, sheet), no "No extra hike needed" lead', !/Fuego\shike|Q300|optional upgrade|closer to Fuego|legal and safety|No extra hike/i.test(txt));
+    const lead = await page.evaluate(() => document.querySelector('.seg--sunset .tl__row h3 + p').textContent.trim());
+    ok('no-Fuego build: the SUNSET row is just "The view from our camp is already stunning." (R2-C1/C12: the lead goes with the Fuego offer)', lead === 'The view from our camp is already stunning.', lead);
   }
   await page.click('#note label.chip:has(input[value="porterUp"])');
   await page.click('#note label.chip:has(input[value="headlamp"])');
@@ -171,6 +174,8 @@ const FALLBACK_OK = new Set(['≈', '→']);
   const msg = decodeURIComponent(href.split('?text=')[1]);
   ok('Send href → wa.me/50248347003', href.startsWith('https://wa.me/50248347003?text='));
   ok('message matches the template byte for byte (R2: pickup time, Panajachel add-on, Fuego interest)', msg === EXPECTED, msg === EXPECTED ? '' : '\n--- got ---\n' + msg + '\n--- expected ---\n' + EXPECTED);
+  ok('en: no "(ES)" summary line and no Spanish words in the message (R2: it made the site look separate from Alexander)', !/\(ES\)/.test(msg) && spanishIn(msg).length === 0, spanishIn(msg).join(', '));
+  ok('en: preview bubble = message', (await page.evaluate(() => document.querySelector('#bubble').textContent)) === EXPECTED);
   ok('encoded URL < 2,000 characters', href.length < 2000, `${href.length} chars`);
   ok('Send label shows total', (await page.textContent('[data-send-label]')).trim() === 'Send on WhatsApp · Q2,250');
   if (shotsDir) await page.screenshot({ path: path.join(shotsDir, 'm-sheet-filled.png') });
@@ -373,7 +378,7 @@ for (const url of ['/', '/es/']) for (const dev of [MOBILE, DESKTOP]) {
     ok('es: Fuego-hike interest is not added to the total', (await page.textContent('#note [data-total]')) === before && before === 'Q2,250 ≈ US$300', before);
   } else {
     const txt = await page.evaluate(() => document.body.innerText + document.head.innerHTML);
-    ok('es no-Fuego build: no Fuego-hike content anywhere (page, meta, sheet)', !/caminata (opcional )?al Fuego|Q300|más al Fuego|legales y de seguridad/i.test(txt));
+    ok('es no-Fuego build: no Fuego-hike content anywhere (page, meta, sheet), no "No hace falta otra caminata" lead', !/caminata\s(opcional\s)?al\sFuego|Q300|más al Fuego|legales y de seguridad|otra caminata/i.test(txt));
   }
   await page.click('#note label.chip:has(input[value="porterUp"])');
   await page.click('#note label.chip:has(input[value="headlamp"])');
@@ -524,9 +529,12 @@ for (const url of ['/', '/es/']) for (const dev of [MOBILE, DESKTOP]) {
     if (url !== '/es/#faq-pay') keys.push(`${dev === MOBILE ? '390' : '1440'} ${motion}: ${at ? '' : 'flag never reached; '}→ ${url}`);
     await c.close();
   }
-  // touch-scroll (phone) / wheel (desktop) to #reviews, then keyboard to the flag (Tab from the top of the document)
-  for (const dev of [MOBILE, DESKTOP]) {
-    const c = await browser.newContext({ ...dev, reducedMotion: 'reduce' });
+  // touch-scroll (phone) / wheel (desktop) to #reviews, then keyboard to the flag (Tab from the top of the document).
+  // R2F-3: like a person, not a script: the first Tab comes within 1 s of the scroll and the keys are 200 ms apart
+  // (the first Tab focuses "Skip to content" and scrolls to the top inside the settle window), both motion modes.
+  const gap = (p) => p.waitForTimeout(200);
+  for (const [dev, motion] of [[MOBILE, 'reduce'], [MOBILE, 'no-preference'], [DESKTOP, 'reduce'], [DESKTOP, 'no-preference']]) {
+    const c = await browser.newContext({ ...dev, reducedMotion: motion });
     const p = await c.newPage();
     await p.goto(base + '/', { waitUntil: 'networkidle' });
     const dist = await p.evaluate(() => Math.round(document.getElementById('reviews').getBoundingClientRect().top + scrollY - innerHeight * 0.1));
@@ -541,16 +549,16 @@ for (const url of ['/', '/es/']) for (const dev of [MOBILE, DESKTOP]) {
       await p.mouse.move(700, 450);
       for (let done = 0; done < dist;) { const step = Math.min(400, dist - done); await p.mouse.wheel(0, step); done += step; await p.waitForTimeout(30); }
     }
-    await p.waitForTimeout(500);
+    await p.waitForTimeout(300);
     const where = await p.evaluate(() => { const r = document.getElementById('reviews').getBoundingClientRect(); return r.top <= innerHeight * 0.35 && r.bottom > innerHeight * 0.35; });
     let at = false;
-    for (let i = 0; i < 12 && !at; i++) { await p.keyboard.press('Tab'); at = await p.evaluate(() => document.activeElement.matches('.lang__btn')); }
-    await p.keyboard.press('Enter');
-    await p.keyboard.press('ArrowDown');
+    for (let i = 0; i < 12 && !at; i++) { await p.keyboard.press('Tab'); await gap(p); at = await p.evaluate(() => document.activeElement.matches('.lang__btn')); }
+    await p.keyboard.press('Enter'); await gap(p);
+    await p.keyboard.press('ArrowDown'); await gap(p);
     await Promise.all([p.waitForURL(/\/es\//, { timeout: 5000 }).catch(() => {}), p.keyboard.press('Enter')]);
     await p.waitForTimeout(300);
     const url = p.url().replace(base, '');
-    if (url !== '/es/#reviews') keys.push(`${dev === MOBILE ? 'touch 390' : 'wheel 1440'}: ${where ? '' : '#reviews not reached by scrolling; '}${at ? '' : 'flag never reached; '}→ ${url}`);
+    if (url !== '/es/#reviews') keys.push(`${dev === MOBILE ? 'touch 390' : 'wheel 1440'} ${motion}: ${where ? '' : '#reviews not reached by scrolling; '}${at ? '' : 'flag never reached; '}→ ${url}`);
     await c.close();
   }
   ok('keyboard: Shift+Tab to the flag from /#faq-pay → /es/#faq-pay; after touch / wheel scrolling to #reviews, Tab to the flag → /es/#reviews (390 + 1440, reduced + full motion)', keys.length === 0, keys.join('; '));
@@ -568,6 +576,111 @@ for (const url of ['/', '/es/']) for (const dev of [MOBILE, DESKTOP]) {
   await p2.click('.lang__btn');
   ok('es no-JS: the language list opens without JS (<details>)', await p2.evaluate(() => document.querySelector('.lang').open && document.querySelectorAll('.lang__list a').length === 2));
   await nj.close();
+}
+
+// ------------------------------------------------------------ 9. Round-2 final review fixes
+{
+  // R2F-4: the language list closes when Tab leaves it; the tick is not part of the link names; page languages
+  // in the manifests and in JSON-LD (WebPage.inLanguage)
+  const c = await browser.newContext({ ...MOBILE, reducedMotion: 'reduce' });
+  const p = await c.newPage();
+  watch(p, 'r2f');
+  await p.goto(base + '/es/', { waitUntil: 'networkidle' });
+  let at = false;
+  for (let i = 0; i < 12 && !at; i++) { await p.keyboard.press('Tab'); at = await p.evaluate(() => document.activeElement.matches('.lang__btn')); }
+  await p.keyboard.press('Enter');
+  const names = { es: await p.getByRole('link', { name: 'Español', exact: true }).count(), en: await p.getByRole('link', { name: 'English', exact: true }).count() };
+  await p.keyboard.press('Tab'); await p.keyboard.press('Tab');
+  const inList = await p.evaluate(() => document.querySelector('.lang').open && document.activeElement.matches('.lang__list a'));
+  await p.keyboard.press('Tab');
+  const out = await p.evaluate(() => ({ open: document.querySelector('.lang').open, focus: document.activeElement.className }));
+  ok('R2F-4: Tab out of the language list closes it; the tick is not in the link names ("Español", "English")', at && inList && !out.open && names.es === 1 && names.en === 1, JSON.stringify({ at, inList, ...out, names }));
+  const man = { en: await (await fetch(base + '/site.webmanifest')).json(), es: await (await fetch(base + '/es/site.webmanifest')).json() };
+  const ld = {};
+  for (const [l, u] of [['en', '/'], ['es', '/es/']]) {
+    const h = await readFile(path.join(SITE, u.slice(1), 'index.html'), 'utf8');
+    ld[l] = JSON.parse(h.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/)[1])['@graph'].find((n) => n['@type'] === 'WebPage');
+  }
+  ok('R2F-4: manifests say "lang" (en, es); JSON-LD WebPage inLanguage en / es with the page URL', man.en.lang === 'en' && man.es.lang === 'es' && ld.en?.inLanguage === 'en' && ld.es?.inLanguage === 'es' && ld.en.url === 'https://solex-tours.com/' && ld.es.url === 'https://solex-tours.com/es/', JSON.stringify({ man: [man.en.lang, man.es.lang], ld: [ld.en?.inLanguage, ld.es?.inLanguage] }));
+  await c.close();
+
+  // MV2-01 / R2F-1 / R2F-2 / MV2-05: the menu list shows it scrolls (scroll shadows) when it overflows, a focused link
+  // keeps its whole focus ring inside the list, two-line rows keep their text off the dividers
+  const menu = [];
+  for (const [w, h] of [[390, 844], [844, 390], [360, 640]]) for (const url of ['/', '/es/']) {
+    const mc = await browser.newContext({ viewport: { width: w, height: h }, deviceScaleFactor: 1, isMobile: true, hasTouch: true, reducedMotion: 'reduce' });
+    const mp = await mc.newPage();
+    await mp.goto(base + url, { waitUntil: 'networkidle' });
+    await mp.click('[data-open-menu]');
+    await mp.waitForTimeout(150);
+    const r = await mp.evaluate(() => {
+      const n = document.querySelector('#menu > nav'), cs = getComputedStyle(n);
+      const rows = [...n.querySelectorAll('a')].map((a) => { const s = getComputedStyle(a); return parseFloat(s.paddingTop); });
+      return { over: n.scrollHeight > n.clientHeight + 1, grads: (cs.backgroundImage.match(/gradient\(/g) || []).length, att: cs.backgroundAttachment, sp: cs.scrollPaddingTop, pad: Math.min(...rows) };
+    });
+    // scroll shadows: a cover that scrolls with the list ("local") over a fixed bottom shadow ("scroll")
+    if (r.over && !(r.grads >= 2 && /local/.test(r.att) && /scroll/.test(r.att))) menu.push(`${url} ${w}×${h}: overflows without a scroll cue (${r.grads} gradients, ${r.att})`);
+    if (r.pad < 8) menu.push(`${url} ${w}×${h}: link padding ${r.pad}px`);
+    // Tab through the links: the focused one never sits flush with the list's edge (its 5 px ring would be cut)
+    const cut = [];
+    for (let i = 0; i < 20; i++) {
+      await mp.keyboard.press('Tab');
+      const f = await mp.evaluate(() => {
+        const a = document.activeElement, n = document.querySelector('#menu > nav');
+        if (!n.contains(a)) return null;
+        const ar = a.getBoundingClientRect(), nr = n.getBoundingClientRect();
+        return { t: a.textContent.trim().slice(0, 18), top: Math.round(ar.top - nr.top), bottom: Math.round(nr.bottom - ar.bottom) };
+      });
+      if (f && (f.top < 5 || f.bottom < 5)) cut.push(`${f.t} (${f.top}/${f.bottom})`);
+    }
+    if (cut.length) menu.push(`${url} ${w}×${h}: focus ring cut on ${cut.slice(0, 3).join(', ')}`);
+    await mc.close();
+  }
+  ok('menu (390×844, 844×390, 360×640, both pages): scroll shadows when the list overflows; focused links keep their ring inside; rows padded 8 px', menu.length === 0, menu.join('; '));
+
+  // MV2-03: #fuego text back to the small-text token on phones; the ticket's upgrade card keeps its explanation behind
+  // "How it works" on phones (closed, ≥ 44 px) and simply open from 600 px
+  const up = [];
+  for (const [dev, url] of [[MOBILE, '/'], [MOBILE, '/es/'], [DESKTOP, '/'], [{ viewport: { width: 820, height: 1180 } }, '/es/']]) {
+    const uc = await browser.newContext({ ...dev, reducedMotion: 'reduce' });
+    const upg = await uc.newPage();
+    await upg.goto(base + url, { waitUntil: 'networkidle' });
+    const s = await upg.evaluate(() => {
+      const d = document.querySelector('.upgrade__more'), sum = d && d.querySelector('summary');
+      return d && { open: d.open, sumH: sum.getClientRects().length ? Math.round(sum.getBoundingClientRect().height) : 0, fuegoFs: parseFloat(getComputedStyle(document.querySelector('.fuego__text p')).fontSize), upFs: parseFloat(getComputedStyle(d.querySelector('p')).fontSize), w: innerWidth };
+    });
+    if (!s) { if (HAS_FUEGO) up.push(`${url}: no .upgrade__more`); await uc.close(); continue; }
+    const phone = s.w < 600;
+    if (phone && (s.open || s.sumH < 44)) up.push(`${url} ${s.w}: open ${s.open}, summary ${s.sumH}px`);
+    if (!phone && (!s.open || s.sumH)) up.push(`${url} ${s.w}: open ${s.open}, summary shown ${s.sumH}px`);
+    if (s.fuegoFs < 15 || s.upFs < 15) up.push(`${url} ${s.w}: text ${s.fuegoFs} / ${s.upFs}px`);
+    if (phone) { // one tap opens it
+      await upg.evaluate(() => document.querySelector('.upgrade__more').scrollIntoView({ block: 'center' }));
+      await upg.click('.upgrade__more summary');
+      if (!(await upg.evaluate(() => document.querySelector('.upgrade__more').open))) up.push(`${url}: summary does not open`);
+    }
+    await uc.close();
+  }
+  ok('upgrade card: "How it works" closed on phones (≥ 44 px, opens on tap), open without a summary from 600 px; #fuego / card text ≥ 15 px', !HAS_FUEGO || up.length === 0, up.join('; '));
+
+  // MV2-02 / MV2-08 / MV2-06: the header subtitle never touches the flag, the Menu label shows where it fits,
+  // the booking-card CTA stays on one line at 375
+  const hdr = [];
+  for (const w of [360, 375, 385, 390, 414, 430]) for (const url of ['/', '/es/']) {
+    const hc = await browser.newContext({ viewport: { width: w, height: 800 }, deviceScaleFactor: 1, isMobile: true, hasTouch: true });
+    const hp = await hc.newPage();
+    await hp.goto(base + url, { waitUntil: 'networkidle' });
+    const r = await hp.evaluate(() => {
+      const box = (s) => { const e = document.querySelector(s); return e && e.getClientRects().length ? e.getBoundingClientRect() : null; };
+      const name = box('.brand__name small') || box('.brand__name'), flag = box('.lang__btn'), menu = box('.top__menu'), label = box('.top__menu-label'), wa = box('.top__wa');
+      const cta = document.querySelector('.book__card .btn');
+      return { gap: Math.round(flag.left - name.right), label: !!label, fits: Math.round(wa.right) <= innerWidth - 12 && menu.right <= wa.left, cta: cta && cta.getClientRects().length ? Math.round(cta.getBoundingClientRect().height) : 0 };
+    });
+    if (r.gap < 6 || !r.fits) hdr.push(`${url} ${w}: subtitle–flag gap ${r.gap}px${r.fits ? '' : ', header overflows'}`);
+    if (r.cta > 60) hdr.push(`${url} ${w}: booking CTA ${r.cta}px tall`);
+    await hc.close();
+  }
+  ok('header at 360–430 (both pages): the brand keeps ≥ 6 px from the flag, nothing overflows; the booking-card CTA is one line (MV2-02, -06, -08)', hdr.length === 0, hdr.join('; '));
 }
 
 // words in CSS generated content would escape the dictionary (and the checks above)

@@ -243,7 +243,7 @@
 .fuego__facts li, .upgrade__price span { font: 500 var(--t-meta)/1.3 var(--f-text); color: var(--mist); }
 .fuego__facts b { margin-right: 5px; font: 700 17px/1.2 var(--f-display); color: var(--sun); }
 .fuego__text { grid-area: text; margin-top: 14px; }
-.fuego__text p { margin: 0 0 12px; font-size: var(--t-small); line-height: 1.5; }
+.fuego__text p, .upgrade__more p { margin: 0 0 12px; font-size: var(--t-small); line-height: 1.5; } /* the same Fuego-hike text, the same size in both places */
 .fuego__text .btn, .upgrade .btn { width: 100%; }
 
 /* =====================================================================
@@ -271,20 +271,20 @@
 .incl li::before { content: ""; position: absolute; left: 0; top: 10px; width: 24px; height: 24px; border-radius: 7px; background: var(--sky-deep); }
 .incl li::after { content: ""; position: absolute; left: 7px; top: 16px; width: 11px; height: 6px; border: solid #fff; border-width: 0 0 2.5px 2.5px; transform: rotate(-45deg); }
 .optional { margin-bottom: var(--s-6); }
-.extras li { padding: 8px 0; border-bottom: 1px dashed var(--line); font-size: var(--t-small); line-height: 1.4; color: var(--ink-2); }
+.extras li { padding: 8px 0; border-bottom: 1px dashed var(--line); font-size: var(--t-small); line-height: 1.4; color: var(--ink-2); break-inside: avoid; } /* (.incl li too: columns from 600 px) */
 .extras b { color: var(--ink); }
 /* the ticket's "Optional upgrade" card: a light card with a night edge, so Q750 stays the heaviest object and the
    brand blue runs on through the ticket (ink 14.2:1 and red-deep 9.4:1 on sky-pale; the night tag keeps the
    Fuego block's colours: sun on night 10.9:1) */
-/* One head row at every width: the tag and the title on the left, +Q300 and "per person, paid at camp" on the right. */
-.upgrade { margin: 20px 0 0; padding: 14px 16px 16px; border-radius: var(--r-lg); background: var(--sky-pale); color: var(--ink); box-shadow: inset 0 0 0 2px var(--night); }
+/* One head row at every width: the tag and the title on the left, +Q300 per person on the right. Phones: the
+   explanation sits behind "How it works" (site.js opens it from 600 px and the summary is then hidden). */
+.upgrade { --mist: var(--ink-2); margin: 20px 0 0; padding: 14px 16px 16px; border-radius: var(--r-lg); background: var(--sky-pale); color: var(--ink); box-shadow: inset 0 0 0 2px var(--night); } /* --mist: "per person" (shared rule with the night #fuego facts) in ink-2 on the light card */
 .upgrade__head { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "top price" "title price"; align-items: center; gap: 6px 10px; margin: 0 0 10px; padding-bottom: 10px; border-bottom: 1.5px dashed var(--line); }
 .upgrade .upgrade__tag { grid-area: top; justify-self: start; margin: 0; padding: 3px 8px 2px; letter-spacing: .06em; background: var(--night); color: var(--sun); }
 .upgrade h3 { grid-area: title; font-size: 22px; }
 .upgrade__price { grid-area: price; display: flex; flex-direction: column; align-items: flex-end; gap: 2px; margin: 0; text-align: right; }
 .upgrade__price strong { font: 800 31px/1 var(--f-display); letter-spacing: -.02em; color: var(--red-deep); }
-.upgrade .upgrade__price span { max-width: 7em; line-height: 1.25; color: var(--ink-2); }
-.upgrade > p { margin: 0 0 8px; font-size: 14px; line-height: 1.45; text-wrap: wrap; } /* greedy breaks: "pretty" costs a line here */
+/* (.upgrade__more: its text with .fuego__text p, its summary with .rev__orig summary) */
 .upgrade b, .upgrade .upgrade__note { color: var(--red-deep); }
 .upgrade .upgrade__note { margin-bottom: 12px; font: 700 var(--t-meta)/1.45 var(--f-text); }
 .upgrade .btn--sun { box-shadow: inset 0 0 0 2px var(--night), inset 0 -4px 0 #C98A1B; } /* a night edge: the sun button on a light ground */
@@ -318,11 +318,11 @@
 .rev::before { content: "“"; position: absolute; right: 16px; top: -6px; font: 700 72px/1 var(--f-display); color: var(--sky); }
 .rev blockquote { flex: 1; margin: 12px 0 10px; }
 .rev blockquote p { margin: 0; font: 600 italic 20px/1.35 var(--f-display); color: var(--ink); }
-.rev__orig summary { display: inline-flex; align-items: center; min-height: 44px; font: 700 var(--t-meta)/1.3 var(--f-text); text-decoration: underline; text-underline-offset: 3px; }
+.rev__orig summary, .upgrade__more summary { display: inline-flex; align-items: center; min-height: 44px; font: 700 var(--t-meta)/1.3 var(--f-text); text-decoration: underline; text-underline-offset: 3px; }
 .rev__orig p { margin: 0 0 8px; font: 500 italic var(--t-small)/1.4 var(--f-text); color: var(--ink-2); }
 .rev__by { margin: 8px 0 0; padding-top: 10px; border-top: 1px dashed var(--line); font: 500 var(--t-meta)/1.4 var(--f-text); color: var(--ink-2); }
 .rev__by b { display: block; font-size: 15px; color: var(--ink); }
-.reviews__hint { display: flex; align-items: center; gap: 6px; margin: 0; font: 600 var(--t-meta)/1 var(--f-text); color: var(--ink-2); }
+.reviews__hint, .trio__hint { display: flex; align-items: center; gap: 6px; margin: 0; font: 600 var(--t-meta)/1 var(--f-text); color: var(--ink-2); }
 
 /* =====================================================================
    THE TWO DAYS — "the day in light"
@@ -358,7 +358,7 @@
 .tl__row::before { content: ""; position: absolute; z-index: 2; left: calc(-30px - 6px); top: 7px; width: 12px; height: 12px; border-radius: 50%; background: var(--paper); box-shadow: 0 0 0 2.5px var(--ink); }
 .seg--night .tl__row::before, .seg--bluehour .tl__row::before { background: var(--night); box-shadow: 0 0 0 2.5px var(--mist); }
 .tl__label { margin: 0 0 4px; font: 800 14px/1.2 var(--f-text); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-2); }
-.tl__time { text-transform: none; } /* "8:00 a. m." never turns into "A. M." in the uppercase labels (timeline, route) */
+.tl__time, .route__t.tl__time { text-transform: none; } /* "8:00 a. m." never turns into "A. M." in the uppercase labels (timeline, route: .route__t comes later) */
 .seg--sunset .tl__label, .seg--dawn .tl__label, .seg--sky .tl__label { color: var(--ink); }
 .seg--night .tl__label, .seg--bluehour .tl__label { color: var(--sun); }
 .tl__row h3 { margin-bottom: 6px; font-size: 22px; }
@@ -399,7 +399,7 @@
 .trio__row { display: flex; gap: 14px; margin: 0 calc(-1 * var(--gutter)); padding: 8px var(--gutter) 16px; overflow-x: auto; scroll-snap-type: x mandatory; scroll-padding-inline: var(--gutter); scrollbar-width: thin; }
 .trio__row li { flex: 0 0 70%; scroll-snap-align: start; }
 .trio__row img { aspect-ratio: 4 / 5; object-fit: cover; }
-.trio__hint { display: flex; align-items: center; gap: 6px; margin: 0; font: 600 var(--t-meta)/1 var(--f-text); color: var(--ink-2); }
+/* (.trio__hint: with .reviews__hint) */
 
 /* =====================================================================
    OTHER TOURS
@@ -480,7 +480,6 @@
 .faq details[open] summary::after { transform: rotate(45deg); }
 .faq details > div { padding: 0 0 16px; }
 .faq details p { margin: 0; max-width: 62ch; color: var(--ink-2); }
-.faq details a { font-weight: 700; color: var(--ink); padding-block: 12px; }
 .faq details:target { animation: target 1.2s var(--ease-out); }
 .faq__ticks { margin-bottom: 8px; }
 @keyframes target { from { background: rgb(244 192 106 / .45); } }
@@ -622,12 +621,18 @@ dialog::backdrop { background: rgb(15 21 36 / .62); }
 .menu { width: 100%; max-height: 100svh; height: 100svh; margin: 0; padding: 0 var(--gutter) calc(12px + env(safe-area-inset-bottom)); background: var(--sky-pale); overflow: hidden; }
 .menu[open] { display: flex; flex-direction: column; }
 .menu__head { flex: none; display: flex; align-items: center; justify-content: space-between; height: 64px; margin: 0 calc(-1 * var(--gutter)) 2px; padding: 4px var(--gutter) 0; background: var(--sky); }
-/* the list scrolls on its own between the header and the CTA (6 px / 8 px of padding keep the focus ring inside it) */
-.menu > nav { flex: 1 1 auto; min-height: 0; margin: 0 -8px; padding: 6px 8px; overflow-y: auto; overscroll-behavior: contain; }
+/* the list scrolls on its own between the header and the CTA (6 px / 8 px of padding, and the scroll padding when Tab
+   scrolls it, keep the focus ring inside). Scroll shadows: the menu head casts one on the list, and one at the bottom
+   says there is more below until the sky-pale cover, which scrolls with the list ("local"), reaches the end. */
+.menu > nav {
+  flex: 1 1 auto; min-height: 0; margin: 0 -8px; padding: 6px 8px; overflow-y: auto; overscroll-behavior: contain; scroll-padding-block: 8px;
+  background: linear-gradient(transparent, var(--sky-pale) 70%) bottom / 100% 28px no-repeat local,
+    radial-gradient(farthest-side at 50% 0, rgb(30 29 24 / .16), transparent) top / 100% 12px no-repeat, radial-gradient(farthest-side at 50% 100%, rgb(30 29 24 / .16), transparent) bottom / 100% 12px no-repeat;
+}
 .menu__head::before { content: ""; position: absolute; inset: 0 0 auto; height: 4px; background: var(--tx-selvedge) 0 0 / auto 4px repeat-x; }
 .menu__h { margin: 0; font: 700 22px/1 var(--f-display); }
 .menu__list { margin: 0; }
-.menu__list a { display: flex; align-items: center; min-height: 48px; border-bottom: 1px dashed var(--line); font: 600 18px/1.25 var(--f-text); text-decoration: none; }
+.menu__list a { display: flex; align-items: center; min-height: 48px; padding-block: 8px; border-bottom: 1px dashed var(--line); font: 600 18px/1.25 var(--f-text); text-decoration: none; }
 .menu > .btn--primary { margin-top: 12px; }
 .menu__nums { margin: 8px 0 0; text-align: center; font-size: var(--t-small); }
 .menu__nums a { display: inline-flex; align-items: center; min-height: 44px; font-weight: 700; }
@@ -775,7 +780,6 @@ html:not(.js) .stepper__btn, html:not(.js) .sight__switch { display: none; }
   .local__text .kicker { max-width: calc(100% - 120px); } /* wraps before the rotated "Hecho en La Soledad" stamp */
   .upgrade { margin-inline: -8px; } /* a little wider than the ticket text: 8 px into the ticket's padding each side */
   @media (max-width: 359px) { .upgrade__head { grid-template-areas: "top top" "title price"; } } /* 320: the tag gets the whole row */
-  .fuego__text p { font-size: 14px; line-height: 1.45; text-wrap: wrap; } /* same measure as the upgrade card */
   /* the Cabin Door's scroll room (three shows): 44svh on phones */
   .js:not(.static) .door { margin-top: var(--s-4); }
   .js:not(.static) .door__track { height: calc(var(--door-h) + 44svh); }
@@ -789,7 +793,7 @@ html:not(.js) .stepper__btn, html:not(.js) .sight__switch { display: none; }
    ===================================================================== */
 @media (min-width: 600px) {
   /* comfortable measure (~75 characters) once the column gets wide */
-  .letter, .guides, .ticket__body > p, .bring li, .note-sky, .gear__lede, .camp__quote, .upgrade > p, .micro { max-width: 34em; }
+  .letter, .guides, .ticket__body > p, .bring li, .note-sky, .gear__lede, .camp__quote, .upgrade p, .micro { max-width: 34em; }
   /* on the text itself (em = its own size); 34em still measured ~80–89 characters on these */
   .straight li, .route li, .local__text p:not(.kicker), .tl__row p, .faq details p { max-width: 32em; }
   .dock { left: 0; right: 0; max-width: 560px; margin-inline: auto; }
@@ -835,7 +839,6 @@ html:not(.js) .stepper__btn, html:not(.js) .sight__switch { display: none; }
   .upgrade { padding: 22px 26px 24px; }
   .upgrade h3 { font-size: 28px; }
   .upgrade__price strong { font-size: 40px; }
-  .upgrade > p { font-size: var(--t-small); }
 }
 
 /* =====================================================================
@@ -870,7 +873,6 @@ html:not(.js) .stepper__btn, html:not(.js) .sight__switch { display: none; }
   .guides p:last-child { font-size: 18px; }
   .loom__nums { font-size: 88px; }
   .loom__arrow { width: 40px; height: 40px; }
-  .loom__group { gap: calc(var(--px) * 3); }
   .guides__lede { font: 700 28px/1.3 var(--f-display); }
   .guides__lede strong { font-weight: 800; }
   .local__grid { grid-template-columns: repeat(12, minmax(0, 1fr)); column-gap: 24px; align-items: center; }
@@ -906,9 +908,7 @@ html:not(.js) .stepper__btn, html:not(.js) .sight__switch { display: none; }
   .ticket__sub { font-size: 17px; }
   .stamp--ticket { width: 168px; height: 168px; margin: -8px 0 -36px; }
   .perf { margin-inline: -44px; }
-  .incl { columns: 2; column-gap: 36px; }
-  .extras { columns: 2; column-gap: 36px; }
-  .extras li { break-inside: avoid; }
+  .incl, .extras { columns: 2; column-gap: 36px; }
   .ticket .btn--block { width: auto; padding-inline: 32px; }
   .overnight__side { grid-column: 8 / 13; position: sticky; top: 100px; gap: 20px; }
   .straight, .bring { padding: 30px 28px; }
@@ -918,7 +918,7 @@ html:not(.js) .stepper__btn, html:not(.js) .sight__switch { display: none; }
   .reviews__head { grid-column: 1 / 5; position: sticky; top: 112px; }
   .score__n { font-size: 112px; line-height: .85; letter-spacing: -.04em; }
   .stars { width: 130px; height: 23px; background-size: 26px 23px; }
-  .reviews__row { grid-column: 5 / 13; grid-template-columns: repeat(2, 1fr); gap: 20px; }
+  .reviews__row { grid-column: 5 / 13; gap: 20px; } /* (two columns from 600 px) */
   .rev { padding: 26px 26px 20px; }
   .rev:nth-child(even) { transform: translateY(40px); }
   .rev blockquote p { font-size: 23px; }
@@ -926,14 +926,13 @@ html:not(.js) .stepper__btn, html:not(.js) .sight__switch { display: none; }
 
   /* two days: phase bands full-bleed, rows in cols 1–7, sticky photo panel cols 8–12 */
   .days { --rail: calc(max(var(--gutter), (100% - var(--maxw)) / 2) + 14px); }
-  .seg { padding-right: calc(max(var(--gutter), (100% - var(--maxw)) / 2) + 5 * (var(--maxw) - 11 * 24px) / 12 + 5 * 24px); padding-left: calc(var(--rail) + 40px); }
+  .seg { padding-top: 26px; padding-right: calc(max(var(--gutter), (100% - var(--maxw)) / 2) + 5 * (var(--maxw) - 11 * 24px) / 12 + 5 * 24px); padding-left: calc(var(--rail) + 40px); }
   .tl__row::before { left: calc(-40px - 6px); }
   .tl__day::before { left: calc(-40px - 9px); }
   .tl__dial { top: 29px; } /* first segment has 26 px padding here: centre the resting dial on the Day 1 dot */
   .tl__row { padding-bottom: 34px; }
   .tl__row h3 { font-size: 30px; }
   .tl__row p { font-size: 18px; }
-  .seg { padding-top: 26px; }
   .seg--skypale, .seg--sky { padding-top: 56px; }
   .seg--sunset { padding-top: 72px; }
   .seg--night, .seg--dawn { padding-top: 120px; }
@@ -999,7 +998,6 @@ html:not(.js) .stepper__btn, html:not(.js) .sight__switch { display: none; }
   /* a long preview scrolls inside its bubble, so Send stays on screen */
   .slip__out .bubble { max-height: calc(100vh - 360px); overflow-y: auto; }
   .sheet .bubble { max-height: calc(88vh - 340px); overflow-y: auto; }
-  .radios--tour { grid-template-columns: 1fr 1fr; }
 
   .foot__grid { grid-template-columns: repeat(12, minmax(0, 1fr)); column-gap: 24px; padding-top: var(--s-10); }
   .foot__brand { grid-column: 1 / 6; }
@@ -1015,8 +1013,7 @@ html:not(.js) .stepper__btn, html:not(.js) .sight__switch { display: none; }
   .sheet .slip { padding: 26px 28px 24px; }
   .sheet .slip__send, .sheet .slip__after--alt { position: static; margin: 0; padding: 0; box-shadow: none; }
   .sheet .slip__out { display: block; top: 0; }
-  .toast { bottom: 32px; }
-  dialog .toast { bottom: 32px; }
+  .toast, dialog .toast { bottom: 32px; }
 
   /* desktop light journey: frame (cols 1–6) + state copy (cols 8–12) */
       .js:not(.static) .door { margin-top: var(--s-8); }
@@ -1045,7 +1042,6 @@ html:not(.js) .stepper__btn, html:not(.js) .sight__switch { display: none; }
 }
 @media (min-width: 600px) and (max-width: 959px) {
   .incl, .extras { columns: 2; column-gap: 32px; }
-  .incl li, .extras li { break-inside: avoid; }
 }
 @media (min-width: 960px) and (max-width: 1199px) {
   .incl, .extras { columns: 1; }
@@ -1062,7 +1058,4 @@ html:not(.js) .stepper__btn, html:not(.js) .sight__switch { display: none; }
   .btn, .rc span, .chip span, .stepper__btn, .dock__in { border: 2px solid ButtonText; }
   .band, .stitch-ico, .tape { forced-color-adjust: none; }
 }
-@media print {
-  .dock, .top, .sheet, .menu, .film__toggle, .skip { display: none !important; }
-  body { background: #fff; }
-}
+@media print { .dock, .top { display: none !important; } } /* (closed dialogs never print; backgrounds are off by default) */

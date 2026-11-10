@@ -969,6 +969,13 @@ Every interactive element has a **≥ 44 × 44 px** hit area and a visible `:foc
 
 ### 6.3 Exact WhatsApp message template
 
+> **R2: (ES) line removed.** The client (round 2, 9 Nov 2026) finds that anything suggesting the site is separate
+> from Alexander looks bad, so the English message no longer ends with an "(ES) Hola Alexander: …" summary line
+> (C16 had already removed the FAQ sentence that explained it). The Spanish page writes its own message, entirely in
+> Spanish. The round-2 lines (pickup time, Panajachel add-on on request, opt-in Fuego-hike interest, "the exact pickup
+> time and place") are in `src/assets/js/site.js` `message()`; `tools/verify.mjs` holds both expected messages
+> (EN and ES) byte for byte.
+
 Lines in `[brackets]` are only included when that field has a value. `{…}` are substitutions. Use `\n` line breaks.
 
 ```
@@ -984,11 +991,10 @@ Pickup: {pickupEN | "not sure yet (Café Condesa or Café La Parada)"}
 
 Website price: Q{priceQ} per person = Q{totalQ} total (≈ US${totalUSD}).
 Is there space? Could you confirm the pickup time? Thank you!
-
-(ES) Hola Alexander: {tourES} · {dateES | "fecha por confirmar"}[ (fechas flexibles)] · {n} personas · {pickupES | "recogida por confirmar"} · Total Q{totalQ}[ · después: Panajachel][ · extras: {extrasES}]
 ```
 
-**Substitution tables:**
+**Substitution tables** (the `tourES` / ES columns fed the removed (ES) line and are no longer used; the Spanish
+page's own wording is in `site.js`):
 
 | Key | tourNameEN | tourES | priceQ / USD |
 |---|---|---|---|
@@ -1006,7 +1012,7 @@ Is there space? Could you confirm the pickup time? Thank you!
 
 **Date formats.** Parse the `yyyy-mm-dd` string and format in UTC to avoid timezone shift.
 - `dateEN`: `Intl.DateTimeFormat('en-GB', {weekday:'short', day:'numeric', month:'short', year:'numeric', timeZone:'UTC'})` gives `Sun 8 Nov 2026`.
-- `dateES`: `es` locale, weekday short + `dd/mm/yyyy`, gives `dom 08/11/2026`.
+- `dateES`: `es` locale, weekday short + `dd/mm/yyyy`, gives `dom 08/11/2026` (R2: unused since the (ES) line was removed).
 
 **Rendered example** (3 people, 8 Nov 2026, Condesa, Panajachel, porter up, headlamp, name Maria):
 
@@ -1023,8 +1029,6 @@ Name: Maria
 
 Website price: Q750 per person = Q2,250 total (≈ US$300).
 Is there space? Could you confirm the pickup time? Thank you!
-
-(ES) Hola Alexander: Tour 2D/1N (acampar) · dom 08/11/2026 · 3 personas · Café Condesa · Total Q2,250 · después: Panajachel · extras: porteador subida, alquiler: linterna
 ```
 
 Keep the encoded URL under 2,000 characters. The template is about 700 characters at most.
@@ -1059,7 +1063,7 @@ https://wa.me/50248347003?text=Hi%20Alexander%21%20I%27d%20like%20to%20check%20a
 
 ### 7.1 Accessibility (WCAG 2.2 AA; target Lighthouse 100)
 
-- `<html lang="en">`. Spanish phrases get `lang="es"`: `¡Hola!`, `Hecho en La Soledad`, the (ES) preview line, `Gracias`.
+- `<html lang="en">`. Spanish phrases get `lang="es"`: `¡Hola!`, `Hecho en La Soledad`, the (ES) preview line (R2: removed), `Gracias`.
 - Skip link ("Skip to booking", plus "Skip to content"), landmarks (`header`, `main`, `footer`, `nav`), one H1, ordered headings, `aria-labelledby` on sections.
 - Contrast: only the pairs in 2.1. Hand-font notes on photos sit only over dark areas (≥ 3:1 for large text, with a text-shadow). Their information is always repeated in real text.
 - **Targets** ≥ 44 × 44 px everywhere, including footer links and "Ask about this tour" (B's 20 px links are fixed). Minimum text 13 px. Inputs ≥ 16 px.
@@ -1215,7 +1219,7 @@ ffmpeg -i /tmp/solex_raw/owner/cabin_interior_beds.mp4 -an -vf "scale=848:-2,fps
 21. Don't hide navigation behind an unlabelled clock pill. The menu is labelled "Menu".
 22. Don't ship a native `<select>` for the tour. Use radio cards with times and prices.
 23. Don't let any CTA depend on JS. Every booking link is a working prefilled `wa.me` href.
-24. Don't send a message without the group total and the website-price line, or without the (ES) summary line.
+24. Don't send a message without the group total and the website-price line. (R2: the (ES) summary line was removed, see 6.3.)
 
 ---
 
@@ -1271,7 +1275,7 @@ const CONFIG = {
 3. **Automated audit:** zero visible text nodes < 13 px; zero non-inline targets < 44 px; fixed UI mid-page ≤ 10%.
 4. **Reduced motion and `?static=1`:** no running animations, all content visible, video paused, door figures stacked.
 5. **No-JS:** every CTA opens WhatsApp with prefilled text.
-6. **Builder:** the totals are correct for each tour × {1, 8, 9, 60}. A past date blocks with an error. Today shows the note. The message matches 6.3 byte-for-byte for the example. The (ES) line is present. The dock live state matches the builder.
+6. **Builder:** the totals are correct for each tour × {1, 8, 9, 60}. A past date blocks with an error. Today shows the note. The message matches 6.3 byte-for-byte for the example. No "(ES)" line (R2: removed). The dock live state matches the builder.
 7. **`fuegoAddon=false`:** all three mentions disappear and the layout is intact. `reviews=false`: no review section in the DOM.
 8. **Lighthouse mobile:** Performance ≥ 90, Accessibility 100. LCP ≤ 2.5 s, CLS ≤ 0.05. Transfer until LCP ≤ 200 KB. JS ≤ 14 KB gz.
 9. **Contrast:** spot-check every text/background pair against 2.1, including all door and timeline phases.

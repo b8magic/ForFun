@@ -81,7 +81,7 @@ li, figcaption, small { text-wrap: pretty; }
 h1 em, h2 em, h3 em, .quote em { font-style: italic; font-weight: 600; }
 h2 { font-size: var(--t-h2); line-height: 1.04; letter-spacing: -.015em; }
 h3 { font-size: var(--t-h3); line-height: 1.2; letter-spacing: -.005em; }
-button, input, select, textarea { font: inherit; color: inherit; }
+button, input { font: inherit; color: inherit; } /* (the page has no select / textarea) */
 button, summary { cursor: pointer; }
 summary { list-style: none; } /* every disclosure on the page draws its own marker (FAQ +, language flag, Show/Hide, Original) */
 summary::-webkit-details-marker { display: none; }
@@ -120,7 +120,7 @@ figure, blockquote { margin: 0; }
   -webkit-tap-highlight-color: transparent;
 }
 .btn--l { min-height: 56px; font-size: 17px; padding: 14px 24px; }
-@media (max-width: 374px) { .btn--l { padding-inline: 14px; gap: 8px; font-size: 16px; white-space: nowrap; } } /* one line at 360 */
+@media (max-width: 389px) { .btn--l { padding-inline: 14px; gap: 8px; font-size: 16px; white-space: nowrap; } } /* one line at 360 and 375 */
 @media (max-width: 339px) { .btn--l { white-space: normal; } } /* 320: let a long label wrap instead of scrolling the page sideways */
 .btn--m { min-height: 48px; }
 .btn--primary { background: var(--red); color: #fff; box-shadow: var(--sh-cta); }
@@ -153,16 +153,15 @@ figure, blockquote { margin: 0; }
 .top::before { content: ""; position: absolute; inset: 0 0 auto; height: 4px; background: var(--tx-selvedge) 0 0 / auto 4px repeat-x; }
 .top__in { display: flex; align-items: center; gap: 8px; height: 100%; max-width: calc(var(--maxw) + 2 * var(--gutter)); margin: 0 auto; padding: 4px var(--gutter) 0; }
 .brand { display: flex; align-items: center; gap: 10px; min-height: 44px; margin-right: auto; text-decoration: none; border-radius: 12px; }
-.brand__patch { width: 44px; height: 44px; border-radius: 50%; }
+.brand__patch { width: 44px; height: 44px; border-radius: 50%; box-shadow: 0 0 0 2px var(--paper), var(--sh-paper); } /* a paper ring: the roundel's own 1 px white edge vanishes on the sky header */
 .brand__name { font: 700 20px/1 var(--f-display); letter-spacing: -.01em; }
 .brand__name small { display: block; margin-top: 5px; font: 600 13px/1.1 var(--f-text); letter-spacing: 0; color: var(--ink-2); white-space: nowrap; }
 .top__nav { display: none; }
-.top__menu { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 6px; border-radius: 12px; font: 700 15px/1 var(--f-text); text-decoration: none; color: var(--ink); }
+.top__menu { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: 44px; min-height: 44px; padding: 0 6px; border-radius: 12px; font: 700 15px/1 var(--f-text); text-decoration: none; color: var(--ink); }
 .top__menu .ico { width: 20px; height: 20px; }
 .top__wa { display: inline-grid; place-items: center; flex: none; width: 44px; height: 44px; border-radius: 50%; background: var(--ink); color: var(--paper); text-decoration: none; }
 .top__wa .ico { width: 22px; height: 22px; }
 .top__wa-label { display: none; } /* phones: icon only (aria-label names the link) */
-@media (max-width: 374px) { .brand__name small { display: none; } } /* 360: the subtitle would run into Menu */
 /* language switcher (tools/build.mjs writes it from LANGS): the current language's round flag (+ a small chevron:
    it opens a menu) and a list of the languages, the current one ticked */
 .lang { position: relative; }
@@ -172,8 +171,12 @@ figure, blockquote { margin: 0; }
 .lang__btn .flag { box-shadow: 0 0 0 2px var(--paper), 0 0 0 3px var(--line); }
 .lang__list { position: absolute; top: 100%; right: 0; width: max-content; padding: 6px; border-radius: var(--r-md); background: var(--paper); box-shadow: var(--sh-lift); }
 .lang__list a { display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 0 12px; text-decoration: none; }
-.lang__list [aria-current]::after { content: "✓"; }
-@media (max-width: 429px) { .top__in { gap: 4px; } .top__menu { padding: 0 12px; } .top__menu-label { display: none; } } /* room for the flag: the menu is an icon (aria-label keeps its name) */
+.lang__list [aria-current]::after { content: "✓"; content: "✓" / ""; } /* decorative: not part of the link's name (aria-current says it); the first value is for browsers without alt text */
+/* Menu control: icon + word from 430 px; 390–429: the word alone (the stitched icon on its own reads like a grid), so
+   the brand subtitle keeps its room; below 390 (iPhone SE / mini): the icon alone (aria-label) and no subtitle,
+   which would otherwise touch the flag */
+@media (max-width: 429px) { .top__in { gap: 4px; } .top__menu { padding: 0 4px; } .top__menu .ico { display: none; } }
+@media (max-width: 389px) { .brand__name small, .top__menu-label { display: none; } .top__menu .ico { display: block; } }
 @media (max-width: 339px) { .top__in { padding-inline: 12px; } } /* 320: brand, flag, menu and WhatsApp still fit */
 /* compact sticky header after 600 px (mobile): shown on scroll-up only */
 .top.is-fixed { position: fixed; inset: 0 0 auto; height: 56px; transform: translateY(-110%); box-shadow: 0 1px 0 var(--line); }
